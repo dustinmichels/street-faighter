@@ -126,6 +126,9 @@ Authored once against the template skeleton and stored in the game, not in chara
 
 ## 10. Wrap-up
 
-- [ ] Use a fixed physics tick (60 Hz) for all gameplay logic (helps with deterministic netcode in step 2).
-- [ ] Playtest: walk, jump, punch the idle fighter until KO, restart.
-- [ ] Update `README.md` with how to run the game and the controls.
+- [x] Use a fixed physics tick (60 Hz) for all gameplay logic (helps with deterministic netcode in step 2).
+  - `physics/common/physics_ticks_per_second=60` set explicitly in `project.godot`; `Fighter.TICK_RATE` 60 / `TICK` 1/60 (asserted equal to the engine rate in `_ready`). Gameplay never uses the frame delta: gravity/knockback friction step by `TICK`, and `state_time` (float seconds) became `state_ticks` (int), compared against `Fighter.ticks(seconds)` (rounded) for punch length/active frames, hit stun and jump phases. All gameplay runs in `_physics_process` (fighters, follow camera; animations on the physics callback); only the HUD (display) and restart input run per frame. Verified headless: two runs of the same scripted 850-tick input (walk, jump, punch to KO) give identical positions/states every tick; 40 airborne ticks, punch active on ticks 5–7, 10 hits KO.
+- [x] Playtest: walk, jump, punch the idle fighter until KO, restart.
+  - Windowed run driven by real key events (D/W/J/R through `PlayerInput`) with screenshots: walk 30 ticks moves 0.97 m (camera follows), jump peaks at 1.35 m and lands back in idle, 10 punches (walking back in after each knockback) KO fighter 2 at 0 health with the "K.O." message and red health bar, R reloads to 100/100 at ±1.5 in idle. No bugs found. Only noise: Godot warns about the user-data dir case (`street-faighter` vs existing `street-fAIghter`), harmless.
+- [x] Update `README.md` with how to run the game and the controls.
+  - New "Running the game" section (Godot 4.7, editor F5 or `godot --path .`), a controls table matching the `project.godot` actions, and the commands that regenerate the template/characters/animation library. Verified `godot --path .` launches the main scene with no errors.

@@ -10,11 +10,12 @@ Builds on step 1 (`todo.md`):
 
 ## 1. Netcode model
 
-- [ ] Choose the sync model and record the decision in `docs/netcode.md`:
+- [x] Choose the sync model and record the decision in `docs/netcode.md`:
   - Input sync (lockstep with input delay, optionally rollback later): send only inputs per tick; both peers simulate. Small bandwidth, the usual approach for fighting games, but the simulation must be deterministic.
   - State sync (authoritative host): the host simulates and sends snapshots, and the client predicts. More tolerant of non-determinism but adds input lag on the client.
-- [ ] Choose the transport: Godot high-level multiplayer with `ENetMultiplayerPeer` (UDP, direct IP / port forward), or `WebRTCMultiplayerPeer` if NAT traversal or a web build is needed.
-- [ ] Choose the topology: peer-to-peer host/join (one player hosts) vs. a dedicated server.
+- [x] Choose the transport: Godot high-level multiplayer with `ENetMultiplayerPeer` (UDP, direct IP / port forward), or `WebRTCMultiplayerPeer` if NAT traversal or a web build is needed.
+- [x] Choose the topology: peer-to-peer host/join (one player hosts) vs. a dedicated server.
+  - Decisions in `docs/netcode.md`: input sync (lockstep → rollback), ENet, P2P host/join. §2 must remove the `move_and_slide`/`Area3D` query/per-node `_physics_process` order dependencies.
 
 ## 2. Deterministic simulation
 
@@ -48,6 +49,7 @@ Required for input sync; also useful for state sync with prediction.
 ## 5. Session & lobby
 
 - [ ] Main menu: Local (step 1 behavior), Host, Join (enter IP:port or a room code).
+  - Start menu exists: `scenes/menu.tscn` (main scene, `scripts/menu.gd`) with "Singleplayer" (→ `main.tscn`) and a disabled "Multiplayer (online)" button. Enable that button and make it lead to Host/Join.
 - [ ] Host: create the peer, wait for one client, assign host = fighter 1, client = fighter 2.
 - [ ] Join: connect, handshake with the game version and protocol version, and reject on mismatch.
 - [ ] Both peers agree on the match config (stage, character tint, start tick) before the first tick.

@@ -224,6 +224,47 @@ static func punch() -> Array:
 	]
 
 
+## Air kick timing at 60 fps: 4 startup, 12 active, 12 recovery frames; markers
+## `active_start`/`active_end` like the punch. The long active window lets a
+## kick thrown near the top of the jump still connect on the way down.
+const AIR_KICK_ACTIVE_START := 4.0 / 60.0
+const AIR_KICK_ACTIVE_END := 16.0 / 60.0
+const AIR_KICK_LENGTH := 28.0 / 60.0
+
+## Flying kick fully extended: front (left) leg straight, angled down-forward
+## (≈30° below horizontal, heel leading), back leg tucked, torso leaning back to
+## balance, fists still guarding.
+static var AIR_KICK := _pose(TUCK, {
+	"spine": Vector3(-10, 0, 0),
+	"chest": Vector3(-4, 0, 0),
+	"neck": Vector3(8, 0, 0),
+	"head": Vector3(8, 0, 0),
+	"thigh.L": Vector3(-60, 0, -4),
+	"shin.L": Vector3(0, 0, 0),
+	"foot.L": Vector3(-15, 0, 0),
+	"thigh.R": _m(Vector3(-40, 0, -6)),
+	"shin.R": Vector3(115, 0, 0),
+	"foot.R": Vector3(20, 0, 0),
+})
+
+
+## Air kick: chamber the knee, snap the leg out and hold it (active), then pull
+## back into the jump's `TUCK`, which it holds until landing.
+static func air_kick() -> Array:
+	var chamber := _pose(TUCK, {
+		"spine": Vector3(-4, 0, 0),
+		"thigh.L": Vector3(-95, 0, -4),
+		"shin.L": Vector3(110, 0, 0),
+	})
+	return [
+		[0.0, TUCK],
+		[2.0 / 60.0, chamber],
+		[AIR_KICK_ACTIVE_START, AIR_KICK],
+		[AIR_KICK_ACTIVE_END, AIR_KICK],
+		[AIR_KICK_LENGTH, TUCK],
+	]
+
+
 ## Flat on the back on the floor, feet toward where the fighter stood (the
 ## hips end 0.8 m behind their start), arms out at the sides.
 static var LYING := _pose(STANCE, {
@@ -344,6 +385,8 @@ static func knockdown() -> Array:
 ## pairs; markers (optional) map a name to a time.
 static func clips() -> Dictionary:
 	return {
+		&"air_kick": [AIR_KICK_LENGTH, false, false, air_kick(),
+			{&"active_start": AIR_KICK_ACTIVE_START, &"active_end": AIR_KICK_ACTIVE_END}],
 		&"idle": [1.0, true, true, idle()],
 		&"jump_start": [0.15, false, true, jump_start()],
 		&"jump_air": [0.25, false, true, jump_air()],

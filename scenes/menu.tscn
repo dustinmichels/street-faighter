@@ -1,0 +1,71 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/menu.gd" id="1_menu"]
+
+[node name="Menu" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_menu")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.32, 0.38, 0.5, 1)
+
+[node name="Center" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Items" type="VBoxContainer" parent="Center"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Title" type="Label" parent="Center/Items"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.98, 0.82, 0.2, 1)
+theme_override_colors/font_outline_color = Color(0.08, 0.06, 0.1, 1)
+theme_override_constants/outline_size = 6
+theme_override_font_sizes/font_size = 36
+text = "Street fAIghter"
+horizontal_alignment = 1
+
+[node name="Spacer" type="Control" parent="Center/Items"]
+custom_minimum_size = Vector2(0, 12)
+layout_mode = 2
+
+[node name="Singleplayer" type="Button" parent="Center/Items"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_font_sizes/font_size = 12
+text = "Singleplayer"
+
+[node name="Multiplayer" type="Button" parent="Center/Items"]
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+size_flags_horizontal = 4
+tooltip_text = "Online play is not implemented yet."
+theme_override_font_sizes/font_size = 12
+disabled = true
+text = "Multiplayer (online)"
+
+[node name="ComingSoon" type="Label" parent="Center/Items"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 0.7)
+theme_override_font_sizes/font_size = 8
+text = "Online multiplayer coming soon"
+horizontal_alignment = 1

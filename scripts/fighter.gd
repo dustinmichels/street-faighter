@@ -7,8 +7,17 @@ extends CharacterBody3D
 ## moves along world X: Z velocity and position are forced to zero every tick.
 
 enum State { IDLE, WALK, JUMP, PUNCH, HIT, KNOCKED_DOWN }
-## Parts of the `jump` state, each with its own clip (`JUMP_CLIPS`).
-enum JumpPhase { TAKEOFF, AIR, LANDING }
+## Parts of the `jump` state, each with its own clip (`JUMP_CLIPS`). `KICK`
+## replaces `AIR` once the attack button is pressed mid-air and lasts until
+## touchdown (the clip ends back in the tuck and holds it).
+enum JumpPhase { TAKEOFF, AIR, LANDING, KICK }
+
+## Gameplay rate: every rule below advances once per physics tick, by `TICK`
+## (never the frame delta), and times are counted in whole ticks so the
+## simulation is deterministic for netcode. Must equal the project's
+## `physics/common/physics_ticks_per_second`.
+const TICK_RATE := 60
+const TICK := 1.0 / TICK_RATE
 
 ## Shared clips (`animations/build_base.gd`), played on every character.
 const ANIMATIONS := preload("res://animations/base.res")
@@ -21,6 +30,8 @@ const HIT_RECOIL_END := 0.1
 const MAX_HEALTH := 100
 ## Health one landed punch takes off.
 const PUNCH_DAMAGE := 10
+## Health one landed air kick takes off.
+const AIR_KICK_DAMAGE := 10
 ## Push speed (m/s) a hit gives the victim, away from the attacker.
 const KNOCKBACK_SPEED := 3.0
 ## Deceleration (m/s²) of that push: it stops after 0.2 s, ≈ 0.3 m.
@@ -42,13 +53,21 @@ const JUMP_VELOCITY := 8.0
 const JUMP_TAKEOFF := 0.15
 ## Grounded recovery after touchdown; matches the `jump_land` clip.
 const JUMP_LANDING := 0.2
-const JUMP_CLIPS: Array[StringName] = [&"jump_start", &"jump_air", &"jump_land"]
+const JUMP_CLIPS: Array[StringName] = [&"jump_start", &"jump_air", &"jump_land", &"air_kick"]
 ## Full punch duration (startup + active + recovery), taken from the clip.
 static var PUNCH_LENGTH := ANIMATIONS.get_animation(&"punch").length
 ## The punch clip's active window (markers `active_start`/`active_end`); the
 ## hitbox is live from the start up to, not including, the end.
 static var PUNCH_ACTIVE_START := ANIMATIONS.get_animation(&"punch").get_marker_time(&"active_start")
 static var PUNCH_ACTIVE_END := ANIMATIONS.get_animation(&"punch").get_marker_time(&"active_end")
+## The air kick clip's active window, counted from the start of `KICK`.
+static var AIR_KICK_ACTIVE_START := ANIMATIONS.get_animation(&"air_kick").get_marker_time(&"active_start")
+static var AIR_KICK_ACTIVE_END := ANIMATIONS.get_animation(&"air_kick").get_marker_time(&"active_end")
+## Hitbox center (body space, facing +X) per attack: the extended fist
+## (≈ 0.57–0.73 m forward, 1.33 m up) and the extended kicking foot (ankle
+## 0.75 m forward, 0.52 m up; heel/sole just past it).
+const PUNCH_HITBOX := Vector3(0.62, 1.33, 0.0)
+const AIR_KICK_HITBOX := Vector3(0.8, 0.55, 0.0)
 
 ## Character `.glb` to load on ready (see `docs/skeleton.md`).
 @export_file("*.glb") var character_path: String
@@ -69,8 +88,8 @@ var anim: AnimationPlayer
 
 ## Current state; change it only via `change_state()`.
 var state := State.IDLE
-## Seconds spent in the current state (and jump phase).
-var state_time := 0.0
+## Physics ticks spent in the current state (and jump phase).
+var state_ticks := 0
 ## Part of the jump while `state == State.JUMP`.
 var jump_phase := JumpPhase.TAKEOFF
 ## +1 when the fighter faces +X, -1 when it faces -X.
@@ -81,30 +100,31 @@ var move_dir := 0.0
 var prev_buttons := 0
 ## Remaining health, 0..`MAX_HEALTH`.
 var health := MAX_HEALTH
-## Set once the current punch connects, so it hits at most once.
-var punch_landed := false
+## Set once the current punch or air kick connects, so it hits at most once.
+var attack_landed := false
 
 @onready var visual: Node3D = $Visual
 ## Where this fighter can be hit: a fixed capsule matching the body (layer 3,
 ## `hurtboxes`), never taken from the mesh. Only queried, never monitoring.
 @onready var hurtbox: Area3D = $Hurtbox
-## The punch's reach: a fixed box in front of the chest at fist height (the
-## extended fist spans ≈ 0.57–0.73 m forward, 1.33 m up), mirrored with
-## `facing`. Its shape is enabled only on active frames; hits come from
-## `hitbox_targets()`, a direct space query, so they land on the same tick.
+## The current attack's reach: a fixed box placed at `PUNCH_HITBOX` or
+## `AIR_KICK_HITBOX` when the attack starts, mirrored with `facing`. Its shape
+## is enabled only on active frames; hits come from `hitbox_targets()`, a
+## direct space query, so they land on the same tick.
 @onready var hitbox: Area3D = $Hitbox
 @onready var hitbox_shape: CollisionShape3D = $Hitbox/Collision
 
 
 func _ready() -> void:
+	assert(Engine.physics_ticks_per_second == TICK_RATE, "physics tick rate must be %d Hz" % TICK_RATE)
 	if not character_path.is_empty():
 		set_character(character_path)
 	_update_facing()
 	_apply_facing()
 
 
-func _physics_process(delta: float) -> void:
-	state_time += delta
+func _physics_process(_delta: float) -> void:
+	state_ticks += 1
 	var buttons := input.poll() if input != null else 0
 	var pressed := buttons & ~prev_buttons
 	prev_buttons = buttons
@@ -112,13 +132,13 @@ func _physics_process(delta: float) -> void:
 	var jump_pressed := (pressed & InputSource.JUMP) != 0
 	var punch_pressed := (pressed & InputSource.PUNCH) != 0
 	if not is_on_floor():
-		velocity.y -= GRAVITY * delta
+		velocity.y -= GRAVITY * TICK
 	match state:
 		State.IDLE, State.WALK:
 			_update_facing()
 			if punch_pressed and is_on_floor():
 				velocity.x = 0.0
-				punch_landed = false
+				_start_attack(PUNCH_HITBOX)
 				change_state(State.PUNCH)
 			elif jump_pressed and is_on_floor():
 				move_dir = dir
@@ -128,18 +148,18 @@ func _physics_process(delta: float) -> void:
 			else:
 				_ground_move(dir)
 		State.JUMP:
-			_jump()
+			_jump(punch_pressed)
 		State.PUNCH:
 			# Rooted and deaf to input until the clip ends; only a hit cuts it short.
 			velocity.x = 0.0
-			if state_time >= PUNCH_LENGTH:
+			if state_ticks >= ticks(PUNCH_LENGTH):
 				move_dir = 0.0
 				change_state(State.IDLE)
 		State.HIT:
-			velocity.x = move_toward(velocity.x, 0.0, KNOCKBACK_FRICTION * delta)
+			velocity.x = move_toward(velocity.x, 0.0, KNOCKBACK_FRICTION * TICK)
 		State.KNOCKED_DOWN:
 			velocity.x = 0.0
-	if state == State.HIT and state_time >= HIT_STUN:
+	if state == State.HIT and state_ticks >= ticks(HIT_STUN):
 		change_state(State.IDLE)
 	velocity.z = 0.0
 	move_and_slide()
@@ -148,10 +168,11 @@ func _physics_process(delta: float) -> void:
 		_push_apart(opponent)
 		_stay_in_range(opponent)
 	hitbox_shape.disabled = not is_hitbox_active()
-	if not hitbox_shape.disabled and not punch_landed:
+	if not hitbox_shape.disabled and not attack_landed:
+		var damage := PUNCH_DAMAGE if state == State.PUNCH else AIR_KICK_DAMAGE
 		for target in hitbox_targets():
-			target.take_hit(PUNCH_DAMAGE, facing)
-			punch_landed = true
+			target.take_hit(damage, facing)
+			attack_landed = true
 	_snap_visual()
 
 
@@ -232,14 +253,25 @@ func _apply_facing() -> void:
 	hitbox.position.x = facing * absf(hitbox.position.x)
 
 
-## True on the punch's active frames. Compared in whole physics ticks so float
-## drift in `state_time` can't add or drop a frame.
+## Whole physics ticks in `seconds` (rounded), for comparing with `state_ticks`.
+static func ticks(seconds: float) -> int:
+	return roundi(seconds * TICK_RATE)
+
+
+## True on the active frames of the punch (ticks 5–7) or the air kick (ticks
+## 4–15 of `KICK`).
 func is_hitbox_active() -> bool:
-	if state != State.PUNCH:
-		return false
-	var tps := Engine.physics_ticks_per_second
-	var frame := roundi(state_time * tps)
-	return frame >= roundi(PUNCH_ACTIVE_START * tps) and frame < roundi(PUNCH_ACTIVE_END * tps)
+	if state == State.PUNCH:
+		return state_ticks >= ticks(PUNCH_ACTIVE_START) and state_ticks < ticks(PUNCH_ACTIVE_END)
+	if state == State.JUMP and jump_phase == JumpPhase.KICK:
+		return state_ticks >= ticks(AIR_KICK_ACTIVE_START) and state_ticks < ticks(AIR_KICK_ACTIVE_END)
+	return false
+
+
+## Arms a new attack: one hit allowed, hitbox moved to `offset` on the facing side.
+func _start_attack(offset: Vector3) -> void:
+	attack_landed = false
+	hitbox.position = Vector3(facing * offset.x, offset.y, offset.z)
 
 
 ## Other fighters whose hurtbox overlaps the hitbox right now (regardless of
@@ -261,33 +293,37 @@ func hitbox_targets() -> Array[Fighter]:
 
 
 ## Jump: crouch, launch toward the direction held at the press (no air
-## control), fall under gravity, then a landing crouch back into idle.
-func _jump() -> void:
+## control), fall under gravity, then a landing crouch back into idle. An
+## attack press while airborne throws one air kick (`KICK`, until touchdown).
+func _jump(attack_pressed: bool) -> void:
 	match jump_phase:
 		JumpPhase.TAKEOFF:
-			if state_time >= JUMP_TAKEOFF:
+			if state_ticks >= ticks(JUMP_TAKEOFF):
 				velocity = Vector3(move_dir * WALK_SPEED, JUMP_VELOCITY, 0.0)
 				_set_jump_phase(JumpPhase.AIR)
-		JumpPhase.AIR:
+		JumpPhase.AIR, JumpPhase.KICK:
 			if is_on_floor() and velocity.y <= 0.0:
 				velocity.x = 0.0
 				_set_jump_phase(JumpPhase.LANDING)
+			elif attack_pressed and jump_phase == JumpPhase.AIR:
+				_start_attack(AIR_KICK_HITBOX)
+				_set_jump_phase(JumpPhase.KICK)
 		JumpPhase.LANDING:
-			if state_time >= JUMP_LANDING:
+			if state_ticks >= ticks(JUMP_LANDING):
 				move_dir = 0.0
 				change_state(State.IDLE)
 
 
 func _set_jump_phase(phase: JumpPhase) -> void:
 	jump_phase = phase
-	state_time = 0.0
+	state_ticks = 0
 	_play_state_animation()
 
 
 ## Enters `new_state`, restarting its timer and animation.
 func change_state(new_state: State) -> void:
 	state = new_state
-	state_time = 0.0
+	state_ticks = 0
 	_play_state_animation()
 
 
