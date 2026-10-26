@@ -1,0 +1,108 @@
+class_name Hud
+extends Control
+## Fight overlay drawn at the internal 480×270 resolution, on top of the game
+## view (and outside its quantize shader). Health bars sit in the top corners;
+## each fills from its outer edge, so lost health shows up next to the center.
+## Once either fighter is knocked down, a centered "K.O." and the restart hint
+## appear (the restart itself is `main.gd`'s).
+
+const BAR_SIZE := Vector2(200, 8)
+## Gap between a bar and the screen's top and side edges (px).
+const BAR_MARGIN := Vector2(12, 10)
+const BORDER := 1
+const BORDER_COLOR := Color(0.08, 0.06, 0.1)
+const LOST_COLOR := Color(0.55, 0.1, 0.1)
+const HEALTH_COLOR := Color(0.98, 0.82, 0.2)
+const KO_COLOR := Color(0.95, 0.2, 0.15)
+
+## Shown on the left bar.
+@export var left_fighter: Fighter
+## Shown on the right bar.
+@export var right_fighter: Fighter
+
+var _left_fill: ColorRect
+var _right_fill: ColorRect
+## "K.O." plus the restart hint, hidden until a knockdown.
+var _ko: VBoxContainer
+
+
+func _ready() -> void:
+	mouse_filter = MOUSE_FILTER_IGNORE
+	_left_fill = _make_bar(false)
+	_right_fill = _make_bar(true)
+	_ko = _make_ko()
+	_update()
+
+
+func _process(_delta: float) -> void:
+	_update()
+
+
+func _update() -> void:
+	_set_fill(_left_fill, left_fighter, false)
+	_set_fill(_right_fill, right_fighter, true)
+	_ko.visible = _is_down(left_fighter) or _is_down(right_fighter)
+
+
+static func _is_down(fighter: Fighter) -> bool:
+	return fighter != null and fighter.state == Fighter.State.KNOCKED_DOWN
+
+
+## Builds the hidden, screen-centered KO message.
+func _make_ko() -> VBoxContainer:
+	var box := VBoxContainer.new()
+	box.mouse_filter = MOUSE_FILTER_IGNORE
+	box.alignment = BoxContainer.ALIGNMENT_CENTER
+	box.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
+	box.add_child(_make_label("K.O.", 48, KO_COLOR))
+	box.add_child(_make_label("Press R to restart", 16, Color.WHITE))
+	box.visible = false
+	add_child(box)
+	return box
+
+
+func _make_label(text: String, font_size: int, color: Color) -> Label:
+	var label := Label.new()
+	label.text = text
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.add_theme_font_size_override(&"font_size", font_size)
+	label.add_theme_color_override(&"font_color", color)
+	label.add_theme_color_override(&"font_outline_color", BORDER_COLOR)
+	label.add_theme_constant_override(&"outline_size", maxi(font_size / 6, 2))
+	return label
+
+
+## Adds a bordered bar in the top-left (or top-right) corner and returns its fill.
+func _make_bar(right: bool) -> ColorRect:
+	var border := ColorRect.new()
+	border.color = BORDER_COLOR
+	border.size = BAR_SIZE + Vector2(BORDER, BORDER) * 2.0
+	border.position = BAR_MARGIN - Vector2(BORDER, BORDER)
+	if right:
+		border.anchor_left = 1.0
+		border.anchor_right = 1.0
+		border.offset_left = -BAR_MARGIN.x - BAR_SIZE.x - BORDER
+		border.offset_right = -BAR_MARGIN.x + BORDER
+	border.mouse_filter = MOUSE_FILTER_IGNORE
+	add_child(border)
+	var lost := ColorRect.new()
+	lost.color = LOST_COLOR
+	lost.position = Vector2(BORDER, BORDER)
+	lost.size = BAR_SIZE
+	lost.mouse_filter = MOUSE_FILTER_IGNORE
+	border.add_child(lost)
+	var fill := ColorRect.new()
+	fill.color = HEALTH_COLOR
+	fill.size = BAR_SIZE
+	fill.mouse_filter = MOUSE_FILTER_IGNORE
+	lost.add_child(fill)
+	return fill
+
+
+## Sizes `fill` to `fighter`'s health in whole pixels, anchored left, or right
+## when `from_right`. No fighter reads as empty.
+func _set_fill(fill: ColorRect, fighter: Fighter, from_right: bool) -> void:
+	var ratio := float(fighter.health) / Fighter.MAX_HEALTH if fighter != null else 0.0
+	var width := roundf(BAR_SIZE.x * ratio)
+	fill.size.x = width
+	fill.position.x = BAR_SIZE.x - width if from_right else 0.0

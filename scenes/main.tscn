@@ -1,0 +1,156 @@
+[gd_scene format=3 uid="uid://b5k2m8main0001"]
+
+[ext_resource type="Shader" path="res://shaders/toon.gdshader" id="1_toon"]
+[ext_resource type="Shader" path="res://shaders/outline.gdshader" id="2_outline"]
+[ext_resource type="Shader" path="res://shaders/quantize.gdshader" id="3_quantize"]
+[ext_resource type="Script" path="res://scripts/follow_camera.gd" id="4_followcam"]
+[ext_resource type="PackedScene" path="res://scenes/fighter.tscn" id="5_fighter"]
+[ext_resource type="Script" path="res://scripts/player_input.gd" id="6_playerinput"]
+[ext_resource type="Script" path="res://scripts/stage.gd" id="7_stage"]
+[ext_resource type="Script" path="res://scripts/hud.gd" id="8_hud"]
+[ext_resource type="Script" path="res://scripts/main.gd" id="9_main"]
+
+[sub_resource type="ShaderMaterial" id="Mat_quantize"]
+shader = ExtResource("3_quantize")
+shader_parameter/levels = 12.0
+
+[sub_resource type="Environment" id="Env"]
+background_mode = 1
+background_color = Color(0.32, 0.38, 0.5, 1)
+ambient_light_source = 2
+ambient_light_color = Color(1, 1, 1, 1)
+ambient_light_energy = 0.35
+tonemap_mode = 0
+
+[sub_resource type="ShaderMaterial" id="Mat_floor"]
+shader = ExtResource("1_toon")
+shader_parameter/albedo = Color(0.36, 0.42, 0.3, 1)
+shader_parameter/bands = 3
+
+[sub_resource type="PlaneMesh" id="Mesh_floor"]
+material = SubResource("Mat_floor")
+size = Vector2(13, 6)
+
+[sub_resource type="WorldBoundaryShape3D" id="Shape_floor"]
+
+[sub_resource type="ShaderMaterial" id="Mat_wall"]
+shader = ExtResource("1_toon")
+shader_parameter/albedo = Color(0.5, 0.44, 0.38, 1)
+shader_parameter/bands = 3
+
+[sub_resource type="BoxMesh" id="Mesh_wall"]
+material = SubResource("Mat_wall")
+size = Vector3(0.5, 8, 6)
+
+[sub_resource type="WorldBoundaryShape3D" id="Shape_wall"]
+
+[sub_resource type="Resource" id="Input_player"]
+script = ExtResource("6_playerinput")
+
+[sub_resource type="ShaderMaterial" id="Mat_outline"]
+render_priority = 127
+shader = ExtResource("2_outline")
+
+[sub_resource type="QuadMesh" id="Mesh_outline"]
+material = SubResource("Mat_outline")
+flip_faces = true
+size = Vector2(2, 2)
+
+[node name="Main" type="Node"]
+script = ExtResource("9_main")
+
+[node name="GameView" type="SubViewportContainer" parent="."]
+texture_filter = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+stretch = true
+material = SubResource("Mat_quantize")
+
+[node name="GameViewport" type="SubViewport" parent="GameView"]
+handle_input_locally = false
+audio_listener_enable_3d = true
+size = Vector2i(480, 270)
+render_target_update_mode = 4
+
+[node name="World" type="Node3D" parent="GameView/GameViewport"]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="GameView/GameViewport/World"]
+environment = SubResource("Env")
+
+[node name="Sun" type="DirectionalLight3D" parent="GameView/GameViewport/World"]
+transform = Transform3D(0.866025, -0.25, 0.433013, 0, 0.866025, 0.5, -0.5, -0.433013, 0.75, 0, 4, 0)
+
+[node name="Stage" type="Node3D" parent="GameView/GameViewport/World"]
+script = ExtResource("7_stage")
+
+[node name="Floor" type="MeshInstance3D" parent="GameView/GameViewport/World/Stage"]
+mesh = SubResource("Mesh_floor")
+
+[node name="Body" type="StaticBody3D" parent="GameView/GameViewport/World/Stage/Floor"]
+
+[node name="Collision" type="CollisionShape3D" parent="GameView/GameViewport/World/Stage/Floor/Body"]
+shape = SubResource("Shape_floor")
+
+[node name="WallLeft" type="StaticBody3D" parent="GameView/GameViewport/World/Stage"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6, 0, 0)
+
+[node name="Collision" type="CollisionShape3D" parent="GameView/GameViewport/World/Stage/WallLeft"]
+transform = Transform3D(0, 1, 0, -1, 0, 0, 0, 0, 1, 0, 0, 0)
+shape = SubResource("Shape_wall")
+
+[node name="Mesh" type="MeshInstance3D" parent="GameView/GameViewport/World/Stage/WallLeft"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.25, 4, 0)
+mesh = SubResource("Mesh_wall")
+
+[node name="WallRight" type="StaticBody3D" parent="GameView/GameViewport/World/Stage"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6, 0, 0)
+
+[node name="Collision" type="CollisionShape3D" parent="GameView/GameViewport/World/Stage/WallRight"]
+transform = Transform3D(0, -1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0)
+shape = SubResource("Shape_wall")
+
+[node name="Mesh" type="MeshInstance3D" parent="GameView/GameViewport/World/Stage/WallRight"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.25, 4, 0)
+mesh = SubResource("Mesh_wall")
+
+[node name="Fighter1" parent="GameView/GameViewport/World" node_paths=PackedStringArray("opponent") instance=ExtResource("5_fighter")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.5, 0, 0)
+character_path = "res://characters/default/default.glb"
+input = SubResource("Input_player")
+opponent = NodePath("../Fighter2")
+
+[node name="Fighter2" parent="GameView/GameViewport/World" node_paths=PackedStringArray("opponent") instance=ExtResource("5_fighter")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.5, 0, 0)
+character_path = "res://characters/default/default_blue.glb"
+opponent = NodePath("../Fighter1")
+
+[node name="Camera3D" type="Camera3D" parent="GameView/GameViewport/World" node_paths=PackedStringArray("fighters", "stage")]
+script = ExtResource("4_followcam")
+transform = Transform3D(1, 0, 0, 0, 0.984808, 0.173648, 0, -0.173648, 0.984808, 0, 3.5, 10)
+projection = 1
+current = true
+size = 5.0
+near = 0.1
+far = 50.0
+fighters = [NodePath("../Fighter1"), NodePath("../Fighter2")]
+stage = NodePath("../Stage")
+
+[node name="Outline" type="MeshInstance3D" parent="GameView/GameViewport/World/Camera3D"]
+extra_cull_margin = 16384.0
+cast_shadow = 0
+mesh = SubResource("Mesh_outline")
+
+[node name="Hud" type="Control" parent="." node_paths=PackedStringArray("left_fighter", "right_fighter")]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("8_hud")
+left_fighter = NodePath("../GameView/GameViewport/World/Fighter1")
+right_fighter = NodePath("../GameView/GameViewport/World/Fighter2")
