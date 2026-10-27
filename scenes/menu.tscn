@@ -73,12 +73,23 @@ visible = false
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="Host" type="Button" parent="Center/Items/Online"]
+[node name="HostRow" type="HBoxContainer" parent="Center/Items/Online"]
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_constants/separation = 4
+
+[node name="HostPort" type="LineEdit" parent="Center/Items/Online/HostRow"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(160, 0)
 layout_mode = 2
-size_flags_horizontal = 4
-tooltip_text = "Wait for an opponent on UDP port 7777. You play the red fighter."
+theme_override_font_sizes/font_size = 12
+placeholder_text = "Port (default 7777)"
+
+[node name="Host" type="Button" parent="Center/Items/Online/HostRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(60, 0)
+layout_mode = 2
+tooltip_text = "Wait for an opponent on the specified UDP port (default 7777). You play the red fighter."
 theme_override_font_sizes/font_size = 12
 text = "Host"
 
@@ -104,7 +115,7 @@ text = "Join"
 
 [node name="Back" type="Button" parent="Center/Items/Online"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(160, 0)
+custom_minimum_size = Vector2(224, 0)
 layout_mode = 2
 size_flags_horizontal = 4
 theme_override_font_sizes/font_size = 12

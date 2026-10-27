@@ -4,7 +4,7 @@ Decisions for online play (`docs/todo/multiplayer.md`, step 2). Each one gives t
 
 ## Sync model: input sync (lockstep with input delay, optional rollback)
 
-Peers exchange only the per-tick input bitmask (`InputSource.LEFT | RIGHT | JUMP | PUNCH | BLOCK`, 5 bits in one byte, `InputSource.BUTTONS`). Both peers run the full simulation from the same start state and the same inputs. The simulation is never sent over the network. Everything the inputs feed into, including `Fighter.attack_buffer` (buffered presses) and `block_stun`, is simulation state in `Fighter.snapshot()`, so it is checksummed and saved and restored by rollback.
+Peers exchange only the per-tick input bitmask (`InputSource.LEFT | RIGHT | JUMP | PUNCH | BLOCK | CROUCH`, 6 bits in one byte, `InputSource.BUTTONS`). Both peers run the full simulation from the same start state and the same inputs. The simulation is never sent over the network. Everything the inputs feed into, including `Fighter.attack_buffer` (buffered presses) and `block_stun`, is simulation state in `Fighter.snapshot()`, so it is checksummed and saved and restored by rollback.
 
 1. **Lockstep first.** Tick `t` simulates only after both peers' inputs for `t` have arrived. Local input is scheduled `D` ticks ahead (input delay, starting at 2–3 ticks) so that remote input usually arrives in time. When it doesn't, the game stalls for a tick instead of guessing.
 2. **Rollback (optional, `Match.max_rollback` > 0).** This is the same model with a different way of handling missing input. The game predicts the missing input as a repeat of the last one, saves state each tick, and re-simulates when the real input differs. It needs the same determinism as lockstep, plus save/load of state, so building lockstep first lost no work.
@@ -34,7 +34,7 @@ Revisit if determinism across platforms can't be achieved at reasonable cost. Th
 
 Use Godot's high-level multiplayer API (`multiplayer.multiplayer_peer`) with `ENetMultiplayerPeer`. The host calls `create_server(port, 1)` and the client calls `create_client(ip, port)`.
 
-- **Input packets** go through `InputSync._receive_inputs`, an `@rpc("any_peer", "call_remote", "unreliable_ordered", 1)` method carrying `(match_number, ack, first tick, input bytes, match tick, advantage)`: every local input from the first tick the peer hasn't acknowledged, the first remote tick this side still lacks, and the tick sync values (see "Session" → tick sync). One goes out every physics frame. Unreliable, so a lost packet is never retransmitted and stale inputs never block newer ones (the next packet repeats unacknowledged inputs). It uses its own channel so that it doesn't share ordering with control traffic.
+- **Input packets** go through `InputSync._receive_inputs`, an `@rpc("any_peer", "call_remote", "unreliable_ordered", 1)` method carrying `(match_number, ack, first tick, input bytes, match tick, advantage, check tick, checksum)`: every local input from the first tick the peer hasn't acknowledged, the first remote tick this side still lacks, the tick sync values (see "Session" → tick sync), and the checksum of the sender's latest confirmed tick (see "Session" → desync). One goes out every physics frame. Unreliable, so a lost packet is never retransmitted and stale inputs never block newer ones (the next packet repeats unacknowledged inputs). It uses its own channel so that it doesn't share ordering with control traffic.
 - **Control messages** (handshake, match config, start tick, rematch, disconnect reason) go through `"reliable"` RPCs on channel 0.
 - **Ping** comes from `ENetPacketPeer.get_statistic(PEER_ROUND_TRIP_TIME)` (`InputSync.rtt_ms`) for the HUD and tick sync.
 
@@ -48,7 +48,31 @@ Why not WebRTC (yet):
 - On desktop, `WebRTCMultiplayerPeer` needs the `webrtc-native` GDExtension. It also needs a signaling server and STUN (plus TURN as a fallback) before two peers can connect at all. Its benefits, NAT traversal and web export, aren't goals for this step.
 - Gameplay code talks only to `multiplayer` and RPCs, never to ENet directly. Switching to `WebRTCMultiplayerPeer` later means changing peer creation in the session code only.
 
-Cost: internet play needs the host to forward the UDP port (default `7777`, configurable; see todo §6), or both players need a VPN such as Tailscale or ZeroTier. Revisit (WebRTC, or a relay) if port forwarding turns out to be too much friction for players.
+### Direct-IP hosting & port forwarding
+
+Internet play uses direct IP: the host listens on a UDP port (default `7777`, configurable in the menu or via `--port=N`), and the joining client connects to the host's public IP address.
+
+- **Protocol:** UDP (ENet is UDP-based; forwarding TCP will not work).
+- **Port:** UDP 7777 by default, or 1–65535 if configured.
+- **Who needs port forwarding:** Only the host (Player 1). The client (Player 2) initiates an outbound connection, so the client does not need to forward any ports.
+- **Router configuration (for the host):**
+  1. Find the host machine's local IPv4 address on the LAN (e.g. `ipconfig` on Windows, `ip route` on Linux, `ipconfig getifaddr en0` on macOS).
+  2. Open the router's admin portal (commonly `192.168.1.1` or `192.168.0.1`).
+  3. Navigate to **Port Forwarding** / **Virtual Server**.
+  4. Add a forwarding rule:
+     - **Protocol:** UDP
+     - **External Port:** 7777 (or your custom port)
+     - **Internal / Target Port:** 7777 (or matching custom port)
+     - **Internal IP:** Host machine's local LAN IP
+  5. Save and apply settings.
+- **Firewall:** Ensure the host OS firewall (Windows Defender Firewall, macOS Application Firewall, Linux `ufw`/`iptables`) allows incoming UDP traffic on the specified port.
+- **Connecting over the Internet:**
+  - The host finds their public IP (e.g. via `curl -4 ifconfig.me` or searching "what is my ip").
+  - The joining player enters `public_ip` (or `public_ip:port` if using a custom port) in the Join address box.
+- **Local LAN & VPN alternatives:**
+  - On the same local network, port forwarding is not needed; the client connects directly to the host's local LAN IP (e.g. `192.168.1.X:7777`).
+  - Peer-to-peer VPNs like Tailscale or ZeroTier provide encrypted mesh connections without router port forwarding; client connects to the host's VPN IP.
+  - On the same machine, connect via `127.0.0.1:7777`.
 
 ## Topology: peer-to-peer host/join (one player hosts)
 
@@ -71,3 +95,11 @@ Start: `start_tick` is `Session.COUNTDOWN_TICKS` (180 = 3 s). `Match.step()` sim
 Tick sync: each input packet also carries the sender's `Match.tick` and its smoothed `InputSync.advantage` = own tick − (peer's last reported tick + RTT/2 in ticks). `InputSync.lead()` = (own advantage − peer's advantage) / 2 is how far this side leads; the latency terms cancel, so asymmetric or imprecise RTT barely matters. When it is ≥ `SKIP_THRESHOLD` (1 tick), the side calls `Match.skip_frame()`: the next physics frame simulates nothing (`Match.skipped_frames`), at most once every `SKIP_INTERVAL` (20) frames, i.e. ≤ 5% slower. Without it, a peer whose clock runs fast runs ahead until it hits the input delay and then stalls in bursts, and its lead eats the delay budget that should absorb latency. Measured (two processes, host forced to 63 Hz after the start): without tick sync the host stalls 73 frames in 1500 ticks at a lead of 3 (the input delay); with it, 74 spread-out skipped frames, 1 stall, lead ≈ 1. Timing only: skipping never changes the simulation or checksums.
 
 Rematch: after a knockdown (`Match.is_over()`), pressing R (`restart` action) calls `Session.request_rematch()`, sending a reliable `_rematch_rpc` to the peer. The HUD's KO hint (`Hud.ko_hint()`) updates to reflect whether this machine is waiting for the opponent or the opponent has already requested. Once both have requested, the host generates a new match config and broadcasts `_start_match.rpc(config)`, reloading `main.tscn` on both sides across the existing ENet connection. `Session.match_number` increments on each match; input packets include `match_number` (`InputSync.match_id`), ensuring any late packets from a prior match are rejected.
+
+Session end mid-match: when the session closes with an error while a match scene is loaded (the opponent disconnected — host: `peer_disconnected`, client: `server_disconnected` — or any later `fail()` reason), `Session._end()` closes the connection and calls `main.gd` `end_online(reason)` instead of switching scenes: the `Match` and `InputSync` stop processing, the HUD shows the reason centered (`Hud.show_notice()`), and after `END_NOTICE_SECONDS` (3 s) the game returns to the menu, which shows the reason in its status line. Before the match scene has loaded, `_end()` goes straight to the menu.
+
+Timeout: input packets arrive every frame, so silence means the link is gone even if ENet hasn't noticed yet (its peer timeout can take up to 30 s). `InputSync` records the wall-clock time of each packet from the peer (reset by `reset()`); after `InputSync.TIMEOUT_SECONDS` (5 s) without one it stops and emits `timed_out`, and `main.gd` calls `Session.fail("Connection lost: ...")`. Closing the connection then makes the silent side see "Opponent disconnected".
+
+Desync: each input packet carries `Match.checksum_at(confirmed_tick)` (final on both sides). `InputSync` keeps its own confirmed checksums and states and the peer's checksums for the last `CHECK_HISTORY` (128) ticks and compares them wherever both exist. On a mismatch it freezes the `Match`, stops sending inputs and sends its `Match.state_at(tick)` in a reliable `_receive_desync_state(match_number, tick, state)`; the peer, told or finding it itself, answers with its own (the earliest reported tick wins). With both states (or after `DESYNC_WAIT_SECONDS`, 2 s) it emits `desynced`; `main.gd` prints a field-by-field table of both states (`Fighter.SNAPSHOT_FIELDS`, differing values marked `<--`) to stderr / Godot's log (`user://logs/godot.log`) and calls `Session.fail("Desync at tick N: ...", DESYNC_LINGER_SECONDS)`, which keeps the connection open 0.5 s so the peer gets the report before it sees a disconnect, then ends like any other error.
+
+Malformed packets: Godot's RPC layer already drops calls with the wrong argument count or types (logging an error). `InputSync._valid_packet()` drops a whole input packet whose values no well-behaved peer could send: more than `MAX_INPUTS` inputs, bits outside `InputSource.BUTTONS`, a first tick below 0 or past the next unknown one (a gap), an ack beyond the inputs sent, a match tick below 0 or more than `Match.HISTORY` past our inputs, a confirmed tick past either, a checksum outside 32 bits, or a non-finite advantage beyond `TIMEOUT_SECONDS` worth of ticks. A desync report is ignored if its tick is outside the checksum window or past our inputs, its state has the wrong size or tick, or it equals our own state.

@@ -294,6 +294,145 @@ static func block() -> Array:
 	return [[0.0, STANCE], [BLOCK_LENGTH, BLOCK]]
 
 
+## Time to drop into the crouch (5 frames at 60 fps); the clip holds it afterwards.
+const DUCK_LENGTH := 5.0 / 60.0
+
+## Held crouch: hips dropped 0.4 m, front knee folded with the foot flat, back
+## knee low on its toes, torso folded forward with the head up and fists still
+## guarding. The head top stays under ≈ 1.15 m so punches (`Fighter`'s
+## `CROUCH_HURTBOX_TOP`) visibly pass over it.
+static var DUCK := _pose(STANCE, {
+	HIPS_POS: Vector3(0, -0.4, -0.05),
+	"spine": Vector3(28, 0, 0),
+	"chest": Vector3(16, 0, 0),
+	"neck": Vector3(-18, 0, 0),
+	"head": Vector3(-14, 0, 0),
+	"thigh.L": Vector3(-70, 0, -6),
+	"shin.L": Vector3(111, 0, 0),
+	"foot.L": Vector3(-41, 0, 0),
+	"thigh.R": _m(Vector3(-40, 0, -6)),
+	"shin.R": Vector3(113, 0, 0),
+	"foot.R": Vector3(-72, 0, 0),
+})
+
+
+## Crouch: drop from the stance into `DUCK`, then hold it while crouching.
+static func crouch() -> Array:
+	return [[0.0, STANCE], [DUCK_LENGTH, DUCK]]
+
+
+## Sweep timing at 60 fps: 6 startup, 4 active, 18 recovery frames; markers
+## `active_start`/`active_end` like the punch.
+const SWEEP_ACTIVE_START := 6.0 / 60.0
+const SWEEP_ACTIVE_END := 10.0 / 60.0
+const SWEEP_LENGTH := 28.0 / 60.0
+
+## Low sweep fully extended from the crouch: the front (left) leg straight and
+## sliding along the floor (ankle ≈ 0.65 m forward, 0.08 m up, toes up), the
+## back leg still folded under the body, torso leaning over it.
+static var SWEEP := _pose(DUCK, {
+	HIPS_POS: Vector3(0, -0.42, -0.1),
+	"spine": Vector3(35, 0, 0),
+	"chest": Vector3(15, 0, 0),
+	"neck": Vector3(-25, 0, 0),
+	"head": Vector3(-15, 0, 0),
+	"thigh.L": Vector3(-59, 0, -4),
+	"shin.L": Vector3(0, 0, 0),
+	"foot.L": Vector3(-25, 0, 0),
+})
+
+
+## Sweep: from the crouch, chamber the front knee, swing the straight leg out
+## along the floor and hold it (active), then pull back into `DUCK`.
+static func sweep() -> Array:
+	var chamber := _pose(DUCK, {
+		"thigh.L": Vector3(-45, 0, -4),
+		"shin.L": Vector3(60, 0, 0),
+		"foot.L": Vector3(-20, 0, 0),
+	})
+	return [
+		[0.0, DUCK],
+		[3.0 / 60.0, chamber],
+		[SWEEP_ACTIVE_START, SWEEP],
+		[SWEEP_ACTIVE_END, SWEEP],
+		[SWEEP_LENGTH, DUCK],
+	]
+
+
+## Length of `swept`: falling, lying, getting back up (69 frames).
+const SWEPT_LENGTH := 69.0 / 60.0
+
+
+## Swept off the feet: the legs fly forward, the body drops onto its back
+## (feet slid ≈ 0.5 m forward), bounces, lies still, sits up and rises
+## through `DUCK` back to the stance, where it ends.
+static func swept() -> Array:
+	var legs_out := _pose(STANCE, {
+		HIPS_POS: Vector3(0, -0.2, -0.15),
+		"hips": Vector3(-30, 0, 0),
+		"spine": Vector3(-10, 0, 0),
+		"neck": Vector3(-10, 0, 0),
+		"head": Vector3(-10, 0, 0),
+		"upper_arm.L": Vector3(-50, 0, 15),
+		"forearm.L": Vector3(0, 0, -60),
+		"upper_arm.R": _m(Vector3(-50, 0, 15)),
+		"forearm.R": _m(Vector3(0, 0, -60)),
+		"thigh.L": Vector3(-25, 0, -4),
+		"shin.L": Vector3(10, 0, 0),
+		"foot.L": Vector3(20, 0, 0),
+		"thigh.R": _m(Vector3(-15, 0, -4)),
+		"shin.R": Vector3(10, 0, 0),
+		"foot.R": Vector3(20, 0, 0),
+	})
+	var falling := _pose(legs_out, {
+		HIPS_POS: Vector3(0, -0.55, -0.25),
+		"hips": Vector3(-70, 0, 0),
+		"spine": Vector3(-5, 0, 0),
+		"neck": Vector3(15, 0, 0),
+		"head": Vector3(10, 0, 0),
+		"upper_arm.L": Vector3(-20, 0, 25),
+		"forearm.L": Vector3(0, 0, -40),
+		"upper_arm.R": _m(Vector3(-20, 0, 25)),
+		"forearm.R": _m(Vector3(0, 0, -40)),
+		"thigh.L": Vector3(-20, 0, -4),
+		"shin.L": Vector3(15, 0, 0),
+		"thigh.R": _m(Vector3(-20, 0, -4)),
+		"shin.R": Vector3(15, 0, 0),
+	})
+	var lying := _pose(LYING, {HIPS_POS: Vector3(0, -0.83, -0.35)})
+	var bounce := _add(lying, {
+		HIPS_POS: Vector3(0, 0.03, 0),
+		"thigh.L": Vector3(-10, 0, 0),
+		"thigh.R": Vector3(-10, 0, 0),
+	})
+	# Sitting on the floor, legs out in front, fists back up.
+	var sit := _pose(STANCE, {
+		HIPS_POS: Vector3(0, -0.83, -0.35),
+		"spine": Vector3(15, 0, 0),
+		"chest": Vector3(5, 0, 0),
+		"neck": Vector3(0, 0, 0),
+		"head": Vector3(0, 0, 0),
+		"thigh.L": Vector3(-85, 0, -4),
+		"shin.L": Vector3(25, 0, 0),
+		"foot.L": Vector3(0, 0, 0),
+		"thigh.R": _m(Vector3(-85, 0, -6)),
+		"shin.R": Vector3(25, 0, 0),
+		"foot.R": Vector3(0, 0, 0),
+	})
+	return [
+		[0.0, STANCE],
+		[0.1, legs_out],
+		[0.22, falling],
+		[0.32, lying],
+		[0.4, bounce],
+		[0.48, lying],
+		[0.7, lying],
+		[0.85, sit],
+		[1.0, DUCK],
+		[SWEPT_LENGTH, STANCE],
+	]
+
+
 ## Flat on the back on the floor, feet toward where the fighter stood (the
 ## hips end 0.8 m behind their start), arms out at the sides.
 static var LYING := _pose(STANCE, {
@@ -417,6 +556,10 @@ static func clips() -> Dictionary:
 		&"air_kick": [AIR_KICK_LENGTH, false, false, air_kick(),
 			{&"active_start": AIR_KICK_ACTIVE_START, &"active_end": AIR_KICK_ACTIVE_END}],
 		&"block": [BLOCK_LENGTH, false, false, block()],
+		&"crouch": [DUCK_LENGTH, false, false, crouch()],
+		&"sweep": [SWEEP_LENGTH, false, false, sweep(),
+			{&"active_start": SWEEP_ACTIVE_START, &"active_end": SWEEP_ACTIVE_END}],
+		&"swept": [SWEPT_LENGTH, false, true, swept()],
 		&"idle": [1.0, true, true, idle()],
 		&"jump_start": [0.15, false, true, jump_start()],
 		&"jump_air": [0.25, false, true, jump_air()],

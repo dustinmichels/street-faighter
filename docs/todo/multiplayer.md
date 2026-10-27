@@ -84,21 +84,30 @@ Required for input sync; also useful for state sync with prediction.
 
 ## 6. Connectivity
 
-- [ ] Configurable port; document the port forwarding needed for direct-IP hosting.
-- [ ] If WebRTC: a signaling server (small WebSocket service) plus STUN (and TURN as a fallback).
-- [ ] If a dedicated server/relay: headless export, hosting choice, and room codes.
+- [x] Configurable port; document the port forwarding needed for direct-IP hosting.
+  - `Session.parse_port(text)` parses/validates 1–65535, `Session.host(port)` validates port before opening ENet socket. `menu.tscn` adds `HostPort` LineEdit (%HostPort) in `HostRow` alongside `Host` button (matching `JoinRow` dimensions: width 160 + 60 = 224 px) with placeholder "Port (default 7777)"; `menu.gd` parses user port input and handles CLI flags (`--host`, `--port=N`, `--join=IP:PORT`). Direct-IP UDP port forwarding (UDP 7777, router NAT rule to host LAN IP, firewall permissions, LAN and Tailscale/ZeroTier mesh VPN alternatives) documented in `README.md` and `docs/netcode.md`.
+- [x] If WebRTC: a signaling server (small WebSocket service) plus STUN (and TURN as a fallback).
+  - Not applicable for Step 2 per decision in `docs/netcode.md` (ENet direct-IP chosen over WebRTC in §1). WebRTC requires `webrtc-native` GDExtension on desktop, signaling server, and STUN/TURN infrastructure, adding third-party server dependencies and complexity for a 1v1 desktop game. Switching transport later requires changes only to `Session` peer setup since all gameplay relies on Godot's high-level multiplayer RPCs. Revisit in Step 3 if browser export or NAT traversal without port forwarding is required.
+- [x] If a dedicated server/relay: headless export, hosting choice, and room codes.
+  - Not applicable for Step 2 per decision in `docs/netcode.md` (P2P host/join chosen over dedicated server/relay in §1). Dedicated relay adds a latency hop and infrastructure/hosting cost without gameplay benefit for 1v1 input sync. Revisit in Step 3 alongside custom character HTTP distribution (`notes.md` → "Multiplayer distribution"), which can host room code matchmaking or packet relays if needed.
 
 ## 7. Error handling
 
-- [ ] Handle disconnects mid-match: pause, show "opponent disconnected", return to the menu.
-- [ ] Timeout when no packets arrive for N seconds.
-- [ ] On a checksum mismatch, log the desync (tick, both states) and end the match cleanly.
-- [ ] Ignore malformed or out-of-range packets (wrong size, ticks far in the past or future).
+- [x] Handle disconnects mid-match: pause, show "opponent disconnected", return to the menu.
+  - `Session._end(reason)` with a loaded match scene (`_match`) calls `main.gd` `end_online(reason)`: freezes `Match`/`InputSync` (`peer_id` 0), `Hud.show_notice()` shows "<reason>\nReturning to the menu...", and after `END_NOTICE_SECONDS` (3 s) goes to the menu, which shows the reason. Both sides say "Opponent disconnected". Items 2–3 can end matches the same way via `Session.fail(reason)`. Verified with two headless processes (`tmp_disc.gd`), each side leaving mid-match: the other froze on the next tick, showed the notice, and was at the menu 3 s later with the reason; lockstep and determinism tests pass.
+- [x] Timeout when no packets arrive for N seconds.
+  - `InputSync.TIMEOUT_SECONDS` (5 s, wall clock from `reset()`/last packet `_last_packet_msec`) → stops and emits `timed_out`; `main.gd` → `Session.fail("Connection lost: no data from the opponent for 5 s")` (`_fail` renamed to public `fail()`; use it for item 3 too). Verified (`tmp_disc.gd --mute-at=200` on the host, connection kept open): client ended ~5 s later with the notice and menu, host then got "Opponent disconnected"; lockstep tests (lockstep + `--rollback=5`) pass.
+- [x] On a checksum mismatch, log the desync (tick, both states) and end the match cleanly.
+  - Each `_receive_inputs` packet now also carries `(check_tick, check_sum)` = the sender's `Match.confirmed_tick` checksum (`PROTOCOL_VERSION` → 4). `InputSync` keeps own checksums/states (`Match.state_at(t)`, new) and peer checksums for `CHECK_HISTORY` (128) ticks, compares where both are known; on a mismatch, it freezes `Match`, stops sending, and swaps states via reliable `_receive_desync_state` (earliest tick wins, `DESYNC_WAIT_SECONDS` 2 s fallback) → `desynced(tick, own, peer)`. `main.gd` prints `desync_report()` (per-field table, `<--` on diffs) via `printerr` and calls `Session.fail(reason, DESYNC_LINGER_SECONDS)` (new `linger` arg keeps the connection open 0.5 s so the peer gets the report before it sees a disconnect). Verified (`tmp_disc.gd --corrupt-at=250` on host, then on client): both sides log tick 251 with `fighter2.health 100/99 <--`, show "Desync at tick 251..." and go back to the menu; disconnect, lockstep (+ `--rollback=5`) and determinism tests pass. Docs: `docs/netcode.md` → "Session" → Desync.
+- [x] Ignore malformed or out-of-range packets (wrong size, ticks far in the past or future).
+  - Wrong arg count/types: rejected by Godot's RPC layer (error logged). `InputSync._valid_packet()` drops input packets with > `MAX_INPUTS` inputs, non-`BUTTONS` bits, `first` < 0 or past `remote.end_tick()`, `ack` outside 0..`local.end_tick()`, `tick` < 0 or > `local.end_tick() + Match.HISTORY`, `check_tick` outside -1..min(tick, local end), non-32-bit checksum, non-finite/oversized advantage. `_receive_desync_state` ignores ticks outside the checksum window, wrong-size/wrong-tick states, and states equal to ours. Verified (`tmp_disc.gd --garbage-at=250` on host: 30 frames of forged/oversized/bad-bit/huge-tick/NaN/wrong-arg packets and bogus desync reports): before, the client ended with a false desync; after, both played on in sync to tick 600 with normal tick-sync values; desync, lockstep (+ `--rollback=5`/`9`) and determinism tests pass. Docs: `docs/netcode.md` → "Session" → Malformed packets.
 
 ## 8. HUD & debug
 
-- [ ] Show ping and input delay in the HUD.
-- [ ] Network debug overlay: current tick, remote tick, rollback count, packet loss.
+- [x] Show ping and input delay in the HUD.
+  - `Hud.net: InputSync` (set by `main.gd` `_enter_tree()` online, null offline) → bottom-left label `Hud.net_status_text(rtt_ms, delay)`: "Ping 27 ms   Input delay 3 (50 ms)" ("? ms" until ENet measures). Verified: host + windowed client (`tmp_net.gd --shot=`), label visible on both with live RTT; determinism test passes offline.
+- [x] Network debug overlay: current tick, remote tick, rollback count, packet loss.
+  - F3 (`net_debug` action, also in the controls panel) toggles a label under the left bar: `Hud.net_debug_text(world, sync)` → tick/confirmed, remote tick + `lead()`, rollbacks (re-simulated ticks, window), stalled/skipped frames, packets in/lost + loss %. Loss: `_receive_inputs` now carries a `seq` (+1 per packet); `InputSync.packets_received`/`packets_lost`/`packet_loss` (lost share per `LOSS_WINDOW` 60 seqs), `_valid_seq()` drops non-increasing/absurd seqs. Offline shows only the tick line + "Offline". Verified: host + windowed client (`tmp_net.gd --shot=`), overlay readable on screen, same `checksum_at(590)` on both; determinism test passes.
 - [ ] Simulated network conditions (artificial latency, jitter, loss) for local testing.
 - [ ] Run two instances on one machine (Godot "Run Multiple Instances") for quick testing.
 

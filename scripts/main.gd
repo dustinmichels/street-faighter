@@ -12,9 +12,18 @@ extends Node
 ## once both peers have loaded the same effective config. After a KO, R asks
 ## for a rematch (`Session.request_rematch()`); once both players have, the
 ## host restarts the match scene on both sides over the same connection.
+## When the session ends mid-match (opponent disconnected, ...), `Session`
+## calls `end_online()`: the match freezes, the HUD shows why, and after
+## `END_NOTICE_SECONDS` the game returns to the menu.
 ##
 ## Offline, the match stays frozen until the camera's intro swing
 ## (`FollowCamera.intro_finished`) is over.
+
+## Seconds the reason an online match ended stays up before the menu.
+const END_NOTICE_SECONDS := 3.0
+## Seconds the connection stays open after a desync, so the peer still gets
+## this side's state (`InputSync` reports) before it sees a disconnect.
+const DESYNC_LINGER_SECONDS := 0.5
 
 @onready var _world: Match = $GameView/GameViewport/World
 var _sync: InputSync
@@ -37,7 +46,10 @@ func _enter_tree() -> void:
 	_sync.remote = remote
 	_sync.world = world
 	_sync.match_id = Session.match_number
+	_sync.timed_out.connect(_on_sync_timed_out)
+	_sync.desynced.connect(_on_sync_desynced)
 	world.add_child(_sync)
+	($Hud as Hud).net = _sync
 
 
 func _ready() -> void:
@@ -60,6 +72,52 @@ func begin() -> void:
 	_sync.reset()
 	_world.set_physics_process(true)
 	_sync.set_physics_process(true)
+
+
+## Online: the session ended (already closed) because of `reason`. Freezes
+## the match, shows `reason`, and returns to the menu (which shows it again)
+## after `END_NOTICE_SECONDS`.
+func end_online(reason: String) -> void:
+	_world.set_physics_process(false)
+	if _sync != null:
+		_sync.peer_id = 0
+		_sync.set_physics_process(false)
+	($Hud as Hud).show_notice("%s\nReturning to the menu..." % reason)
+	get_tree().create_timer(END_NOTICE_SECONDS).timeout.connect(_return_to_menu)
+
+
+func _return_to_menu() -> void:
+	get_tree().change_scene_to_file(Session.MENU_SCENE)
+
+
+func _on_sync_timed_out() -> void:
+	Session.fail("Connection lost: no data from the opponent for %d s" % InputSync.TIMEOUT_SECONDS)
+
+
+## The peers' simulations diverged: logs both states at the first mismatched
+## tick confirmed by both (Godot's log, `user://logs/`) and ends the session,
+## after `DESYNC_LINGER_SECONDS` so this side's report still reaches the peer.
+func _on_sync_desynced(tick: int, own_state: PackedInt64Array, peer_state: PackedInt64Array) -> void:
+	printerr(desync_report(tick, own_state, peer_state, Session.match_number, Session.local_index))
+	Session.fail("Desync at tick %d: the games went out of sync" % tick, DESYNC_LINGER_SECONDS)
+
+
+## A table of both sides' `Match.save_state()` values at `tick`, one per
+## line, differing ones marked; an empty state is shown as missing.
+static func desync_report(tick: int, own_state: PackedInt64Array, peer_state: PackedInt64Array, match_number: int, local_index: int) -> String:
+	var names := PackedStringArray(["tick"])
+	for i in 2:
+		for field in Fighter.SNAPSHOT_FIELDS:
+			names.append("fighter%d.%s" % [i + 1, field])
+	var lines := PackedStringArray([
+		"DESYNC at tick %d (match %d, this side plays fighter %d)" % [tick, match_number, local_index + 1],
+		"%-26s %12s %12s" % ["value", "this side", "opponent"],
+	])
+	for i in names.size():
+		var own := str(own_state[i]) if i < own_state.size() else "-"
+		var peer := str(peer_state[i]) if i < peer_state.size() else "-"
+		lines.append("%-26s %12s %12s%s" % [names[i], own, peer, "" if own == peer else "  <--"])
+	return "\n".join(lines)
 
 
 func _unhandled_input(event: InputEvent) -> void:

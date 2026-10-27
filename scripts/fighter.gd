@@ -12,7 +12,7 @@ extends Node3D
 ## node itself (`position`, `visual`, the animation) only displays the state,
 ## via `sync_visual()`.
 
-enum State { IDLE, WALK, JUMP, PUNCH, HIT, KNOCKED_DOWN, BLOCK }
+enum State { IDLE, WALK, JUMP, PUNCH, HIT, KNOCKED_DOWN, BLOCK, CROUCH, SWEEP, SWEPT }
 ## Parts of the `jump` state, each with its own clip (`JUMP_CLIPS`). `KICK`
 ## replaces `AIR` once the attack button is pressed mid-air and lasts until
 ## touchdown (the clip ends back in the tuck and holds it).
@@ -40,6 +40,8 @@ const MAX_HEALTH := 100
 const PUNCH_DAMAGE := 10
 ## Health one landed air kick takes off.
 const AIR_KICK_DAMAGE := 10
+## Health one landed sweep takes off (it also knocks the victim over, `SWEPT`).
+const SWEEP_DAMAGE := 10
 ## Push speed a hit gives the victim, away from the attacker (3 m/s).
 const KNOCKBACK_SPEED := 500
 ## Deceleration of that push (≈ 15 m/s²): it stops after 12 ticks, ≈ 0.3 m.
@@ -59,8 +61,9 @@ const BODY_RADIUS := 3000
 ## Closest two fighters' body centers may get along X: twice `BODY_RADIUS`.
 const PUSH_DISTANCE := 6000
 ## Farthest two fighters' body centers may get along X (7 m), so both stay on
-## screen: the follow camera (`FollowCamera`) shows 8.89 m, which leaves
-## ≈ 0.95 m past each body for limbs and the knockdown slide.
+## screen: the follow camera (`FollowCamera`) shows ≈ 9 m along X at the
+## fighters' depth, which leaves ≈ 1 m past each body for limbs and the
+## knockdown slide.
 const MAX_SEPARATION := 70000
 ## Ground walking speed (≈ 2 m/s), the same forward and backward.
 const WALK_SPEED := 333
@@ -82,11 +85,23 @@ static var PUNCH_ACTIVE_END := ticks(ANIMATIONS.get_animation(&"punch").get_mark
 ## The air kick clip's active window, counted from the start of `KICK`.
 static var AIR_KICK_ACTIVE_START := ticks(ANIMATIONS.get_animation(&"air_kick").get_marker_time(&"active_start"))
 static var AIR_KICK_ACTIVE_END := ticks(ANIMATIONS.get_animation(&"air_kick").get_marker_time(&"active_end"))
+## Full sweep duration and its active window (`sweep` clip).
+static var SWEEP_LENGTH := ticks(ANIMATIONS.get_animation(&"sweep").length)
+static var SWEEP_ACTIVE_START := ticks(ANIMATIONS.get_animation(&"sweep").get_marker_time(&"active_start"))
+static var SWEEP_ACTIVE_END := ticks(ANIMATIONS.get_animation(&"sweep").get_marker_time(&"active_end"))
+## How long a swept fighter is down before acting again: the whole `swept`
+## clip (fall, lie, get up).
+static var SWEPT_LENGTH := ticks(ANIMATIONS.get_animation(&"swept").length)
+## Ticks the `crouch` clip takes to reach the held crouch; a sweep that ends
+## with crouch held resumes the crouch there instead of rising first.
+static var CROUCH_LENGTH := ticks(ANIMATIONS.get_animation(&"crouch").length)
 ## Hitbox center relative to the feet (facing +X) per attack: the extended fist
-## (≈ 0.57–0.73 m forward, 1.33 m up) and the extended kicking foot (ankle
-## 0.75 m forward, 0.52 m up; heel/sole just past it).
+## (≈ 0.57–0.73 m forward, 1.33 m up), the extended kicking foot (ankle
+## 0.75 m forward, 0.52 m up; heel/sole just past it) and the sweeping foot
+## along the floor (0.6–0.9 m forward, 0–0.25 m up).
 const PUNCH_HITBOX := Vector2i(6200, 13300)
 const AIR_KICK_HITBOX := Vector2i(8000, 5500)
+const SWEEP_HITBOX := Vector2i(7500, 1000)
 ## Half the side of the square hitbox (0.3 m box).
 const HITBOX_HALF := 1500
 ## Hurtbox: the body capsule (r = 0.3 m, 1.8 m tall), seen from the side as a
@@ -94,6 +109,10 @@ const HITBOX_HALF := 1500
 ## widened by `BODY_RADIUS`. Fixed, never taken from the mesh.
 const HURTBOX_BOTTOM := 3000
 const HURTBOX_TOP := 15000
+## Hurtbox top while low (crouching or sweeping): the body reaches 1.1 m
+## (head top in the `crouch` clip ≈ 1.15 m), under the punch hitbox's bottom
+## edge (1.18 m), so punches pass over; the air kick and the sweep still hit.
+const CROUCH_HURTBOX_TOP := 8000
 
 ## Character `.glb` to load on ready (see `docs/skeleton.md`).
 @export_file("*.glb") var character_path: String
@@ -124,8 +143,8 @@ var state_ticks := 0
 var jump_phase := JumpPhase.TAKEOFF
 ## +1 when the fighter faces +X, -1 when it faces -X.
 var facing := 1
-## Held direction (-1, 0 or +1) in idle/walk/block; while jumping, the locked
-## jump direction.
+## Held direction (-1, 0 or +1) in idle/walk/block/crouch; while jumping, the
+## locked jump direction.
 var move_dir := 0
 ## Buttons held last tick, to turn the input bitmask into fresh presses.
 var prev_buttons := 0
@@ -167,8 +186,8 @@ func _ready() -> void:
 ## order in which the two fighters step doesn't matter). Pushing apart and
 ## hits involve both fighters and are resolved by the `Match` afterwards.
 ##
-## Hold the block button to guard in place, hold jump to keep jumping; attack
-## presses are buffered.
+## Hold the block button to guard in place, hold crouch to duck under punches,
+## hold jump to keep jumping; attack presses are buffered.
 func step(buttons: int, opponent_x: int) -> void:
 	state_ticks += 1
 	var pressed := buttons & ~prev_buttons
@@ -177,13 +196,14 @@ func step(buttons: int, opponent_x: int) -> void:
 	attack_buffer = INPUT_BUFFER if (pressed & InputSource.PUNCH) != 0 else maxi(attack_buffer - 1, 0)
 	var jump_held := (buttons & InputSource.JUMP) != 0
 	var block_held := (buttons & InputSource.BLOCK) != 0
+	var crouch_held := (buttons & InputSource.CROUCH) != 0
 	var on_floor := pos_y == 0
 	if not on_floor:
 		vel_y -= GRAVITY
 	match state:
-		State.IDLE, State.WALK:
+		State.IDLE, State.WALK, State.CROUCH:
 			face(opponent_x)
-			_neutral(dir, jump_held, block_held, on_floor)
+			_neutral(dir, jump_held, block_held, crouch_held, on_floor)
 		State.JUMP:
 			_jump(dir, on_floor)
 		State.PUNCH:
@@ -191,6 +211,20 @@ func step(buttons: int, opponent_x: int) -> void:
 			vel_x = 0
 			if state_ticks >= PUNCH_LENGTH:
 				move_dir = 0
+				change_state(State.IDLE)
+		State.SWEEP:
+			# Like the punch; ends back in the crouch if crouch is still held.
+			vel_x = 0
+			if state_ticks >= SWEEP_LENGTH:
+				if crouch_held:
+					change_state(State.CROUCH)
+					state_ticks = CROUCH_LENGTH
+				else:
+					change_state(State.IDLE)
+		State.SWEPT:
+			# Down, ignoring input and hits, until back on its feet.
+			vel_x = 0
+			if state_ticks >= SWEPT_LENGTH:
 				change_state(State.IDLE)
 		State.HIT:
 			vel_x = _toward_zero(vel_x, KNOCKBACK_FRICTION)
@@ -204,7 +238,7 @@ func step(buttons: int, opponent_x: int) -> void:
 			if block_stun > 0:
 				block_stun -= 1
 			else:
-				_neutral(dir, jump_held, block_held, on_floor)
+				_neutral(dir, jump_held, block_held, crouch_held, on_floor)
 	if state == State.HIT and state_ticks >= HIT_STUN:
 		change_state(State.IDLE)
 	_move()
@@ -249,6 +283,12 @@ func snapshot() -> PackedInt64Array:
 
 ## Number of values in a `snapshot()`.
 const SNAPSHOT_SIZE := 15
+## Names of the `snapshot()` values, in order (desync logs).
+const SNAPSHOT_FIELDS: PackedStringArray = [
+	"pos_x", "pos_y", "vel_x", "vel_y", "state", "state_ticks", "jump_phase", "facing",
+	"move_dir", "prev_buttons", "attack_buffer", "block_stun", "health",
+	"attack_landed", "wall_limit",
+]
 
 
 ## Sets the simulation state from `values[offset ..]`, a `snapshot()` (the
@@ -272,14 +312,25 @@ func restore(values: PackedInt64Array, offset := 0) -> void:
 	wall_limit = values[offset + 14]
 
 
-## Neutral (idle, walk, guard outside blockstun): a held block button guards
-## in place, else a buffered punch, then a held jump, else walk or stand.
-func _neutral(dir: int, jump_held: bool, block_held: bool, on_floor: bool) -> void:
+## Neutral (idle, walk, crouch, guard outside blockstun): a held block button
+## guards in place, else a held crouch button crouches in place (sweeping on
+## a buffered punch), else a buffered punch, then a held jump, else walk or
+## stand.
+func _neutral(dir: int, jump_held: bool, block_held: bool, crouch_held: bool, on_floor: bool) -> void:
 	if block_held and on_floor:
 		if state != State.BLOCK:
 			vel_x = 0
 			block_stun = 0
 			change_state(State.BLOCK)
+	elif crouch_held and on_floor:
+		vel_x = 0
+		move_dir = 0
+		if attack_buffer > 0:
+			attack_buffer = 0
+			attack_landed = false
+			change_state(State.SWEEP)
+		elif state != State.CROUCH:
+			change_state(State.CROUCH)
 	elif attack_buffer > 0 and on_floor:
 		attack_buffer = 0
 		vel_x = 0
@@ -305,8 +356,9 @@ func _ground_move(dir: int) -> void:
 
 ## Turns toward an opponent at `opponent_x` if it is now on the other side.
 ## A walk in progress keeps its direction but switches between forward and
-## backward stepping. Turning happens only in idle/walk/block, so a fighter
-## that crosses over mid-jump or mid-punch turns around once back to neutral.
+## backward stepping. Turning happens only in idle/walk/block/crouch, so a
+## fighter that crosses over mid-jump or mid-punch turns around once back to
+## neutral.
 func face(opponent_x: int) -> void:
 	var dx := opponent_x - pos_x
 	if dx == 0 or signi(dx) == facing:
@@ -319,11 +371,13 @@ static func ticks(seconds: float) -> int:
 	return roundi(seconds * TICK_RATE)
 
 
-## True on the active frames of the punch (ticks 5–7) or the air kick (ticks
-## 4–15 of `KICK`).
+## True on the active frames of the punch (ticks 5–7), the air kick (ticks
+## 4–15 of `KICK`) or the sweep (ticks 6–9).
 func is_hitbox_active() -> bool:
 	if state == State.PUNCH:
 		return state_ticks >= PUNCH_ACTIVE_START and state_ticks < PUNCH_ACTIVE_END
+	if state == State.SWEEP:
+		return state_ticks >= SWEEP_ACTIVE_START and state_ticks < SWEEP_ACTIVE_END
 	if state == State.JUMP and jump_phase == JumpPhase.KICK:
 		return state_ticks >= AIR_KICK_ACTIVE_START and state_ticks < AIR_KICK_ACTIVE_END
 	return false
@@ -331,27 +385,51 @@ func is_hitbox_active() -> bool:
 
 ## Health the current attack takes off when it lands.
 func attack_damage() -> int:
-	return PUNCH_DAMAGE if state == State.PUNCH else AIR_KICK_DAMAGE
+	match state:
+		State.PUNCH:
+			return PUNCH_DAMAGE
+		State.SWEEP:
+			return SWEEP_DAMAGE
+	return AIR_KICK_DAMAGE
+
+
+## True if the current attack knocks the victim over (`SWEPT`) instead of a
+## hit reaction, through a block: the sweep.
+func attack_knocks_over() -> bool:
+	return state == State.SWEEP
 
 
 ## Center of the current attack's hitbox in world units, on the facing side.
 func hitbox_center() -> Vector2i:
-	var offset := PUNCH_HITBOX if state == State.PUNCH else AIR_KICK_HITBOX
+	var offset := AIR_KICK_HITBOX
+	match state:
+		State.PUNCH:
+			offset = PUNCH_HITBOX
+		State.SWEEP:
+			offset = SWEEP_HITBOX
 	return Vector2i(pos_x + facing * offset.x, pos_y + offset.y)
 
 
 ## True if this fighter's attack is live, hasn't landed yet and its hitbox
-## overlaps `target`'s hurtbox.
+## overlaps `target`'s hurtbox. The sweep misses a jumping target from the
+## moment the jump starts (takeoff included) until it lands: jumping is the
+## only way to avoid it.
 func attack_connects(target: Fighter) -> bool:
-	return is_hitbox_active() and not attack_landed and target.hurtbox_overlaps(hitbox_center(), HITBOX_HALF)
+	if not is_hitbox_active() or attack_landed:
+		return false
+	if state == State.SWEEP and target.state == State.JUMP and target.jump_phase != JumpPhase.LANDING:
+		return false
+	return target.hurtbox_overlaps(hitbox_center(), HITBOX_HALF)
 
 
 ## True if the square of half side `half` around `center` overlaps the
 ## hurtbox: the distance from the square to the hurtbox segment is below
-## `BODY_RADIUS`.
+## `BODY_RADIUS`. The segment is shorter while crouching or sweeping.
 func hurtbox_overlaps(center: Vector2i, half: int) -> bool:
+	var low := state == State.CROUCH or state == State.SWEEP
+	var top := CROUCH_HURTBOX_TOP if low else HURTBOX_TOP
 	var dx := maxi(maxi(center.x - half - pos_x, pos_x - center.x - half), 0)
-	var dy := maxi(maxi(center.y - half - (pos_y + HURTBOX_TOP), pos_y + HURTBOX_BOTTOM - center.y - half), 0)
+	var dy := maxi(maxi(center.y - half - (pos_y + top), pos_y + HURTBOX_BOTTOM - center.y - half), 0)
 	return dx * dx + dy * dy < BODY_RADIUS * BODY_RADIUS
 
 
@@ -400,18 +478,24 @@ func change_state(new_state: State) -> void:
 ## health knocks the fighter down instead (the clip carries it back). A
 ## guarding fighter hit from the front (the attacker at `attacker_x` is on the
 ## side it faces) takes no damage: it stays in the guard for `BLOCK_STUN` and
-## slides back at `BLOCK_PUSH_SPEED`. Ignored once knocked down.
-func take_hit(damage: int, push_dir: int, attacker_x: int) -> void:
-	if state == State.KNOCKED_DOWN:
+## slides back at `BLOCK_PUSH_SPEED`. With `knocks_over` (the sweep) the guard
+## doesn't help and the fighter falls in place (`SWEPT`) instead of reeling.
+## Ignored while down (knocked out or swept).
+func take_hit(damage: int, push_dir: int, attacker_x: int, knocks_over: bool) -> void:
+	if state == State.KNOCKED_DOWN or state == State.SWEPT:
 		return
 	var side := signi(attacker_x - pos_x)
-	if state == State.BLOCK and (side == facing or side == 0):
+	if state == State.BLOCK and not knocks_over and (side == facing or side == 0):
 		block_stun = BLOCK_STUN
 		vel_x = push_dir * BLOCK_PUSH_SPEED
 		return
 	health = maxi(health - damage, 0)
 	if health == 0:
 		knock_down()
+		return
+	if knocks_over:
+		vel_x = 0
+		change_state(State.SWEPT)
 		return
 	vel_x = push_dir * KNOCKBACK_SPEED
 	change_state(State.HIT)
@@ -474,6 +558,12 @@ func _state_clip() -> StringName:
 			return &"knockdown"
 		State.BLOCK:
 			return &"block"
+		State.CROUCH:
+			return &"crouch"
+		State.SWEEP:
+			return &"sweep"
+		State.SWEPT:
+			return &"swept"
 	return &"idle"
 
 

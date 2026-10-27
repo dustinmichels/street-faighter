@@ -66,6 +66,20 @@ func _run() -> void:
 				session.local_index, session.peer_id,
 				world.tick, ticks - 10, world.checksum_at(ticks - 10), world.fighters[0].health, world.fighters[1].health, world.stalled_frames,
 				world.skipped_frames, sync.rtt_ms, sync.advantage, sync.remote_advantage, sync.lead(), sync.remote_tick])
+			var hud: Hud = scene.get_node("Hud")
+			print("hud net: visible=%s '%s'" % [hud._net_status.visible, hud._net_status.text])
+			var f3 := InputEventKey.new()
+			f3.physical_keycode = KEY_F3
+			f3.pressed = true
+			Input.parse_input_event(f3)
+			await process_frame
+			await process_frame
+			await process_frame
+			print("hud debug: visible=%s\n%s" % [hud._net_debug.visible, hud._net_debug.text])
+			for a in args:
+				if a.begins_with("--shot="):
+					await process_frame
+					root.get_texture().get_image().save_png(a.substr(7))
 			# Let the peer finish too.
 			for i in 120:
 				await physics_frame

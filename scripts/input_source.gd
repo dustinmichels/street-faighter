@@ -11,13 +11,14 @@ const RIGHT := 2
 const JUMP := 4
 const PUNCH := 8
 const BLOCK := 16
+const CROUCH := 32
 ## Every defined button bit. A sample is always within it (one byte on the
 ## wire, `docs/netcode.md`); bits outside it from the network are dropped.
-const BUTTONS := LEFT | RIGHT | JUMP | PUNCH | BLOCK
+const BUTTONS := LEFT | RIGHT | JUMP | PUNCH | BLOCK | CROUCH
 
 
 ## Buttons held at simulation tick `tick` (`LEFT | RIGHT | JUMP | PUNCH |
-## BLOCK` bits). Live sources (keyboard, AI) sample now and ignore `tick`.
+## BLOCK | CROUCH` bits). Live sources (keyboard, AI) sample now and ignore `tick`.
 ## Default: none.
 func poll(_tick: int) -> int:
 	return 0

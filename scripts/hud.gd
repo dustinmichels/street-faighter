@@ -10,6 +10,11 @@ extends Control
 ## InputMap. Before `Match.start_tick`
 ## a centered countdown (3, 2, 1) shows, then "FIGHT!" for `FIGHT_TICKS`;
 ## both come from the simulation tick, so peers show them on the same tick.
+## `show_notice()` replaces both, and the K.O., with a centered message
+## (online: why the match ended). Online (`net` set), the bottom-left corner
+## shows the ping and this side's input delay (`net_status_text()`). The
+## `net_debug` action (F3) toggles a debug overlay under the left bar:
+## ticks, rollbacks, stalls and packet loss (`net_debug_text()`).
 
 const BAR_SIZE := Vector2(200, 8)
 ## Gap between a bar and the screen's top and side edges (px).
@@ -20,6 +25,7 @@ const LOST_COLOR := Color(0.55, 0.1, 0.1)
 const HEALTH_COLOR := Color(0.98, 0.82, 0.2)
 const KO_COLOR := Color(0.95, 0.2, 0.15)
 const COUNTDOWN_COLOR := Color.WHITE
+const NOTICE_COLOR := Color(1.0, 0.55, 0.35)
 ## How long "FIGHT!" stays up after the countdown (ticks).
 const FIGHT_TICKS := 45
 ## Actions listed in the controls panel, in display order, with their labels.
@@ -29,8 +35,10 @@ const CONTROLS: Array[Array] = [
 	[&"jump", "Jump (hold to repeat)"],
 	[&"punch", "Punch / air kick"],
 	[&"block", "Block (hold)"],
+	[&"crouch", "Crouch (hold, ducks punches; + punch: sweep)"],
 	[&"restart", "Restart"],
 	[&"controls", "Show controls"],
+	[&"net_debug", "Network debug overlay"],
 ]
 const CONTROLS_FONT_SIZE := 10
 
@@ -40,6 +48,9 @@ const CONTROLS_FONT_SIZE := 10
 @export var right_fighter: Fighter
 ## Its `tick` and `start_tick` drive the countdown.
 @export var fight: Match
+## Online: the match's input exchange, for the ping and input delay. null
+## offline (no network line).
+var net: InputSync
 
 var _left_fill: ColorRect
 var _right_fill: ColorRect
@@ -52,6 +63,12 @@ var _controls: PanelContainer
 var _controls_button: Button
 ## Centered countdown / "FIGHT!", empty (hidden) otherwise.
 var _countdown: Label
+## Centered message from `show_notice()`, hidden until then.
+var _notice: Label
+## Bottom-left ping / input delay line, hidden offline.
+var _net_status: Label
+## Debug overlay under the left bar, hidden until `net_debug` toggles it.
+var _net_debug: Label
 
 
 func _ready() -> void:
@@ -64,8 +81,25 @@ func _ready() -> void:
 	_countdown.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	add_child(_countdown)
 	_countdown.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
+	_notice = _make_label("", 16, NOTICE_COLOR)
+	_notice.mouse_filter = MOUSE_FILTER_IGNORE
+	_notice.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_notice.visible = false
+	add_child(_notice)
+	_notice.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
 	_controls = _make_controls_panel()
 	_controls_button = _make_controls_button()
+	_net_status = _make_label("", CONTROLS_FONT_SIZE, Color.WHITE)
+	_net_status.mouse_filter = MOUSE_FILTER_IGNORE
+	_net_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	add_child(_net_status)
+	_net_status.set_anchors_and_offsets_preset(PRESET_BOTTOM_LEFT, PRESET_MODE_MINSIZE, int(BAR_MARGIN.y))
+	_net_debug = _make_label("", CONTROLS_FONT_SIZE, Color.WHITE)
+	_net_debug.mouse_filter = MOUSE_FILTER_IGNORE
+	_net_debug.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	_net_debug.position = Vector2(BAR_MARGIN.x, BAR_MARGIN.y + BAR_SIZE.y + 4)
+	_net_debug.visible = false
+	add_child(_net_debug)
 	_update()
 
 
@@ -73,6 +107,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed(&"controls") and not event.is_echo():
 		get_viewport().set_input_as_handled()
 		_controls_button.button_pressed = not _controls_button.button_pressed
+	elif event.is_action_pressed(&"net_debug") and not event.is_echo():
+		get_viewport().set_input_as_handled()
+		_net_debug.visible = not _net_debug.visible
 
 
 func _process(_delta: float) -> void:
@@ -91,6 +128,44 @@ func _update() -> void:
 		_ko_hint.text = ko_hint(online, req, peer_req)
 	if fight != null:
 		_countdown.text = countdown_text(fight.tick, fight.start_tick)
+	_net_status.visible = net != null
+	if net != null:
+		_net_status.text = net_status_text(net.rtt_ms, net.local.delay if net.local != null else 0)
+	if _net_debug.visible:
+		_net_debug.text = net_debug_text(fight, net)
+	if _notice.visible:
+		_ko.visible = false
+		_countdown.text = ""
+
+
+## Shows `text` centered over the fight, hiding the countdown and K.O.
+func show_notice(text: String) -> void:
+	_notice.text = text
+	_notice.visible = true
+	_update()
+
+
+## The debug overlay's lines for `world` and, online, its `sync`: this
+## side's tick and last confirmed tick, the peer's last reported tick and
+## this side's lead (`InputSync.lead()`), rollbacks / re-simulated ticks /
+## window, frames stalled and skipped (tick sync), and the peer's packets
+## received and lost, with the loss of the last `InputSync.LOSS_WINDOW`.
+static func net_debug_text(world: Match, sync: InputSync) -> String:
+	if world == null:
+		return ""
+	var lines := PackedStringArray([
+		"Tick %d  confirmed %d" % [world.tick, world.confirmed_tick],
+	])
+	if sync == null:
+		lines.append("Offline")
+		return "\n".join(lines)
+	lines.append_array([
+		"Remote tick %d  lead %+.1f" % [sync.remote_tick, sync.lead()],
+		"Rollbacks %d (%d ticks)  window %d" % [world.rollbacks, world.resimulated_ticks, world.max_rollback],
+		"Stalled %d  skipped %d frames" % [world.stalled_frames, world.skipped_frames],
+		"Packets %d in, %d lost  loss %d%%" % [sync.packets_received, sync.packets_lost, roundi(sync.packet_loss * 100.0)],
+	])
+	return "\n".join(lines)
 
 
 ## What the countdown shows at the start of `tick` for a fight starting at
@@ -103,6 +178,13 @@ static func countdown_text(tick: int, start_tick: int) -> String:
 		return "FIGHT!"
 	var ticks_left := start_tick - tick
 	return str(ceili(float(ticks_left) / Fighter.TICK_RATE))
+
+
+## The online status line: round trip `rtt_ms` ("?" while unknown, 0) and
+## the input delay of this side's `LocalInput`, in ticks and ms.
+static func net_status_text(rtt_ms: int, delay_ticks: int) -> String:
+	var ping := "%d ms" % rtt_ms if rtt_ms > 0 else "? ms"
+	return "Ping %s   Input delay %d (%d ms)" % [ping, delay_ticks, roundi(delay_ticks * 1000.0 / Fighter.TICK_RATE)]
 
 
 ## The line under "K.O.": the restart key offline; online, what the rematch

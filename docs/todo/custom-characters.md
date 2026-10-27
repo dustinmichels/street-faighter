@@ -1,0 +1,115 @@
+# TODO — Step 3: Custom character import
+
+Goal: a player answers a few questions in the game, which produce a prompt for their own AI agent (Claude Code, driving a local Blender). The agent builds a character on the game's skeleton and exports a `.glb`. The player clicks "Import", and the result becomes their fighter, in singleplayer and online.
+
+Builds on steps 1 and 2 (`todo.md`, `multiplayer.md`) and the plan in `notes.md`:
+
+- Characters are already runtime-loaded `.glb`s (`CharacterLoader.load_character`), with the 17-bone skeleton from `docs/skeleton.md`. Animations (`animations/base.res`) are applied by bone name, and the rest rotations come from `default.glb`.
+- Hitboxes and hurtboxes are fixed integer shapes in `Fighter`/`Match`, never taken from the mesh. A custom model is purely visual, so it can't change the simulation, the checksums, or the determinism tests.
+- Online, the match config already carries per-fighter `characters` (currently `res://` paths in `Session.CHARACTERS`). §7 turns those into content hashes.
+
+Assumptions: the player has Blender (4.2+, with the built-in glTF exporter) and Claude Code installed. The game never runs either one itself.
+
+Out of scope: gameplay stats and abilities (`notes.md` manifest `stats`/`abilities`). This step is cosmetic only. Keep a `schema_version` in the manifest so abilities can be added later.
+
+## Pipeline
+
+1. The game writes a **creator kit** (template skeleton script, docs, example script, filled-in prompt) to a folder the player picks. It matches the game version exactly and works offline.
+2. The agent drives Blender with **headless scripts** (`blender -b --python build_character.py`), rerunning after every fix. The kit ships `build_template.py`, and the agent regenerates `template.blend` with `blender -b --factory-startup --python build_template.py` (a `.blend` in `res://` would trigger Godot's Blender importer, which is why `characters/template/` has a `.gdignore`). If Blender isn't installed, the prompt mentions the PyPI `bpy` module as a fallback; the Blender MCP server (`notes.md`) is an optional route for players who already have it.
+3. The agent validates the export with **the game's own validator** (§4), run through the game binary in headless mode, so there is no second copy of the checks to drift. The Blender-side script only handles export settings.
+4. The player imports the `.glb` into the game's library.
+
+The prompt techniques follow [Animato](https://github.com/otdnnc/Animato) (MIT), which builds a full prompt from the rig and has an LLM write one headless `bpy` script. Unlike Animato, the agent iterates with previews and the validator.
+
+## 1. Creator kit
+
+- [ ] Kit sources in a new `creator_kit/` directory, in the format the game writes out:
+  - `README.md`: what the kit is and how to run the agent in this folder.
+  - `SKELETON.md`: generated from (or the same file as) `docs/skeleton.md`. Keep one source.
+  - `build_template.py`: the copy in `characters/template/` (one source; the game copies it).
+  - `example_build_character.py`: a cleaned-up `characters/default/source/build_default.py` (template path relative to the kit; boxes per bone, `matrix_parent_inverse`, sRGB → linear colors, glTF export), as a worked example of correct bone parenting and export.
+  - `export_glb.py`: a helper with the export settings fixed: GLB, no animations, no shape keys, no cameras or lights, transforms applied, +Y up. It resets every pose bone to rest before exporting, so a preview test pose can't end up in the exported file. The example and the agent's script both call it.
+  - `BPY_NOTES.md`: a `bpy` cheat sheet for exactly this task, following Animato's `prompting/sections/recipe.py`: correct calls (bone parenting + `matrix_parent_inverse`, Principled BSDF input names, `mathutils` imports, `Quaternion(axis, angle)` with two arguments, glTF export parameter names) and the API calls LLMs commonly invent or that changed between 4.2 and 5.x. Check it against each supported Blender version.
+  - `PROMPT.md`: the filled-in prompt from §3.
+- [ ] Bundle the kit in exports: add `creator_kit/*` to the export preset's `include_filter` (no `export_presets.cfg` exists yet, so create it). Check that the files can be read from `res://` in an exported build.
+- [ ] `CreatorKit.write(dir, answers)`: copies the kit files into `<dir>/<character_slug>/`, writes `PROMPT.md` and `character_request.json` (the raw answers, so the questionnaire can be reopened later), and returns the folder. The default `dir` is `~/Documents/street-fAIghter characters/` (`OS.get_system_dir(SYSTEM_DIR_DOCUMENTS)`); the player can change it with a native `FileDialog`.
+- [ ] Afterwards: copy the prompt to the clipboard (`DisplayServer.clipboard_set`), open the folder (`OS.shell_show_in_file_manager`), and show the next step in the UI: "Open a terminal in this folder, run `claude`, and paste the prompt."
+
+## 2. Questionnaire UI
+
+- [ ] Menu entry "Characters" → a character screen with the library list (§5), "Create new", and "Import…".
+- [ ] "Create new": a wizard of short pages at 480×270, readable with the pixel font, and usable with keyboard and gamepad as well as the mouse. Questions:
+  - Name (required; becomes the slug and the display name).
+  - Concept in one sentence ("a retired sumo wrestler turned subway busker").
+  - Archetype, as a pick list with a free-text "other": brawler, martial artist, robot, monster, street punk, knight, animal…
+  - Build: slim / athletic / heavy / huge. The UI says joints are fixed, so this changes how bulky the parts are, not the limb lengths.
+  - Head: human / helmet / mask / animal / robot, plus hair or headwear.
+  - Outfit: top, bottom, footwear (each a pick list plus free text).
+  - Palette: 3–4 `ColorPickerButton`s (main, secondary, accent, skin/base), prefilled from a few presets.
+  - Accessories (multi-select): belt, gloves, shoulder pads, scarf, backpack, tail…
+  - Free text: "Anything else?"
+- [ ] Review page: the generated prompt in a read-only `TextEdit`, with "Copy prompt", "Save kit", and "Back".
+- [ ] Answers are only text and colors that go into a template. Escape them (no Markdown fences in names), cap lengths, and strip control characters.
+
+## 3. Prompt template
+
+- [ ] `creator_kit/PROMPT_TEMPLATE.md` with `{{placeholders}}`. The answers fill a "Design brief" section; everything else is a fixed contract:
+  - Working folder = the kit folder. Find Blender (`blender` on PATH, `/Applications/Blender.app/Contents/MacOS/Blender`, `C:\Program Files\Blender Foundation\…`), check that it's 4.2 or newer, and regenerate `template.blend` from `build_template.py`. If Blender is missing, fall back to `pip install bpy` (each `bpy` release pins one Python version).
+  - Read `SKELETON.md` and follow it exactly: don't edit bones, rigid parts parented to bones (Parent type *Bone*, no skinning), parts named `<bone>_<what>` and never the bare bone name, origin at the feet, facing −Y.
+  - Spell out what "don't edit the skeleton" means: never enter Edit Mode on the armature, never change `edit_bones` head/tail/roll/parent, never call `bpy.ops.pose.armature_apply`, never move, rotate, or scale the `Armature` object, and reset any test pose before export. The validator's rest-transform check (§4) catches whatever slips through.
+  - Read `BPY_NOTES.md` before writing code, and print `bpy.app.version` first.
+  - Write `build_character.py` (based on `example_build_character.py`) and run it headless. Don't edit `.blend` files by hand, so every fix is a rerun.
+  - Budgets: ≤ 10k triangles, ≤ 2 textures at ≤ 1024 px, opaque materials only, height 1.6–2.0 m, within a ±0.6 m box sideways and front-to-back in T-pose (match the §4 numbers).
+  - Art direction for this renderer: a fighter is about 97 px tall at 480×270 with toon bands, a 1 px outline, and 12-level color quantization. Use big, readable shapes and a strong silhouette with high-contrast colors. Details under ~3 cm disappear and tiny parts make outline noise. Overlap parts at the joints (spheres or caps) so rotated limbs show no gaps. Model the back too: the intro camera swing shows a 3/4 view.
+  - Self-check loop: render front, side, and 3/4 previews (Workbench, orthographic) in T-pose and in one test pose (arms forward, knee bent) to `previews/`. Look at the images and fix detached parts, gaps, wrong facing, or a missing face. At most N iterations.
+  - Export `<slug>.glb` via `export_glb.py` and write `<slug>.json` (manifest: `schema_version`, `name`, `model`, `description`).
+  - Run the validator command (inserted by the game, §4) and fix every error it reports until it prints `OK`.
+  - Finish by printing the `.glb` path and telling the player to click "Import…".
+- [ ] Insert the exact validator command line: `OS.get_executable_path()` plus `--headless` (before the user args, so no window opens) and the arguments from §4. When run from the editor, add `--path <project>`. Quote paths with spaces.
+- [ ] Dry run: give the prompt to Claude Code with a real Blender for 3+ different briefs. Fix the template wherever the agent goes wrong, and record the results here.
+
+## 4. Validation
+
+- [ ] `CharacterValidator` (new script, or an extension of `CharacterLoader`): `validate(path) -> PackedStringArray` collects **all** problems, not just the first. Messages are specific and paste-friendly, for example: `Triangle count 23,410 exceeds 10,000`, `Bone 'hand.L' missing (found 'hand.L.001')`, `Part 'head' has the same name as a bone; rename it to 'head_part'`. Checks:
+  - File: `.glb` only (magic `glTF`, version 2), size ≤ 4 MB.
+  - Before the full load, parse the GLB JSON chunk to reject oversized image dimensions, a huge accessor count, or external URIs, before `GLTFDocument` decodes anything.
+  - Skeleton: exactly one `Skeleton3D`, all `REQUIRED_BONES`, no extra bones, and the same parents and rest transforms as `default.glb` within tolerance. Animations depend on the rest pose, and a renamed `head_2` means a part clashed with a bone name.
+  - Meshes: every mesh is under a `BoneAttachment3D` or skinned to the skeleton (decide whether skinning is allowed; it renders fine, but the contract says rigid parts). Total triangles ≤ budget, ≤ 2 textures at ≤ 1024 px.
+  - Bounds: the T-pose AABB at rest is 1.6–2.0 m tall with its bottom near y = 0, within ±0.6 m in x/z excluding the arms (fairness and camera framing; the hitbox is fixed anyway).
+  - Materials: reject alpha < 1 or alpha blend/clip (invisible fighters). The loader already replaces materials with the toon shader, so check the glTF source materials.
+  - Ignored with a warning: animations, cameras, lights, shape keys.
+- [ ] `load_character` uses the validator, and `Fighter.set_character` keeps the fallback (the old or default model) on failure.
+- [ ] Headless CLI that doesn't go through the menu: by the time `menu.gd` reads `OS.get_cmdline_user_args()`, the display server, the `Session` autoload, and the main scene already exist. Use a `SceneTree` script instead: `--headless -s res://scripts/validate_character.gd -- <file.glb>`. It prints one problem per line, or `OK`, and exits 0/1. Check that `-s` works in an exported build (the script must be in the pck); if not, use `--headless` plus an early check in an autoload that calls `quit()` before the menu loads.
+
+## 5. Import & library
+
+- [ ] "Import…": a native `FileDialog` (`use_native_dialog`, filter `*.glb`) opening in the last kit folder. Dropping a `.glb` onto the window (`Window.files_dropped`) does the same.
+- [ ] On import: validate → on errors, show the list with "Copy errors" (for pasting back to the agent) → on success, copy to `user://characters/<sha256>.glb` and write `<sha256>.json` (name from the sibling manifest, or the file name; source path; import time). Re-importing identical bytes is a no-op.
+- [ ] "Re-import" on a library entry re-reads its source path, so the edit → export → import loop is one click. A new hash replaces the old entry, and selections follow it.
+- [ ] Library list: name, a small preview, Delete. The preview is a `SubViewport` with the toon and outline shaders, the model playing `idle` and slowly turning, plus a "punch" button to check that the parts follow the animation.
+- [ ] The default characters appear as built-in, non-deletable entries.
+
+## 6. Using custom characters
+
+- [ ] Character select for singleplayer: P1 picks from the library, and the AI fighter gets the default (or a random library entry). Remember the choice in `user://settings.cfg`.
+- [ ] Mirror matches: there's no `_blue` variant for custom models, so add a `tint` uniform to `shaders/toon.gdshader` (hue shift or palette swap). `CharacterLoader` applies it to fighter 2 when both use the same character. `default_blue.glb` could then be dropped in favor of the tint (check the look first).
+- [ ] A custom model that fails to load at match start (deleted file, invalid after a validator update) falls back to the default with a HUD/console notice, never a crash.
+
+## 7. Online distribution
+
+The players connect directly (P2P ENet, `docs/netcode.md`), so send the file over the session instead of running an HTTP server. Characters are a few hundred KB.
+
+- [ ] The match config `characters` entries become `{ "builtin": "default" }` or `{ "sha256": …, "name": …, "size": … }`. Bump `Session.PROTOCOL_VERSION`.
+  - Drop `characters` from `Match.effective_config()`. It currently holds `f.character_path`, and `Session._begin_if_ready()` ends the match on any `config_mismatch`. A local `user://` path, a timeout fallback, or "Show opponents as default character" would trigger a false "Match setup differs from the opponent's: characters". Models are visual only. The simulation inputs (`start_x`, `half_width`, …) stay in it.
+- [ ] Each side announces its chosen character after the handshake. A side missing a hash requests it, and the owner sends it on a separate reliable channel in chunks (≤ 64 KB per RPC, size limit enforced before the first chunk is accepted). The receiver checks the SHA-256, runs the full validator, and caches it under `user://characters/remote/<sha256>.glb`.
+- [ ] `_start_match` waits until both sides report "characters ready", with a timeout. On timeout or failed validation, that fighter uses the default model and the match still starts. Since the model is visual only, the sides don't have to agree on what is shown.
+- [ ] Setting "Show opponents as default character" (skips download and display) for players who don't want to see other people's models.
+- [ ] Test with two headless processes: a custom character on the client is transferred, validated, cached, and loaded on the host; a second match reuses the cache (no transfer); a corrupted chunk is rejected and falls back to the default; checksums stay identical throughout.
+
+## 8. Tests & docs
+
+- [ ] Fixtures: a Blender script `tests/fixtures/build_bad_characters.py` writes small broken `.glb`s (missing bone, renamed bone, part named like a bone, extra bone, moved joint, too many triangles, transparent material, wrong facing/scale, oversized texture). Godot's exporter drops unskinned skeletons (`todo.md` §5), so the fixtures can't be generated from Godot.
+- [ ] `tests/character_validator_test.gd`: `default.glb` passes; each fixture fails with its expected message; the CLI exits 1 with the same messages.
+- [ ] Skeleton drift test: run `build_template.py` in Blender, dump the bone names, parents, head/tail positions, and local axes (as Animato's prompt does from the actual rig), and compare them with the `docs/skeleton.md` tables and the rest pose of `default.glb`. The prompt, the kit, and the validator all depend on these agreeing.
+- [ ] End-to-end playtest: a fresh machine profile, questionnaire → kit → Claude Code + Blender → import → singleplayer match → online match against a second machine that has never seen the character.
+- [ ] Docs: `docs/custom-characters.md` (pipeline, kit layout, validator rules and limits), plus "Custom characters" in `README.md`. Link `docs/skeleton.md` from the kit, and keep it as the single skeleton reference.

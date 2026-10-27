@@ -29,7 +29,7 @@ enum Mode { LOCAL, HOST, CLIENT }
 const DEFAULT_PORT := 7777
 ## Bump whenever the network messages or the simulation change in a way older
 ## builds can't follow; peers with different values refuse each other.
-const PROTOCOL_VERSION := 2
+const PROTOCOL_VERSION := 5
 ## First handshake value, so a packet from something that isn't this game is
 ## rejected as such.
 const MAGIC := "street-faighter"
@@ -77,7 +77,7 @@ var _loaded_config := {}
 var _peer_config := {}
 ## The loaded match scene, waiting for both sides (`main.gd`).
 var _match: Node
-## A `_fail()` is pending.
+## A `fail()` is pending.
 var _failing := false
 
 
@@ -117,28 +117,30 @@ static func parse_address(text: String) -> Array:
 		if not rest.is_empty():
 			if not rest.begins_with(":"):
 				return []
-			port = _parse_port(rest.substr(1))
+			port = parse_port(rest.substr(1))
 	elif host.count(":") == 1:
 		var parts := host.split(":")
 		host = parts[0]
-		port = _parse_port(parts[1])
+		port = parse_port(parts[1])
 	if host.is_empty() or port < 0 or host.contains(" "):
 		return []
 	return [host, port]
 
 
 ## The port number in `text`, or -1 if it isn't one.
-static func _parse_port(text: String) -> int:
+static func parse_port(text: String) -> int:
 	if not text.is_valid_int():
 		return -1
 	var port := text.to_int()
 	return port if port >= 1 and port <= 65535 else -1
 
-
 ## Starts listening on `port` for one opponent; this machine plays fighter 1.
 ## Returns false (and emits `ended`) if the port can't be opened.
 func host(port: int = DEFAULT_PORT) -> bool:
 	close()
+	if port < 1 or port > 65535:
+		_end("Invalid port %d: use 1-65535" % port)
+		return false
 	var peer := ENetMultiplayerPeer.new()
 	var err := peer.create_server(port, 1)
 	if err != OK:
@@ -329,14 +331,14 @@ func _on_auth(id: int, data: PackedByteArray) -> void:
 		if reply.size() >= 4 and reply[3] is String:
 			problem = reply[3]
 	if not problem.is_empty():
-		_fail("Rejected by the host: %s" % problem)
+		fail("Rejected by the host: %s" % problem)
 		return
 	mp.complete_auth(id)
 
 
 func _on_peer_authentication_failed(_id: int) -> void:
 	if mode == Mode.CLIENT:
-		_fail("Handshake with the host failed (timed out)")
+		fail("Handshake with the host failed (timed out)")
 
 
 # --- Connection events ---
@@ -355,34 +357,46 @@ func _on_connected_to_server() -> void:
 
 func _on_peer_disconnected(id: int) -> void:
 	if mode == Mode.HOST and id == peer_id:
-		_fail("Opponent disconnected")
+		fail("Opponent disconnected")
 
 
 func _on_connection_failed() -> void:
-	_fail("Could not connect to the host")
+	fail("Could not connect to the host")
 
 
 func _on_server_disconnected() -> void:
-	_fail("Host disconnected")
+	fail("Opponent disconnected" if is_instance_valid(_match) else "Host disconnected")
 
 
-## From multiplayer signals, which arrive while the peer is being polled:
-## ends the session with `reason` once the poll is over. Only the first
-## reason counts (closing can raise more signals).
-func _fail(reason: String) -> void:
+## Ends the session with the error `reason` once the current multiplayer
+## poll / physics step is over (multiplayer signals arrive while the peer is
+## being polled), or after `linger` seconds, keeping the connection open so
+## messages just sent still reach the peer. Only the first reason counts
+## (closing can raise more signals). Mid-match, the match scene shows it
+## before the menu (`_end()`).
+func fail(reason: String, linger := 0.0) -> void:
 	if _failing:
 		return
 	_failing = true
-	_end.call_deferred(reason)
+	if linger > 0.0:
+		get_tree().create_timer(linger).timeout.connect(func() -> void:
+			if _failing:  # Not closed meanwhile.
+				_end(reason))
+	else:
+		_end.call_deferred(reason)
 
 
 ## Closes the session with an error `reason` and returns to the menu, which
-## shows it.
+## shows it. During a match, the match scene pauses and shows `reason` first
+## (`main.gd` `end_online()`), then goes back to the menu itself.
 func _end(reason: String) -> void:
+	var match_scene := _match if is_instance_valid(_match) else null
 	_reset()
 	_end_reason = reason
 	ended.emit(reason)
-	if get_tree().current_scene == null or get_tree().current_scene.scene_file_path != MENU_SCENE:
+	if match_scene != null:
+		match_scene.end_online(reason)
+	elif get_tree().current_scene == null or get_tree().current_scene.scene_file_path != MENU_SCENE:
 		get_tree().change_scene_to_file.call_deferred(MENU_SCENE)
 
 

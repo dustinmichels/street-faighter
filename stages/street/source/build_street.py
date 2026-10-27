@@ -7,11 +7,13 @@ and ../wall.glb (the brick pillar shown at each stage wall). Run from the repo r
 Everything is modeled in Godot coordinates (x right, y up, +z toward the camera; meters)
 and converted to Blender's Z-up / -Y-front on the way in, so the numbers below match what
 the game sees. Fighters stand on the road at z = 0, y = 0; the stage walls' inner faces sit
-at x = +-6 (Stage.half_width) and the camera never shows past x = +-6.5.
+at x = +-6 (Stage.half_width) and, at the fighters' depth, the camera never shows past
+x = +-6.5.
 
-The camera is orthographic and pitched 10 degrees down, so farther things appear higher on
-screen and the visible height shrinks with depth: at the facade (z = -3) the top of the
-screen is y = 3.75, at z = -13 about y = 2.1. The skyline is sized for that.
+The camera is orthographic, pitched 10 degrees down and yawed 10 degrees (FollowCamera's
+view_yaw: it sits a little to the right, so a sliver of depth shows), so farther things
+appear higher on screen and the visible height shrinks with depth: at the facade (z = -3)
+the top of the screen is y = 3.75, at z = -13 about y = 2.1. The skyline is sized for that.
 
 Empties named steam_* mark steam emitters: Stage spawns scenes/steam.tscn on each, emitting
 along the empty's +Y (Godot) axis; the empty's scale scales the plume.
@@ -32,6 +34,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 OUT_DIR = os.path.normpath(os.path.join(HERE, ".."))
 SEED = 7
 MOON_X = 5.5  # clear of the rooftop AC unit
+WALL_FRONT = -0.8  # stage wall pillars end here, behind the fighters (z = 0)
 
 
 # ---------------------------------------------------------------------------
@@ -698,11 +701,13 @@ def build_street(M):
 
 def build_wall(M):
     """Brick pillar for one stage wall: inner face at x = 0, extending to +x (the right
-    wall; Stage mirrors it for the left). Matches Stage.WALL_THICKNESS = 0.5."""
+    wall; Stage mirrors it for the left). Matches Stage.WALL_THICKNESS = 0.5. It stops
+    at z = WALL_FRONT, behind the fighters: the yawed camera looks past it at an angle,
+    so any part nearer the camera would hide a fighter standing at the wall."""
     mesh = Mesh()
-    box(mesh, M["brick_pillar"], (0.0, -0.3, -3.0), (0.5, 8.0, 6.5))
-    box(mesh, M["trim"], (-0.03, -0.3, 6.5), (0.5, 0.4, 6.56))
-    pipe(mesh, M["drain"], M["drain"], [(0.22, 0.0, 6.6), (0.22, 8.0, 6.6)], 0.05, 1.7)
+    box(mesh, M["brick_pillar"], (0.0, -0.3, -3.0), (0.5, 8.0, WALL_FRONT))
+    box(mesh, M["trim"], (-0.03, -0.3, WALL_FRONT), (0.5, 0.4, WALL_FRONT + 0.06))
+    pipe(mesh, M["drain"], M["drain"], [(0.22, 0.0, WALL_FRONT + 0.1), (0.22, 8.0, WALL_FRONT + 0.1)], 0.05, 1.7)
     return mesh.build("wall")
 
 

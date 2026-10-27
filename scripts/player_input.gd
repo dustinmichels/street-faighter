@@ -1,7 +1,7 @@
 class_name PlayerInput
 extends InputSource
-## Local player: the `move_left`, `move_right`, `jump`, `punch` and `block`
-## actions (keyboard and gamepad, see `project.godot`).
+## Local player: the `move_left`, `move_right`, `jump`, `punch`, `block` and
+## `crouch` actions (keyboard and gamepad, see `project.godot`).
 
 
 func poll(_tick: int) -> int:
@@ -16,4 +16,6 @@ func poll(_tick: int) -> int:
 		buttons |= PUNCH
 	if Input.is_action_pressed(&"block"):
 		buttons |= BLOCK
+	if Input.is_action_pressed(&"crouch"):
+		buttons |= CROUCH
 	return buttons

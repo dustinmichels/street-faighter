@@ -178,10 +178,10 @@ func step(inputs: PackedInt32Array) -> void:
 	var b_hits := b.attack_connects(a)
 	if a_hits:
 		a.attack_landed = true
-		b.take_hit(a.attack_damage(), a.facing, a.pos_x)
+		b.take_hit(a.attack_damage(), a.facing, a.pos_x, a.attack_knocks_over())
 	if b_hits:
 		b.attack_landed = true
-		a.take_hit(b.attack_damage(), b.facing, b.pos_x)
+		a.take_hit(b.attack_damage(), b.facing, b.pos_x, b.attack_knocks_over())
 	tick += 1
 	checksum = state_checksum()
 
@@ -271,6 +271,12 @@ func load_tick(t: int) -> void:
 func checksum_at(t: int) -> int:
 	assert(has_tick(t), "tick %d is not in the history (now %d)" % [t, tick])
 	return checksum if t == tick else _checksums[t % HISTORY]
+
+
+## `save_state()` at the start of tick `t`, for `has_tick(t)` (desync logs).
+func state_at(t: int) -> PackedInt64Array:
+	assert(has_tick(t), "tick %d is not in the history (now %d)" % [t, tick])
+	return save_state() if t == tick else _states[t % HISTORY]
 
 
 ## 32-bit FNV-1a-style hash (over 32-bit words, not bytes) of `tick` and both
