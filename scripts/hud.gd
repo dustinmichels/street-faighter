@@ -8,10 +8,17 @@ extends Control
 ## the bar's inner end a pulsing star while that fighter's special is ready
 ## (`Fighter.special_ready()`).
 ## Once either fighter is knocked down, a centered "K.O." and a hint appear:
-## offline the restart (`main.gd`), online the rematch status (`ko_hint()`).
+## offline the restart (`main.gd`), online the rematch status, then the way
+## back to the menu (`ko_hint()`).
 ## A "Controls" button in the bottom-right corner, or the `controls` action
-## (Esc), toggles a panel listing the key bindings, read live from the
-## InputMap. Before `Match.start_tick`
+## (Esc), toggles the controls screen: a dimmed backdrop and a table of the
+## actions and their keys, read live from the InputMap, in the pixel font at
+## its native size so it stays sharp when the 480×270 frame is scaled up.
+## Offline (`net` null) the screen also pauses the game (`SceneTree.paused`;
+## the HUD and `main.gd` keep processing, the `GameView` stops); online the
+## fight goes on underneath. Once the match is over (`Match.is_over()`), Esc
+## closes an open controls screen, otherwise it is left to `main.gd`, which
+## returns to the menu. Before `Match.start_tick`
 ## a centered countdown (3, 2, 1) shows, then "FIGHT!" for `FIGHT_TICKS`;
 ## both come from the simulation tick, so peers show them on the same tick.
 ## `show_notice()` replaces both, and the K.O., with a centered message
@@ -41,21 +48,32 @@ const WARNING_SECONDS := 6.0
 const WARNING_FONT_SIZE := 10
 ## Top of the warning line, below the names and special stars.
 const WARNING_TOP := 40
-## Actions listed in the controls panel, in display order, with their labels.
+## Rows of the controls screen, in display order: action, label, and whether
+## it's a debug key (dimmed).
 const CONTROLS: Array[Array] = [
-	[&"move_left", "Move left"],
-	[&"move_right", "Move right"],
-	[&"jump", "Jump (hold to repeat)"],
-	[&"punch", "Punch / air kick"],
-	[&"block", "Block (hold)"],
-	[&"crouch", "Crouch (hold, ducks punches; + punch: sweep)"],
-	[&"special", "Special throw (after 3 hits in a row)"],
-	[&"restart", "Restart"],
-	[&"controls", "Show controls"],
-	[&"net_debug", "Network debug overlay"],
-	[&"ai_difficulty", "CPU difficulty: default / easy (debug)"],
+	[&"move_left", "Move left", false],
+	[&"move_right", "Move right", false],
+	[&"jump", "Jump", false],
+	[&"crouch", "Crouch", false],
+	[&"punch", "Punch / air kick", false],
+	[&"block", "Block (hold)", false],
+	[&"special", "Special throw", false],
+	[&"restart", "Restart", false],
+	[&"controls", "Controls / menu", false],
+	[&"net_debug", "Network debug", true],
+	[&"ai_difficulty", "CPU difficulty", true],
 ]
+## Combos listed under the key table (no binding of their own).
+const CONTROLS_NOTES := "Crouch + Punch: sweep\nSpecial: after 3 hits in a row"
 const CONTROLS_FONT_SIZE := 10
+## Controls screen: the pixel font at its native size (multiples of 8 stay
+## sharp), key names in white, labels in the health-bar yellow.
+const SCREEN_FONT_SIZE := 8
+const SCREEN_TITLE_SIZE := 16
+const SCREEN_ROW_GAP := 4
+const SCREEN_DEBUG_COLOR := Color(0.6, 0.58, 0.68)
+const SCREEN_BACKDROP := Color(0.0, 0.0, 0.0, 0.6)
+const SCREEN_PANEL_COLOR := Color(0.08, 0.06, 0.1)
 ## Fighter names under the bars: the menu's pixel font at its native size,
 ## `NAME_GAP` px below the bar's border.
 const NAME_FONT: Font = preload("res://assets/fonts/PressStart2P-Regular.ttf")
@@ -91,9 +109,11 @@ var _right_star: Control
 ## "K.O." plus `_ko_hint`, hidden until a knockdown.
 var _ko: VBoxContainer
 var _ko_hint: Label
-## Key-binding list, hidden until the controls button is toggled on.
-var _controls: PanelContainer
-## Bottom-right toggle; its pressed state is the panel's visibility.
+## Controls screen (backdrop and key table), hidden until the controls
+## button is toggled on.
+var _controls: Control
+## Bottom-right toggle; its pressed state is the controls screen's
+## visibility (and offline, the pause).
 var _controls_button: Button
 ## Centered countdown / "FIGHT!", empty (hidden) otherwise.
 var _countdown: Label
@@ -127,13 +147,15 @@ func _ready() -> void:
 	_notice.visible = false
 	add_child(_notice)
 	_notice.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
-	_controls = _make_controls_panel()
-	_controls_button = _make_controls_button()
 	_net_status = _make_label("", CONTROLS_FONT_SIZE, Color.WHITE)
 	_net_status.mouse_filter = MOUSE_FILTER_IGNORE
 	_net_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	add_child(_net_status)
-	_net_status.set_anchors_and_offsets_preset(PRESET_BOTTOM_LEFT, PRESET_MODE_MINSIZE, int(BAR_MARGIN.y))
+	_net_status.set_anchors_and_offsets_preset(
+		PRESET_BOTTOM_LEFT,
+		PRESET_MODE_MINSIZE,
+		int(BAR_MARGIN.y),
+	)
 	_net_debug = _make_label("", CONTROLS_FONT_SIZE, Color.WHITE)
 	_net_debug.mouse_filter = MOUSE_FILTER_IGNORE
 	_net_debug.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
@@ -149,16 +171,35 @@ func _ready() -> void:
 	_warning.offset_left = BAR_MARGIN.x
 	_warning.offset_right = -BAR_MARGIN.x
 	_warning.offset_top = WARNING_TOP
+	_controls = _make_controls_screen()
+	_controls_button = _make_controls_button()
 	_update()
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed(&"controls") and not event.is_echo():
+	if (
+		event.is_action_pressed(&"controls") and not event.is_echo()
+		and (_controls.visible or not (fight != null and fight.is_over()))
+	):
 		get_viewport().set_input_as_handled()
 		_controls_button.button_pressed = not _controls_button.button_pressed
 	elif event.is_action_pressed(&"net_debug") and not event.is_echo():
 		get_viewport().set_input_as_handled()
 		_net_debug.visible = not _net_debug.visible
+
+
+## Unpauses the tree if the controls screen paused it, e.g. when R reloads
+## the match while it is open.
+func _exit_tree() -> void:
+	if _controls != null and _controls.visible and net == null:
+		get_tree().paused = false
+
+
+## Shows or hides the controls screen; offline it also (un)pauses the game.
+func _set_controls_open(open: bool) -> void:
+	_controls.visible = open
+	if net == null:
+		get_tree().paused = open
 
 
 func _process(_delta: float) -> void:
@@ -186,7 +227,10 @@ func _update() -> void:
 		_countdown.text = countdown_text(fight.tick, fight.start_tick)
 	_net_status.visible = net != null or debug_text != ""
 	if net != null:
-		_net_status.text = net_status_text(net.ping_ms(), net.local.delay if net.local != null else 0)
+		_net_status.text = net_status_text(
+			net.ping_ms(),
+			net.local.delay if net.local != null else 0,
+		)
 	else:
 		_net_status.text = debug_text
 	if _net_debug.visible:
@@ -208,9 +252,11 @@ func show_notice(text: String) -> void:
 func show_warning(text: String) -> void:
 	_warning.text = text
 	_warning.visible = not text.is_empty()
-	get_tree().create_timer(WARNING_SECONDS).timeout.connect(func() -> void:
-		if _warning.text == text:
-			_warning.visible = false)
+	get_tree().create_timer(WARNING_SECONDS).timeout.connect(
+		func() -> void:
+			if _warning.text == text:
+				_warning.visible = false,
+	)
 
 
 ## The debug overlay's lines for `world` and, online, its `sync`: this
@@ -222,20 +268,25 @@ func show_warning(text: String) -> void:
 static func net_debug_text(world: Match, sync: InputSync) -> String:
 	if world == null:
 		return ""
-	var lines := PackedStringArray([
-		"Tick %d  confirmed %d" % [world.tick, world.confirmed_tick],
-	])
+	var lines := PackedStringArray(["Tick %d  confirmed %d" % [world.tick, world.confirmed_tick]])
 	if sync == null:
 		lines.append("Offline")
 		return "\n".join(lines)
-	lines.append_array([
-		"Remote tick %d  lead %+.1f" % [sync.remote_tick, sync.lead()],
-		"Rollbacks %d (%d ticks)  window %d" % [world.rollbacks, world.resimulated_ticks, world.max_rollback],
-		"Stalled %d  skipped %d frames" % [world.stalled_frames, world.skipped_frames],
-		"Packets %d in, %d lost  loss %d%%" % [sync.packets_received, sync.packets_lost, roundi(sync.packet_loss * 100.0)],
-	])
+	lines.append_array(
+		[
+			"Remote tick %d  lead %+.1f" % [sync.remote_tick, sync.lead()],
+			"Rollbacks %d (%d ticks)  window %d"
+			% [world.rollbacks, world.resimulated_ticks, world.max_rollback],
+			"Stalled %d  skipped %d frames" % [world.stalled_frames, world.skipped_frames],
+			"Packets %d in, %d lost  loss %d%%"
+			% [sync.packets_received, sync.packets_lost, roundi(sync.packet_loss * 100.0)],
+		]
+	)
 	if sync.is_simulating():
-		lines.append("Simulated +%d ms (+0-%d) each way, %d%% loss" % [sync.sim_latency_ms, sync.sim_jitter_ms, roundi(sync.sim_loss * 100.0)])
+		lines.append(
+			"Simulated +%d ms (+0-%d) each way, %d%% loss"
+			% [sync.sim_latency_ms, sync.sim_jitter_ms, roundi(sync.sim_loss * 100.0)]
+		)
 	return "\n".join(lines)
 
 
@@ -255,20 +306,26 @@ static func countdown_text(tick: int, start_tick: int) -> String:
 ## the input delay of this side's `LocalInput`, in ticks and ms.
 static func net_status_text(rtt_ms: int, delay_ticks: int) -> String:
 	var ping := "%d ms" % rtt_ms if rtt_ms > 0 else "? ms"
-	return "Ping %s   Input delay %d (%d ms)" % [ping, delay_ticks, roundi(delay_ticks * 1000.0 / Fighter.TICK_RATE)]
+	return "Ping %s   Input delay %d (%d ms)" % [
+		ping,
+		delay_ticks,
+		roundi(delay_ticks * 1000.0 / Fighter.TICK_RATE),
+	]
 
 
-## The line under "K.O.": the restart key offline; online, what the rematch
+## The lines under "K.O.": the restart key offline; online, what the rematch
 ## is waiting for (`requested`: this player asked, `peer_requested`: the
-## opponent did).
+## opponent did). Then the key back to the menu.
 static func ko_hint(online: bool, requested: bool, peer_requested: bool) -> String:
-	if not online:
-		return "Press R to restart"
-	if requested:
-		return "Waiting for the opponent to accept the rematch..."
-	if peer_requested:
-		return "Opponent wants a rematch: press R to accept"
-	return "Press R for a rematch"
+	var first := "Press R to restart"
+	if online:
+		if requested:
+			first = "Waiting for the opponent to accept the rematch..."
+		elif peer_requested:
+			first = "Opponent wants a rematch: press R to accept"
+		else:
+			first = "Press R for a rematch"
+	return first + "\nPress Esc for the menu"
 
 
 static func _is_down(fighter: Fighter) -> bool:
@@ -289,43 +346,98 @@ func _make_ko() -> VBoxContainer:
 	return box
 
 
-## Adds the bottom-right toggle that shows/hides the controls panel. It never
-## takes focus, so Space (jump) can't press it.
+## Adds the bottom-right toggle that shows/hides the controls screen. It
+## never takes focus, so Space (jump) can't press it.
 func _make_controls_button() -> Button:
 	var button := Button.new()
 	button.text = "Controls"
 	button.toggle_mode = true
 	button.focus_mode = FOCUS_NONE
-	button.add_theme_font_size_override(&"font_size", CONTROLS_FONT_SIZE)
-	button.toggled.connect(func(on: bool) -> void: _controls.visible = on)
+	button.add_theme_font_override(&"font", NAME_FONT)
+	button.add_theme_font_size_override(&"font_size", SCREEN_FONT_SIZE)
+	button.toggled.connect(_set_controls_open)
 	add_child(button)
-	button.set_anchors_and_offsets_preset(PRESET_BOTTOM_RIGHT, PRESET_MODE_MINSIZE, int(BAR_MARGIN.y))
+	button.set_anchors_and_offsets_preset(
+		PRESET_BOTTOM_RIGHT,
+		PRESET_MODE_MINSIZE,
+		int(BAR_MARGIN.y),
+	)
 	return button
 
 
-## Builds the hidden, screen-centered table of actions and their keys.
-func _make_controls_panel() -> PanelContainer:
+## Builds the hidden controls screen: a backdrop dimming the fight and a
+## centered, opaque panel with a title ("PAUSED" offline), the actions and
+## their keys, the combos and how to close it.
+func _make_controls_screen() -> Control:
+	var screen := Control.new()
+	screen.mouse_filter = MOUSE_FILTER_IGNORE
+	var backdrop := ColorRect.new()
+	backdrop.color = SCREEN_BACKDROP
+	backdrop.mouse_filter = MOUSE_FILTER_IGNORE
+	screen.add_child(backdrop)
+	backdrop.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
+	var center := CenterContainer.new()
+	center.mouse_filter = MOUSE_FILTER_IGNORE
+	screen.add_child(center)
+	center.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
 	var panel := PanelContainer.new()
 	panel.mouse_filter = MOUSE_FILTER_IGNORE
 	var style := StyleBoxFlat.new()
-	style.bg_color = Color(BORDER_COLOR, 0.85)
-	style.set_content_margin_all(6)
+	style.bg_color = SCREEN_PANEL_COLOR
+	style.border_color = HEALTH_COLOR
+	style.set_border_width_all(1)
+	style.set_content_margin_all(10)
 	panel.add_theme_stylebox_override(&"panel", style)
+	center.add_child(panel)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override(&"separation", 8)
+	panel.add_child(box)
+	box.add_child(
+		_make_pixel_label("PAUSED" if net == null else "CONTROLS", SCREEN_TITLE_SIZE, Color.WHITE)
+	)
 	var grid := GridContainer.new()
 	grid.columns = 2
-	grid.add_theme_constant_override(&"h_separation", 12)
+	grid.add_theme_constant_override(&"h_separation", 16)
+	grid.add_theme_constant_override(&"v_separation", SCREEN_ROW_GAP)
 	for entry in CONTROLS:
-		var action := _make_label(entry[1], CONTROLS_FONT_SIZE, HEALTH_COLOR)
+		var debug: bool = entry[2]
+		var action := _make_pixel_label(
+			entry[1],
+			SCREEN_FONT_SIZE,
+			SCREEN_DEBUG_COLOR if debug else HEALTH_COLOR,
+		)
 		action.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 		grid.add_child(action)
-		var keys := _make_label(_keys_for(entry[0]), CONTROLS_FONT_SIZE, Color.WHITE)
+		var keys := _make_pixel_label(
+			_keys_for(entry[0]),
+			SCREEN_FONT_SIZE,
+			SCREEN_DEBUG_COLOR if debug else Color.WHITE,
+		)
 		keys.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 		grid.add_child(keys)
-	panel.add_child(grid)
-	panel.visible = false
-	add_child(panel)
-	panel.set_anchors_and_offsets_preset(PRESET_CENTER, PRESET_MODE_MINSIZE)
-	return panel
+	box.add_child(grid)
+	var notes := _make_pixel_label(CONTROLS_NOTES, SCREEN_FONT_SIZE, HEALTH_COLOR)
+	notes.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	notes.add_theme_constant_override(&"line_spacing", SCREEN_ROW_GAP)
+	box.add_child(notes)
+	var close := "%s: resume" if net == null else "%s: close"
+	box.add_child(
+		_make_pixel_label(close % _keys_for(&"controls"), SCREEN_FONT_SIZE, SCREEN_DEBUG_COLOR)
+	)
+	screen.visible = false
+	add_child(screen)
+	screen.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
+	return screen
+
+
+## A label in the pixel font (`NAME_FONT`) with no outline, for the opaque
+## controls panel. `font_size` should be a multiple of 8 to stay sharp.
+func _make_pixel_label(text: String, font_size: int, color: Color) -> Label:
+	var label := _make_label(text, font_size, color)
+	label.mouse_filter = MOUSE_FILTER_IGNORE
+	label.add_theme_font_override(&"font", NAME_FONT)
+	label.add_theme_constant_override(&"outline_size", 0)
+	return label
 
 
 ## Key names bound to `action`, joined with " / ", as labeled on the player's
@@ -342,6 +454,7 @@ static func _keys_for(action: StringName) -> String:
 				code = DisplayServer.keyboard_get_keycode_from_physical(key.physical_keycode)
 			else:
 				code = key.physical_keycode
+		names.append(OS.get_keycode_string(code))
 	return " / ".join(names)
 
 

@@ -8,8 +8,14 @@ Both players need the **same version** of the game. The version is in the bottom
 
 1. Choose **2 PLAYERS ONLINE**.
 2. Leave the port empty to use **7777**, or type another UDP port.
-3. Choose **HOST**. The menu shows *Hosting on port 7777, waiting for an opponent...*
-4. Tell the other player your IP address (see [Which address to share](#which-address-to-share)).
+3. Choose **HOST**. The menu shows _Hosting on port 7777, waiting for an opponent..._ and, in place of the join row, the addresses your opponent can join with:
+   - **LAN**: your local IP, for an opponent on the same network.
+   - **VPN**: your Tailscale IP (`100.x.x.x`), if you run Tailscale.
+   - **INTERNET**: your public IP, looked up from [ipify](https://www.ipify.org/). It only works if you forward the port (see [Port forwarding](#port-forwarding)). If the lookup fails, this row doesn't appear.
+
+   Addresses include the port when it isn't 7777.
+
+4. Choose **COPY** next to the right address (see [Which address to share](#which-address-to-share)) and send it to the other player.
 
 ## Join a match
 
@@ -27,24 +33,24 @@ Don't want to see other people's models? Toggle **OPPONENTS: AS CHOSEN** to **OP
 
 ## Rematch
 
-After a knockout, both players press <kbd>R</kbd> to agree to a rematch on the same connection. The HUD shows whether you're waiting for your opponent or they're waiting for you. Before the KO, <kbd>R</kbd> does nothing online.
+After a knockout, both players press <kbd>R</kbd> to agree to a rematch on the same connection. The HUD shows whether you're waiting for your opponent or they're waiting for you. Before the KO, <kbd>R</kbd> does nothing online, and <kbd>Esc</kbd> shows the controls without pausing: the fight goes on. Pressing <kbd>Esc</kbd> after the KO leaves the match and returns to the menu; your opponent sees _Opponent disconnected_.
 
 ## Which address to share
 
-| Where the other player is             | What to do                                                                                                                                                                         |
-| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Same Wi-Fi or wired network           | Share the host's **local** IP: on macOS, **System Settings → Wi-Fi → Details** (or **Network**), usually `192.168.x.x` or `10.x.x.x`. No router setup needed.                     |
-| Anywhere, easiest                     | Both install a free mesh VPN such as [Tailscale](https://tailscale.com/) or [ZeroTier](https://www.zerotier.com/) and join the same network. Share the host's VPN IP. No router setup. |
-| Anywhere, no VPN                      | The host forwards a port on their router (below) and shares their **public** IP (search "what is my IP").                                                                        |
+| Where the other player is   | What to do                                                                                                                                                                                                                       |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Same Wi-Fi or wired network | Share the **LAN** address. No router setup needed.                                                                                                                                                                               |
+| Anywhere, easiest           | Both install a free mesh VPN such as [Tailscale](https://tailscale.com/) or [ZeroTier](https://www.zerotier.com/) and join the same network. Share the **VPN** address (ZeroTier addresses show up as **LAN**). No router setup. |
+| Anywhere, no VPN            | The host forwards a port on their router (below) and shares the **INTERNET** address.                                                                                                                                            |
 
 ### Port forwarding
 
 Only the **host** forwards a port; the joiner needs nothing.
 
-1. Find the host computer's local IP (as above).
+1. Find the host computer's local IP: the **LAN** address shown while hosting.
 2. In the router's settings, forward **UDP** port **7777** (or your custom port) to that local IP. TCP forwarding won't work: the game uses UDP.
 3. If a firewall is on, allow incoming connections for **street-faighter**. On macOS, click **Allow** when asked, or check **System Settings → Network → Firewall → Options**.
-4. Give the joiner your public IP.
+4. Give the joiner the **INTERNET** address.
 
 ## Connection quality
 
@@ -56,8 +62,8 @@ The bottom-left corner shows the ping and the input delay during a match. <kbd>F
 
 The match freezes, shows the reason, and returns to the menu after a few seconds when:
 
-- the opponent quits (*Opponent disconnected*),
-- nothing arrives from them for 5 seconds (*Connection lost*), or
-- the two games compute different results (*Desync*). This shouldn't happen; if it does, please [open an issue](https://github.com/dustinmichels/street-faighter/issues).
+- the opponent quits (_Opponent disconnected_),
+- nothing arrives from them for 5 seconds (_Connection lost_), or
+- the two games compute different results (_Desync_). This shouldn't happen; if it does, please [open an issue](https://github.com/dustinmichels/street-faighter/issues).
 
 Problems connecting in the first place are covered in [Troubleshooting](./troubleshooting#online).

@@ -11,7 +11,16 @@ signal finished
 ## The player went back from the first page.
 signal canceled
 
-enum Page { IDENTITY, ARCHETYPE, BUILD, HEAD, OUTFIT, PALETTE, ACCESSORIES, NOTES }
+enum Page {
+	IDENTITY,
+	ARCHETYPE,
+	BUILD,
+	HEAD,
+	OUTFIT,
+	PALETTE,
+	ACCESSORIES,
+	NOTES,
+}
 
 const PAGES := {
 	Page.IDENTITY: "WHO IS IT?",
@@ -25,18 +34,54 @@ const PAGES := {
 }
 ## Pick-list entry whose answer is only the free text next to it.
 const OTHER := "OTHER"
-const ARCHETYPES := ["BRAWLER", "MARTIAL ARTIST", "WRESTLER", "BOXER", "ROBOT", "MONSTER",
-		"STREET PUNK", "KNIGHT", "NINJA", "ANIMAL", OTHER]
+const ARCHETYPES := [
+	"BRAWLER",
+	"MARTIAL ARTIST",
+	"WRESTLER",
+	"BOXER",
+	"ROBOT",
+	"MONSTER",
+	"STREET PUNK",
+	"KNIGHT",
+	"NINJA",
+	"ANIMAL",
+	OTHER,
+]
 const BUILDS := ["SLIM", "ATHLETIC", "HEAVY", "HUGE"]
 const HEADS := ["HUMAN", "HELMET", "MASK", "ANIMAL", "ROBOT"]
-const TOPS := ["T-SHIRT", "TANK TOP", "GI JACKET", "LEATHER JACKET", "HOODIE", "BARE CHEST",
-		"ARMOR", OTHER]
+const TOPS := [
+	"T-SHIRT",
+	"TANK TOP",
+	"GI JACKET",
+	"LEATHER JACKET",
+	"HOODIE",
+	"BARE CHEST",
+	"ARMOR",
+	OTHER,
+]
 const BOTTOMS := ["JEANS", "GI PANTS", "SHORTS", "CARGO PANTS", "TIGHTS", "ARMOR", OTHER]
 const FOOTWEAR := ["SNEAKERS", "BOOTS", "BAREFOOT", "SANDALS", "ARMORED BOOTS", OTHER]
-const ACCESSORIES := ["BELT", "GLOVES", "SHOULDER PADS", "SCARF", "BACKPACK", "TAIL",
-		"CAPE", "KNEE PADS", "HEADBAND", "SUNGLASSES", "CHAIN", "WRIST WRAPS"]
+const ACCESSORIES := [
+	"BELT",
+	"GLOVES",
+	"SHOULDER PADS",
+	"SCARF",
+	"BACKPACK",
+	"TAIL",
+	"CAPE",
+	"KNEE PADS",
+	"HEADBAND",
+	"SUNGLASSES",
+	"CHAIN",
+	"WRIST WRAPS",
+]
 ## Palette keys in `CreatorKit` order, with their labels.
-const PALETTE_KEYS := {"main": "MAIN", "secondary": "SECONDARY", "accent": "ACCENT", "base": "SKIN / BASE"}
+const PALETTE_KEYS := {
+	"main": "MAIN",
+	"secondary": "SECONDARY",
+	"accent": "ACCENT",
+	"base": "SKIN / BASE",
+}
 ## Starting palettes (sRGB); the first one fills a new questionnaire.
 const PRESETS := {
 	"STREET": ["#c02a20", "#2a2f45", "#f2c230", "#d9a07a"],
@@ -66,8 +111,8 @@ var _archetype_other: LineEdit
 var _build: OptionButton
 var _head: OptionButton
 var _headwear: LineEdit
-var _outfit := {}  # key → [OptionButton, LineEdit]
-var _colors := {}  # palette key → ColorPickerButton
+var _outfit := { } # key → [OptionButton, LineEdit]
+var _colors := { } # palette key → ColorPickerButton
 var _accessories: Array[Button] = []
 var _notes: LineEdit
 
@@ -143,7 +188,7 @@ func back() -> void:
 ## The answers in the `CreatorKit` format. A pick with free text gives
 ## "pick, text", `OTHER` gives the text alone.
 func answers() -> Dictionary:
-	var palette := {}
+	var palette := { }
 	for key: String in _colors:
 		palette[key] = "#" + _colors[key].color.to_html(false)
 	var picked: Array[String] = []
@@ -191,23 +236,50 @@ func _build_page(page: Page, box: Control) -> void:
 			_name.text_changed.connect(_update_slug)
 			_slug = _label("", HINT_COLOR)
 			box.add_child(_slug)
-			_concept = _field(box, "CONCEPT IN ONE SENTENCE", "a retired sumo wrestler turned subway busker",
-					CreatorKit.max_length("concept"))
+			_concept = _field(
+				box,
+				"CONCEPT IN ONE SENTENCE",
+				"a retired sumo wrestler turned subway busker",
+				CreatorKit.max_length("concept"),
+			)
 			_concept.custom_minimum_size.x = 380
 		Page.ARCHETYPE:
 			_archetype = _choice(box, "TYPE", ARCHETYPES)
 			_archetype.item_selected.connect(_update_other)
-			_archetype_other = _field(_row(box, "OTHER"), "", "", _detail_limit("archetype", ARCHETYPES))
+			_archetype_other = _field(
+				_row(box, "OTHER"),
+				"",
+				"",
+				_detail_limit("archetype", ARCHETYPES),
+			)
 		Page.BUILD:
 			_build = _choice(box, "BUILD", BUILDS)
-			box.add_child(_note("The joints are fixed: the build changes how bulky the parts are, not the length of the limbs."))
+			box.add_child(
+				_note(
+					"The joints are fixed: the build changes how bulky the parts are, not the length of the limbs."
+				)
+			)
 		Page.HEAD:
 			_head = _choice(box, "HEAD", HEADS)
-			_headwear = _field(_row(box, "HAIR/HAT"), "", "topknot, red bandana", CreatorKit.max_length("headwear"))
+			_headwear = _field(
+				_row(box, "HAIR/HAT"),
+				"",
+				"topknot, red bandana",
+				CreatorKit.max_length("headwear"),
+			)
 		Page.OUTFIT:
-			for row: Array in [["top", "TOP", TOPS], ["bottom", "BOTTOM", BOTTOMS], ["footwear", "FOOTWEAR", FOOTWEAR]]:
+			for row: Array in [
+				["top", "TOP", TOPS],
+				["bottom", "BOTTOM", BOTTOMS],
+				["footwear", "FOOTWEAR", FOOTWEAR],
+			]:
 				var option := _choice(box, row[1], row[2])
-				var detail := _field(option.get_parent(), "", "details", _detail_limit(row[0], row[2]))
+				var detail := _field(
+					option.get_parent(),
+					"",
+					"details",
+					_detail_limit(row[0], row[2]),
+				)
 				detail.custom_minimum_size.x = 140
 				_outfit[row[0]] = [option, detail]
 		Page.PALETTE:
@@ -248,10 +320,18 @@ func _build_page(page: Page, box: Control) -> void:
 				_update_accessory(false, button)
 				_accessories.append(button)
 		Page.NOTES:
-			_notes = _field(box, "ANYTHING ELSE THE AGENT SHOULD KNOW?", "a scar over the left eye",
-					CreatorKit.max_length("notes"))
+			_notes = _field(
+				box,
+				"ANYTHING ELSE THE AGENT SHOULD KNOW?",
+				"a scar over the left eye",
+				CreatorKit.max_length("notes"),
+			)
 			_notes.custom_minimum_size.x = 380
-			box.add_child(_note("Next: save the creator kit, run your AI agent on it, and import the character."))
+			box.add_child(
+				_note(
+					"Next: save the creator kit, run your AI agent on it, and import the character."
+				)
+			)
 
 
 func _show_page(page: Page) -> void:
@@ -345,7 +425,10 @@ func _field(box: Control, text: String, placeholder: String, limit: int) -> Line
 	edit.max_length = limit
 	edit.custom_minimum_size.x = FIELD_WIDTH
 	edit.context_menu_enabled = false
-	edit.text_submitted.connect(func(_t: String) -> void: _focus_next(edit))
+	edit.text_submitted.connect(
+		func(_t: String) -> void:
+			_focus_next(edit),
+	)
 	if text.is_empty():
 		box.add_child(edit)
 	else:

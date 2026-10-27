@@ -20,16 +20,16 @@ The game never runs Blender or the agent for you, and nothing is uploaded anywhe
 
 Menu → **CHARACTERS** → **CREATE NEW**. Eight short pages:
 
-| Page              | You choose                                                                                                   |
-| ----------------- | ------------------------------------------------------------------------------------------------------------ |
-| **WHO IS IT?**    | A name and a one-line concept ("A french lizard man").                                                        |
-| **ARCHETYPE**     | Brawler, martial artist, wrestler, boxer, robot, monster, street punk, knight, ninja, animal, or your own.     |
-| **BUILD**         | Slim, athletic, heavy, or huge.                                                                              |
-| **HEAD**          | Human, helmet, mask, animal, or robot, plus any headwear.                                                    |
-| **OUTFIT**        | Top, bottom, and footwear, each from a list or described in your own words.                                  |
-| **PALETTE**       | Four colors: main, secondary, accent, and skin / base. Start from a preset or pick your own.                  |
-| **ACCESSORIES**   | Any of belt, gloves, shoulder pads, scarf, backpack, tail, cape, knee pads, headband, sunglasses, chain, wrist wraps. |
-| **ANYTHING ELSE?**| Free notes for the agent.                                                                                    |
+| Page               | You choose                                                                                                            |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| **WHO IS IT?**     | A name and a one-line concept ("A french lizard man").                                                                |
+| **ARCHETYPE**      | Brawler, martial artist, wrestler, boxer, robot, monster, street punk, knight, ninja, animal, or your own.            |
+| **BUILD**          | Slim, athletic, heavy, or huge.                                                                                       |
+| **HEAD**           | Human, helmet, mask, animal, or robot, plus any headwear.                                                             |
+| **OUTFIT**         | Top, bottom, and footwear, each from a list or described in your own words.                                           |
+| **PALETTE**        | Four colors: main, secondary, accent, and skin / base. Start from a preset or pick your own.                          |
+| **ACCESSORIES**    | Any of belt, gloves, shoulder pads, scarf, backpack, tail, cape, knee pads, headband, sunglasses, chain, wrist wraps. |
+| **ANYTHING ELSE?** | Free notes for the agent.                                                                                             |
 
 ## 2. Save the kit
 
@@ -55,7 +55,7 @@ The agent then works on its own. It finds Blender, writes a Python script that b
 
 ![A preview render of Jim Bean, made by the agent](/media/jim-bean-render.png){width=320}
 
-*One of the agent's preview renders, saved in the kit's `previews/` folder.*
+_One of the agent's preview renders, saved in the kit's `previews/` folder._
 
 ## 4. Import
 

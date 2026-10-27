@@ -15,11 +15,23 @@ const MIRROR_TINT := 0.6
 
 ## Bones every character must have (`creator_kit/SKELETON.md`). Animations target these names.
 const REQUIRED_BONES: PackedStringArray = [
-	"hips", "spine", "chest", "neck", "head",
-	"upper_arm.L", "forearm.L", "hand.L",
-	"upper_arm.R", "forearm.R", "hand.R",
-	"thigh.L", "shin.L", "foot.L",
-	"thigh.R", "shin.R", "foot.R",
+	"hips",
+	"spine",
+	"chest",
+	"neck",
+	"head",
+	"upper_arm.L",
+	"forearm.L",
+	"hand.L",
+	"upper_arm.R",
+	"forearm.R",
+	"hand.R",
+	"thigh.L",
+	"shin.L",
+	"foot.L",
+	"thigh.R",
+	"shin.R",
+	"foot.R",
 ]
 
 
@@ -29,7 +41,9 @@ static func load_character(path: String) -> Node3D:
 	var validator := CharacterValidator.new()
 	var errors := validator.validate(path)
 	if not errors.is_empty():
-		push_error("CharacterLoader: '%s' is not a valid character:\n  %s" % [path, "\n  ".join(errors)])
+		push_error(
+			"CharacterLoader: '%s' is not a valid character:\n  %s" % [path, "\n  ".join(errors)]
+		)
 		return null
 	for warning in validator.warnings:
 		push_warning("CharacterLoader: '%s': %s" % [path, warning])
@@ -102,7 +116,7 @@ static func bake_importer_meshes(root: Node) -> void:
 
 
 static func _apply_toon_materials(root: Node) -> void:
-	var converted := {}  # source Material -> ShaderMaterial, shared between parts
+	var converted := { } # source Material -> ShaderMaterial, shared between parts
 	for node in root.find_children("*", "MeshInstance3D", true, false):
 		var mesh := (node as MeshInstance3D).mesh
 		if mesh == null:

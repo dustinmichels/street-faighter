@@ -127,7 +127,9 @@ func _replay(log: PackedByteArray, visuals: bool) -> PackedInt64Array:
 func _compare(a_name: String, a: PackedInt64Array, b_name: String, b: PackedInt64Array) -> bool:
 	for i in mini(a.size(), b.size()):
 		if a[i] != b[i]:
-			printerr("%s vs %s: checksums differ at tick %d (%d != %d)" % [a_name, b_name, i, a[i], b[i]])
+			printerr(
+				"%s vs %s: checksums differ at tick %d (%d != %d)" % [a_name, b_name, i, a[i], b[i]]
+			)
 			return false
 	if a.size() != b.size():
 		printerr("%s vs %s: %d vs %d ticks" % [a_name, b_name, a.size(), b.size()])
@@ -136,7 +138,7 @@ func _compare(a_name: String, a: PackedInt64Array, b_name: String, b: PackedInt6
 
 
 func _parse_args() -> Dictionary:
-	var args := {}
+	var args := { }
 	for arg in OS.get_cmdline_user_args():
 		if not arg.begins_with("--"):
 			continue

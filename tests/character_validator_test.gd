@@ -17,9 +17,12 @@ const EXPECTED := {
 	"missing_bone": ["Bone 'hand.L' missing"],
 	"renamed_bone": ["Bone 'hand.L' missing (found 'hand.L.001')"],
 	"part_named_like_bone": ["Part 'head' has the same name as a bone; rename it to 'head_part'"],
-	"extra_bone": ["Extra bone 'tail'; delete it (the skeleton must have exactly the 17 template bones)"],
+	"extra_bone": [
+		"Extra bone 'tail'; delete it (the skeleton must have exactly the 17 template bones)"
+	],
 	"moved_joint": [
-		"Bone 'forearm.L' rest pose differs from the template (moved 0.050 m, rotated 0.0°); " + _EDIT,
+		"Bone 'forearm.L' rest pose differs from the template (moved 0.050 m, rotated 0.0°); "
+		+ _EDIT,
 		"Bone 'hand.L' rest pose differs from the template (moved 0.050 m, rotated 0.0°); " + _EDIT,
 	],
 	"too_many_triangles": ["Triangle count 11,454 exceeds 10,000"],
@@ -55,16 +58,31 @@ func _check_file(path: String, expected: Array) -> void:
 
 	# The CLI, as the creator kit's prompt runs it (absolute path, no window).
 	var output := []
-	var code := OS.execute(OS.get_executable_path(), [
-		"--headless", "--path", ProjectSettings.globalize_path("res://"),
-		"--", CreatorKit.VALIDATE_ARG, ProjectSettings.globalize_path(path),
-	], output)
+	var code := OS.execute(
+		OS.get_executable_path(),
+		[
+			"--headless",
+			"--path",
+			ProjectSettings.globalize_path("res://"),
+			"--",
+			CreatorKit.VALIDATE_ARG,
+			ProjectSettings.globalize_path(path),
+		],
+		output,
+	)
 	var lines := PackedStringArray()
 	for line in "".join(output).split("\n", false):
-		if not line.begins_with("Godot Engine") and not line.begins_with("Warning: ") and not line.strip_edges().is_empty():
+		if (
+			not line.begins_with("Godot Engine") and not line.begins_with("Warning: ")
+			and not line.strip_edges().is_empty()
+		):
 			lines.append(line)
 	_check_eq(code, 0 if expected.is_empty() else 1, "%s: CLI exit code" % name)
-	_check_eq(lines, PackedStringArray(["OK"]) if expected.is_empty() else PackedStringArray(expected), "%s: CLI output" % name)
+	_check_eq(
+		lines,
+		PackedStringArray(["OK"]) if expected.is_empty() else PackedStringArray(expected),
+		"%s: CLI output" % name,
+	)
 
 
 func _check_eq(actual: Variant, expected: Variant, what: String) -> void:

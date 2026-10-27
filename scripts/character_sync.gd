@@ -28,22 +28,22 @@ const TRANSFER_CHANNEL := 2
 ## The other player's multiplayer peer id; 0 when not connected.
 var peer_id := 0
 ## This machine's / the peer's announced character (`descriptor()`).
-var own_character := {}
-var peer_character := {}
+var own_character := { }
+var peer_character := { }
 ## Downloads by sha256: `{size, bytes, state}`, `state` one of "receiving",
 ## "ready", "failed". A failed one isn't requested again this session.
-var _downloads := {}
+var _downloads := { }
 ## Characters already sent to the peer (each at most once per session).
-var _sent := {}
+var _sent := { }
 
 
 ## Back to no session: forgets the announcements and unfinished downloads.
 func reset() -> void:
 	peer_id = 0
-	own_character = {}
-	peer_character = {}
-	_downloads = {}
-	_sent = {}
+	own_character = { }
+	peer_character = { }
+	_downloads = { }
+	_sent = { }
 
 
 ## Tells the peer which character this machine plays (`desc`, a
@@ -75,10 +75,10 @@ func fetch(desc: Variant) -> void:
 			or CharacterLibrary.opponents_default():
 		return
 	if id != CharacterLibrary.descriptor_sha256(peer_character) or peer_id == 0:
-		_downloads[id] = {"size": 0, "bytes": PackedByteArray(), "state": "failed"}
+		_downloads[id] = { "size": 0, "bytes": PackedByteArray(), "state": "failed" }
 		fetched.emit(id, false)
 		return
-	_downloads[id] = {"size": int(desc.size), "bytes": PackedByteArray(), "state": "receiving"}
+	_downloads[id] = { "size": int(desc.size), "bytes": PackedByteArray(), "state": "receiving" }
 	_request_rpc.rpc_id(peer_id, id)
 
 
@@ -116,9 +116,13 @@ func _chunk_rpc(id: String, offset: int, chunk: PackedByteArray) -> void:
 	var bytes: PackedByteArray = download.bytes
 	if offset != bytes.size() or chunk.is_empty() or chunk.size() > CHUNK_BYTES \
 			or bytes.size() + chunk.size() > download.size:
-		_finish(id, "chunk at %d (%d bytes) doesn't fit the announced %d bytes" % [offset, chunk.size(), download.size])
+		_finish(
+			id,
+			"chunk at %d (%d bytes) doesn't fit the announced %d bytes"
+			% [offset, chunk.size(), download.size],
+		)
 		return
-	download.bytes = PackedByteArray()  # so the append below doesn't copy
+	download.bytes = PackedByteArray() # so the append below doesn't copy
 	bytes.append_array(chunk)
 	download.bytes = bytes
 	if bytes.size() == download.size:

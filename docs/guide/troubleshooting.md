@@ -4,7 +4,7 @@
 
 ### "Apple could not verify street-faighter is free of malware"
 
-The game isn't notarized by Apple. Open **System Settings → Privacy & Security**, click **Open Anyway** next to the message about street-faighter, and confirm. Full steps: [Download & install](./download#install-on-macos).
+The game isn't notarized by Apple. Open **System Settings → Privacy & Security**, click **Open Anyway** next to the message about street-faighter, and confirm. Full steps: [Download & install](./download#macos).
 
 ### "street-faighter is damaged and can't be opened"
 
@@ -14,9 +14,15 @@ The download's quarantine flag is confusing macOS. Clear it in Terminal, then op
 xattr -dr com.apple.quarantine /Applications/street-faighter.app
 ```
 
-### Windows or Linux
+### "Windows protected your PC"
 
-There's no ready-made build yet. [Run the game from source](/dev/) with Godot 4.7, or export your own build from the Godot editor.
+The game isn't signed. Click **More info**, then **Run anyway**. Full steps: [Download & install](./download#windows).
+
+If there's no **Run anyway** button, Smart App Control is blocking all unsigned apps. [Run the game from source](/dev/) instead.
+
+### Linux: nothing happens when I open it
+
+The file lost its executable flag. In a terminal, in the game's folder, run `chmod +x street-fAIghter.x86_64`, then start it again.
 
 ## Playing
 
@@ -32,15 +38,15 @@ Press <kbd>F1</kbd> during a match for easy mode. See [The CPU](./playing#the-cp
 
 The menu shows why a connection failed. Common messages:
 
-| Message                                             | What it means                                                                                                               |
-| --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| *Could not connect to the host*                     | Nothing answered at that address. Check the IP and port, that the host pressed **HOST** first, and the host's [port forwarding](./online#port-forwarding) or firewall. On the same network, use the host's local IP. |
-| *Game version mismatch (this game: …, other: …)*    | You're on different versions. Both install the [latest release](https://github.com/dustinmichels/street-faighter/releases/latest). |
-| *Protocol version mismatch*                         | Same as above: different builds of the game.                                                                               |
-| *Cannot host on UDP port …*                         | Another program, or another copy of the game, is using that port. Pick another port; the joiner then adds it: `IP:PORT`.   |
-| *Invalid address* / *Invalid port*                  | Use `IP`, `IP:PORT`, or `[IPv6]:PORT`; ports are 1–65535.                                                                  |
-| *Connection lost: no data from the opponent for 5 s* | The network dropped. Reconnect from the menu.                                                                              |
-| *Desync at tick …*                                  | The two games disagreed about the match. Please [report it](https://github.com/dustinmichels/street-faighter/issues).      |
+| Message                                              | What it means                                                                                                                                                                                                        |
+| ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| _Could not connect to the host_                      | Nothing answered at that address. Check the IP and port, that the host pressed **HOST** first, and the host's [port forwarding](./online#port-forwarding) or firewall. On the same network, use the host's local IP. |
+| _Game version mismatch (this game: …, other: …)_     | You're on different versions. Both install the [latest release](https://github.com/dustinmichels/street-faighter/releases/latest).                                                                                   |
+| _Protocol version mismatch_                          | Same as above: different builds of the game.                                                                                                                                                                         |
+| _Cannot host on UDP port …_                          | Another program, or another copy of the game, is using that port. Pick another port; the joiner then adds it: `IP:PORT`.                                                                                             |
+| _Invalid address_ / _Invalid port_                   | Use `IP`, `IP:PORT`, or `[IPv6]:PORT`; ports are 1–65535.                                                                                                                                                            |
+| _Connection lost: no data from the opponent for 5 s_ | The network dropped. Reconnect from the menu.                                                                                                                                                                        |
+| _Desync at tick …_                                   | The two games disagreed about the match. Please [report it](https://github.com/dustinmichels/street-faighter/issues).                                                                                                |
 
 ### The match is laggy or slow
 

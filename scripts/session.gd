@@ -25,7 +25,11 @@ signal status_changed(text: String)
 ## handshake or the other side leaving. `reason` is "" when closed on purpose.
 signal ended(reason: String)
 
-enum Mode { LOCAL, HOST, CLIENT }
+enum Mode {
+	LOCAL,
+	HOST,
+	CLIENT,
+}
 
 ## UDP port the host listens on and `parse_address()` assumes when none is given.
 const DEFAULT_PORT := 7777
@@ -69,7 +73,7 @@ var peer_name := ""
 var _end_reason := ""
 ## The current match's config, picked by the host and sent with the start
 ## (`Match.apply_config()` keys); {} when no match is running.
-var match_config := {}
+var match_config := { }
 ## Matches started in this session (the current one's number, from 1),
 ## counted the same on both sides; input packets carry it, so a late packet
 ## from the previous match is never fed into a rematch.
@@ -82,8 +86,8 @@ var _loaded := false
 var _peer_loaded := false
 ## Effective match configs (`Match.effective_config()`) of this machine's
 ## loaded match and the peer's, compared before `begin()`.
-var _loaded_config := {}
-var _peer_config := {}
+var _loaded_config := { }
+var _peer_config := { }
 ## Character announcements and downloads (a child, so its RPCs share the
 ## session's connection).
 var characters := CharacterSync.new()
@@ -160,6 +164,7 @@ static func clean_name(text: String) -> String:
 			kept += c
 	kept = kept.strip_edges().left(MAX_NAME_LENGTH).strip_edges()
 	return kept if not kept.is_empty() else DEFAULT_NAME
+
 
 ## Starts listening on `port` for one opponent; this machine plays fighter 1.
 ## Returns false (and emits `ended`) if the port can't be opened.
@@ -291,10 +296,7 @@ func _peer_loaded_rpc(config: Dictionary) -> void:
 func _new_match_config() -> Dictionary:
 	return {
 		"stage": STAGE,
-		"characters": [
-			characters.own_character,
-			characters.peer_character,
-		],
+		"characters": [characters.own_character, characters.peer_character],
 		"seed": randi() & 0x7FFFFFFF,
 		"max_rollback": 0,
 		"start_tick": COUNTDOWN_TICKS,
@@ -324,8 +326,8 @@ func _start_match(config: Dictionary) -> void:
 	peer_rematch_requested = false
 	_loaded = false
 	_peer_loaded = false
-	_loaded_config = {}
-	_peer_config = {}
+	_loaded_config = { }
+	_peer_config = { }
 	_match = null
 	_load_when_characters_ready(match_number)
 
@@ -342,7 +344,7 @@ func _load_when_characters_ready(number: int) -> void:
 		status_changed.emit("Receiving %s's character..." % peer_name)
 	while _characters_receiving() and Time.get_ticks_msec() < deadline:
 		await get_tree().process_frame
-		if match_number != number:  # Session closed or another match started.
+		if match_number != number: # Session closed or another match started.
 			return
 	get_tree().change_scene_to_file(MATCH_SCENE)
 
@@ -356,8 +358,8 @@ func _characters_receiving() -> bool:
 			return true
 	return false
 
-
 # --- Handshake ---
+
 
 func _hello() -> PackedByteArray:
 	return var_to_bytes([MAGIC, game_version(), PROTOCOL_VERSION, player_name])
@@ -415,8 +417,8 @@ func _on_peer_authentication_failed(_id: int) -> void:
 	if mode == Mode.CLIENT:
 		fail("Handshake with the host failed (timed out)")
 
-
 # --- Connection events ---
+
 
 ## After the handshake both sides announce their character (this player's
 ## saved choice, `CharacterLibrary.PLAYER_CHOICE`); the host starts the first
@@ -436,7 +438,9 @@ func _on_connected_to_server() -> void:
 
 func _announce_character() -> void:
 	characters.peer_id = peer_id
-	characters.announce(CharacterLibrary.descriptor(CharacterLibrary.chosen(CharacterLibrary.PLAYER_CHOICE)))
+	characters.announce(
+		CharacterLibrary.descriptor(CharacterLibrary.chosen(CharacterLibrary.PLAYER_CHOICE))
+	)
 
 
 func _on_peer_announced() -> void:
@@ -468,9 +472,11 @@ func fail(reason: String, linger := 0.0) -> void:
 		return
 	_failing = true
 	if linger > 0.0:
-		get_tree().create_timer(linger).timeout.connect(func() -> void:
-			if _failing:  # Not closed meanwhile.
-				_end(reason))
+		get_tree().create_timer(linger).timeout.connect(
+			func() -> void:
+				if _failing: # Not closed meanwhile.
+					_end(reason),
+		)
 	else:
 		_end.call_deferred(reason)
 
@@ -490,7 +496,10 @@ func _end(reason: String) -> void:
 
 
 func _reset() -> void:
-	if multiplayer.multiplayer_peer != null and not multiplayer.multiplayer_peer is OfflineMultiplayerPeer:
+	if (
+		multiplayer.multiplayer_peer != null
+		and not multiplayer.multiplayer_peer is OfflineMultiplayerPeer
+	):
 		multiplayer.multiplayer_peer.close()
 	multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
 	mode = Mode.LOCAL
@@ -501,10 +510,10 @@ func _reset() -> void:
 	_peer_loaded = false
 	_failing = false
 	_match = null
-	match_config = {}
+	match_config = { }
 	match_number = 0
 	rematch_requested = false
 	peer_rematch_requested = false
-	_loaded_config = {}
-	_peer_config = {}
+	_loaded_config = { }
+	_peer_config = { }
 	characters.reset()

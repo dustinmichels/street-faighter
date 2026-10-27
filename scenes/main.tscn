@@ -41,6 +41,7 @@ size = Vector2(2, 2)
 
 [node name="Main" type="Node"]
 script = ExtResource("9_main")
+process_mode = 3
 
 [node name="GameView" type="SubViewportContainer" parent="."]
 texture_filter = 1
@@ -50,6 +51,7 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 stretch = true
+process_mode = 1
 material = SubResource("Mat_quantize")
 
 [node name="GameViewport" type="SubViewport" parent="GameView"]

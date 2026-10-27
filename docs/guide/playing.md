@@ -11,28 +11,28 @@
    - **2 PLAYERS ONLINE** hosts or joins a match against another player. See [Online multiplayer](./online).
    - **CHARACTERS** is your fighter library: preview, import, and [create new fighters](./custom-characters).
 
-A match starts with a **3, 2, 1, FIGHT!** countdown. Each fighter has 100 health; every punch, air kick, and sweep takes 10, so ten clean hits win. Press <kbd>R</kbd> to restart at any time against the CPU.
+A match starts with a **3, 2, 1, FIGHT!** countdown. Each fighter has 100 health; every punch, air kick, and sweep takes 10, so ten clean hits win. Press <kbd>R</kbd> to restart at any time against the CPU. After a knockout, <kbd>Esc</kbd> goes back to the menu.
 
 If both fighters use the same model, the computer's colors are hue-shifted so you can tell them apart.
 
 ## Controls
 
-| Action      | Keyboard                                       | Gamepad                          |
-| ----------- | ---------------------------------------------- | -------------------------------- |
-| Move        | <kbd>A</kbd> <kbd>D</kbd> or <kbd>←</kbd> <kbd>→</kbd> | D-pad or left stick              |
-| Jump        | <kbd>W</kbd>, <kbd>↑</kbd>, or <kbd>Space</kbd> | D-pad up or stick up             |
-| Punch       | <kbd>J</kbd> or <kbd>Z</kbd>                   | X / □ or A / ✕                   |
-| Block       | <kbd>K</kbd> or <kbd>X</kbd> (hold)            | RB / R1 or RT / R2 (hold)        |
-| Crouch      | <kbd>S</kbd> or <kbd>↓</kbd> (hold)            | D-pad down or stick down (hold)  |
-| Special     | <kbd>I</kbd> or <kbd>C</kbd> (when ★ is ready) | Y / △                            |
-| Show controls | <kbd>Esc</kbd>                               | Start                            |
-| Restart / rematch | <kbd>R</kbd>                             | Back / Select                    |
+| Action                                               | Keyboard                                               | Gamepad                         |
+| ---------------------------------------------------- | ------------------------------------------------------ | ------------------------------- |
+| Move                                                 | <kbd>A</kbd> <kbd>D</kbd> or <kbd>←</kbd> <kbd>→</kbd> | D-pad or left stick             |
+| Jump                                                 | <kbd>W</kbd>, <kbd>↑</kbd>, or <kbd>Space</kbd>        | D-pad up or stick up            |
+| Punch                                                | <kbd>J</kbd> or <kbd>Z</kbd>                           | X / □ or A / ✕                  |
+| Block                                                | <kbd>K</kbd> or <kbd>X</kbd> (hold)                    | RB / R1 or RT / R2 (hold)       |
+| Crouch                                               | <kbd>S</kbd> or <kbd>↓</kbd> (hold)                    | D-pad down or stick down (hold) |
+| Special                                              | <kbd>I</kbd> or <kbd>C</kbd> (when ★ is ready)         | Y / △                           |
+| Pause and show controls (after a K.O.: back to menu) | <kbd>Esc</kbd>                                         | Start                           |
+| Restart / rematch                                    | <kbd>R</kbd>                                           | Back / Select                   |
 
 Two layouts share the keyboard: **WASD** for the left hand with <kbd>J</kbd> punch, <kbd>K</kbd> block, <kbd>I</kbd> special for the right; or the **arrow keys** in the right hand with <kbd>Z</kbd> punch, <kbd>X</kbd> block, <kbd>C</kbd> special for the left.
 
 Keys are bound by position, so on AZERTY, Dvorak, and other layouts, use the keys where those letters sit on a US QWERTY keyboard.
 
-<kbd>Esc</kbd> or the **Controls** button in the bottom-right corner shows this list in the game.
+<kbd>Esc</kbd> or the **Controls** button in the bottom-right corner shows this list in the game. Against the CPU it also pauses the fight; press <kbd>Esc</kbd> again to resume (<kbd>R</kbd> still restarts). Online the fight keeps going while the list is open. After a knockout, <kbd>Esc</kbd> goes back to the menu instead.
 
 ## Moves
 

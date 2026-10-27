@@ -131,7 +131,7 @@ import { withBase } from 'vitepress'
     <div class="sf-step">
       <span class="sf-step-num">01</span>
       <h3>Download</h3>
-      <p>Grab the latest macOS build from GitHub Releases and move it to Applications. Other platforms run from source with Godot.</p>
+      <p>Install it in one click with the itch app, or grab the macOS, Windows, or Linux build from GitHub Releases.</p>
     </div>
     <div class="sf-step">
       <span class="sf-step-num">02</span>

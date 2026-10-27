@@ -12,9 +12,11 @@ static func add(button: Button) -> void:
 	button.set_meta(META, button.text)
 	button.focus_entered.connect(_update.bind(button))
 	button.focus_exited.connect(_update.bind(button))
-	button.mouse_entered.connect(func() -> void:
-		if not button.disabled:
-			button.grab_focus())
+	button.mouse_entered.connect(
+		func() -> void:
+			if not button.disabled:
+				button.grab_focus(),
+	)
 
 
 ## Changes `button`'s text (without arrows) after `add()`.

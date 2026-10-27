@@ -27,10 +27,22 @@ extends InputSource
 ## uses the exported values, `EASY` overrides them with `EASY_KNOBS`. The
 ## `ai_difficulty` debug action (F1, `main.gd`) cycles it mid-match.
 
-enum Plan { WAIT, ATTACK, RETREAT, JUMP_IN }
+enum Plan {
+	WAIT,
+	ATTACK,
+	RETREAT,
+	JUMP_IN,
+}
 ## Answer chosen for the current threat.
-enum Defense { NONE, BLOCK, DUCK }
-enum Difficulty { DEFAULT, EASY }
+enum Defense {
+	NONE,
+	BLOCK,
+	DUCK,
+}
+enum Difficulty {
+	DEFAULT,
+	EASY,
+}
 
 ## Knob values `Difficulty.EASY` uses instead of the exported ones: too slow to
 ## block punches, rarely defends, attacks less and less often.
@@ -49,9 +61,24 @@ static var difficulty := Difficulty.DEFAULT
 ## Names the HUD gives a computer opponent (`random_name()`), at most
 ## `Session.MAX_NAME_LENGTH` characters.
 const NAMES: Array[String] = [
-	"CHIP", "BYTE", "GLITCH", "NEURO", "VECTOR", "PIXEL", "TENSOR",
-	"CIRCUIT", "SPARKY", "MAINFRAME", "OVERCLOCK", "BOTZILLA", "KILOBYTE",
-	"ALGO", "SYNTAX", "RUNTIME", "DEBUGGER", "MEGAHERTZ",
+	"CHIP",
+	"BYTE",
+	"GLITCH",
+	"NEURO",
+	"VECTOR",
+	"PIXEL",
+	"TENSOR",
+	"CIRCUIT",
+	"SPARKY",
+	"MAINFRAME",
+	"OVERCLOCK",
+	"BOTZILLA",
+	"KILOBYTE",
+	"ALGO",
+	"SYNTAX",
+	"RUNTIME",
+	"DEBUGGER",
+	"MEGAHERTZ",
 ]
 
 ## Distances below are in `Fighter.SCALE` units (1/10000 m).
@@ -98,7 +125,7 @@ var _defense := Defense.NONE
 ## Set once a punch was ducked, until the punish sweep or the chance passes.
 var _ducked := false
 ## The exported knob values, saved by the first `apply_difficulty()`.
-var _default_knobs := {}
+var _default_knobs := { }
 
 
 ## Cycles `difficulty` to the next level and returns it.
@@ -141,7 +168,10 @@ func poll(_tick: int) -> int:
 	if _fighter == null:
 		return 0
 	var opp := _fighter.opponent
-	if opp == null or _fighter.state == Fighter.State.KNOCKED_DOWN or opp.state == Fighter.State.KNOCKED_DOWN:
+	if (
+		opp == null or _fighter.state == Fighter.State.KNOCKED_DOWN
+		or opp.state == Fighter.State.KNOCKED_DOWN
+	):
 		return 0
 	var dx := opp.pos_x - _fighter.pos_x
 	var dist := absi(dx)
@@ -170,7 +200,10 @@ func poll(_tick: int) -> int:
 		_threat_ticks = 0
 		if _ducked:
 			_ducked = false
-			if _fighter.state == Fighter.State.CROUCH and opp.state == Fighter.State.PUNCH and dist < SWEEP_RANGE:
+			if (
+				_fighter.state == Fighter.State.CROUCH
+				and opp.state == Fighter.State.PUNCH and dist < SWEEP_RANGE
+			):
 				return CROUCH | PUNCH
 
 	if _fighter.state == Fighter.State.JUMP:
@@ -207,7 +240,9 @@ func _is_threat(opp: Fighter, dist: int) -> bool:
 		Fighter.State.PUNCH:
 			return dist < PUNCH_THREAT_RANGE and opp.state_ticks < Fighter.PUNCH_ACTIVE_END
 		Fighter.State.JUMP:
-			var airborne := opp.jump_phase == Fighter.JumpPhase.AIR or opp.jump_phase == Fighter.JumpPhase.KICK
+			var airborne := (
+				opp.jump_phase == Fighter.JumpPhase.AIR or opp.jump_phase == Fighter.JumpPhase.KICK
+			)
 			return airborne and dist < JUMP_THREAT_RANGE
 	return false
 

@@ -63,15 +63,25 @@ func _run() -> void:
 	print("PASS (%s)" % _role)
 	quit(0)
 
-
 # --- Host ---
+
 
 func _host() -> String:
 	_remove_tree(ProjectSettings.globalize_path(BASE))
 	DirAccess.make_dir_recursive_absolute(BASE.path_join("host"))
-	_client_pid = OS.create_process(OS.get_executable_path(), ["--headless", "--path",
-		ProjectSettings.globalize_path("res://"), "-s", "res://tests/character_sync_test.gd",
-		"--", "--role=client", "--port=%d" % _port])
+	_client_pid = OS.create_process(
+		OS.get_executable_path(),
+		[
+			"--headless",
+			"--path",
+			ProjectSettings.globalize_path("res://"),
+			"-s",
+			"res://tests/character_sync_test.gd",
+			"--",
+			"--role=client",
+			"--port=%d" % _port,
+		],
+	)
 	if _client_pid <= 0:
 		return "can't start the client process"
 	var ids := await _read_ids()
@@ -87,12 +97,19 @@ func _host() -> String:
 		for m in MATCHES[s]:
 			var world := await _match_world(s, m)
 			if world == null:
-				return "session %d match %d didn't start: %s" % [s + 1, m + 1, _session.take_end_reason()]
+				return "session %d match %d didn't start: %s" % [
+					s + 1,
+					m + 1,
+					_session.take_end_reason(),
+				]
 			var downloads: Dictionary = _session.characters._downloads
 			var expected := remote
 			match s:
 				0:
-					if downloads.keys() != [a] or downloads[a].state != "ready" or not FileAccess.file_exists(remote):
+					if (
+						downloads.keys() != [a] or downloads[a].state != "ready"
+						or not FileAccess.file_exists(remote)
+					):
 						return "A wasn't downloaded and cached (downloads %s)" % [downloads]
 				1:
 					if not downloads.is_empty():
@@ -104,16 +121,36 @@ func _host() -> String:
 			var cached := Array(DirAccess.get_files_at(remote.get_base_dir()))
 			if cached != [remote.get_file()]:
 				return "remote cache holds %s, expected only A" % [cached]
-			if world.fighters[1].model_path != expected or world.fighters[0].model_path != CharacterLoader.DEFAULT_CHARACTER:
-				return "session %d match %d shows %s, expected [default, %s]" % [s + 1, m + 1,
-					[world.fighters[0].model_path, world.fighters[1].model_path], expected]
+			if (
+				world.fighters[1].model_path != expected
+				or world.fighters[0].model_path != CharacterLoader.DEFAULT_CHARACTER
+			):
+				return "session %d match %d shows %s, expected [default, %s]" % [
+					s + 1,
+					m + 1,
+					[world.fighters[0].model_path, world.fighters[1].model_path],
+					expected,
+				]
 			var sum := await _checksum(world)
 			if sum < 0:
-				return "session %d match %d didn't reach tick %d: %s" % [s + 1, m + 1, CHECK_TICK, _session.take_end_reason()]
+				return "session %d match %d didn't reach tick %d: %s" % [
+					s + 1,
+					m + 1,
+					CHECK_TICK,
+					_session.take_end_reason(),
+				]
 			var reply: Variant = await _wait_text(_result("client", s, m))
 			if reply != str(sum):
-				return "session %d match %d: host checksum %d, client reported \"%s\"" % [s + 1, m + 1, sum, reply]
-			print("session %d match %d: checksum %d, opponent shown as %s" % [s + 1, m + 1, sum, expected.get_file()])
+				return "session %d match %d: host checksum %d, client reported \"%s\"" % [
+					s + 1,
+					m + 1,
+					sum,
+					reply,
+				]
+			print(
+				"session %d match %d: checksum %d, opponent shown as %s"
+				% [s + 1, m + 1, sum, expected.get_file()]
+			)
 			if m + 1 < MATCHES[s]:
 				_session.request_rematch()
 		_session.close()
@@ -126,8 +163,8 @@ func _read_ids() -> PackedStringArray:
 	var ids := str(text).split(" ") if text != null else PackedStringArray()
 	return ids if ids.size() == 2 else PackedStringArray()
 
-
 # --- Client ---
+
 
 func _client() -> String:
 	DirAccess.make_dir_recursive_absolute(BASE.path_join("client"))
@@ -137,8 +174,8 @@ func _client() -> String:
 		return "can't import the test characters"
 	# Corrupt B's stored copy: its id and size stay, its bytes don't match.
 	var bytes := FileAccess.get_file_as_bytes(CharacterLibrary.glb_path(b))
-	var at := 20 + bytes.decode_u32(12) - 1  # The JSON chunk's last padding space.
-	bytes[at] = 0x09  # A tab: still valid JSON whitespace, so the client's own copy loads.
+	var at := 20 + bytes.decode_u32(12) - 1 # The JSON chunk's last padding space.
+	bytes[at] = 0x09 # A tab: still valid JSON whitespace, so the client's own copy loads.
 	_write_bytes(CharacterLibrary.glb_path(b), bytes)
 	_write_text(BASE.path_join("ids.txt"), "%s %s" % [a, b])
 	for s in MATCHES.size():
@@ -151,18 +188,34 @@ func _client() -> String:
 		for m in MATCHES[s]:
 			var world := await _match_world(s, m)
 			if world == null:
-				return "session %d match %d didn't start: %s" % [s + 1, m + 1, _session.take_end_reason()]
+				return "session %d match %d didn't start: %s" % [
+					s + 1,
+					m + 1,
+					_session.take_end_reason(),
+				]
 			if world.fighters[1].model_path != CharacterLibrary.glb_path(own) \
 					or world.fighters[0].model_path != CharacterLoader.DEFAULT_CHARACTER:
-				return "session %d match %d shows %s" % [s + 1, m + 1, [world.fighters[0].model_path, world.fighters[1].model_path]]
+				return "session %d match %d shows %s" % [
+					s + 1,
+					m + 1,
+					[world.fighters[0].model_path, world.fighters[1].model_path],
+				]
 			var sum := await _checksum(world)
 			if sum < 0:
-				return "session %d match %d didn't reach tick %d: %s" % [s + 1, m + 1, CHECK_TICK, _session.take_end_reason()]
+				return "session %d match %d didn't reach tick %d: %s" % [
+					s + 1,
+					m + 1,
+					CHECK_TICK,
+					_session.take_end_reason(),
+				]
 			_write_text(_result("client", s, m), str(sum))
 			if m + 1 < MATCHES[s]:
 				_session.request_rematch()
 		# The host closes the session once it has checked this one.
-		if not await _until(func() -> bool: return not _session.is_online()):
+		if not await _until(
+			func() -> bool:
+				return not _session.is_online(),
+		):
 			return "the host didn't close session %d" % [s + 1]
 		_session.take_end_reason()
 	_write_text(_result("client", MATCHES.size(), 0), "done")
@@ -189,17 +242,22 @@ func _import_padded(pad: int) -> String:
 		printerr(result.errors)
 	return result.id
 
-
 # --- Shared ---
+
 
 ## The `Match` of session `s`'s match `m` once it is running, or null.
 func _match_world(s: int, m: int) -> Match:
 	var number := m + 1
-	var ok := await _until(func() -> bool:
-		return _session.match_number == number and current_scene != null \
-			and current_scene.has_method("begin") and current_scene.has_node(WORLD_PATH) \
-			and (current_scene.get_node(WORLD_PATH) as Match).is_physics_processing() \
-			and (current_scene.get_node(WORLD_PATH) as Match).tick < CHECK_TICK)  # Not the previous match's.
+	var ok := await _until(
+		func() -> bool:
+			return (
+					_session.match_number == number and current_scene != null \
+						and current_scene.has_method("begin")
+				and current_scene.has_node(WORLD_PATH)
+			) \
+					and (current_scene.get_node(WORLD_PATH) as Match).is_physics_processing() \
+					and (current_scene.get_node(WORLD_PATH) as Match).tick < CHECK_TICK,
+	) # Not the previous match's.
 	if not ok:
 		print("%s: session %d match %d not running" % [_role, s + 1, number])
 		return null
@@ -208,8 +266,10 @@ func _match_world(s: int, m: int) -> Match:
 
 ## `world`'s confirmed checksum at `CHECK_TICK`, or -1 if it isn't reached.
 func _checksum(world: Match) -> int:
-	var ok := await _until(func() -> bool:
-		return is_instance_valid(world) and world.confirmed_tick >= CHECK_TICK)
+	var ok := await _until(
+		func() -> bool:
+			return is_instance_valid(world) and world.confirmed_tick >= CHECK_TICK,
+	)
 	if not ok or not world.has_tick(CHECK_TICK):
 		return -1
 	return world.checksum_at(CHECK_TICK)
@@ -227,7 +287,10 @@ func _until(condition: Callable) -> bool:
 
 ## The text of file `path` once it exists, or null after `STEP_TIMEOUT`.
 func _wait_text(path: String) -> Variant:
-	if not await _until(func() -> bool: return FileAccess.file_exists(path)):
+	if not await _until(
+		func() -> bool:
+			return FileAccess.file_exists(path),
+	):
 		return null
 	return FileAccess.get_file_as_string(path)
 

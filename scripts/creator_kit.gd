@@ -36,22 +36,32 @@ const AGENT_REQUEST := "Read PROMPT.md and follow it."
 ## the CLI starting an interactive session on a first prompt (`%s`). `other`
 ## has no `run`: the player starts their own agent in the kit folder.
 const AGENTS := {
-	"claude": {"name": "Claude Code", "run": "claude %s"},
-	"codex": {"name": "Codex", "run": "codex %s"},
-	"gemini": {"name": "Gemini CLI", "run": "gemini -i %s"},
-	"antigravity": {"name": "Antigravity", "run": "agy -i %s"},
-	"pi": {"name": "Pi", "run": "pi %s"},
-	"omp": {"name": "Oh My Pi", "run": "omp %s"},
-	"other": {"name": "Other agent", "run": ""},
+	"claude": { "name": "Claude Code", "run": "claude %s" },
+	"codex": { "name": "Codex", "run": "codex %s" },
+	"gemini": { "name": "Gemini CLI", "run": "gemini -i %s" },
+	"antigravity": { "name": "Antigravity", "run": "agy -i %s" },
+	"pi": { "name": "Pi", "run": "pi %s" },
+	"omp": { "name": "Oh My Pi", "run": "omp %s" },
+	"other": { "name": "Other agent", "run": "" },
 }
 const DEFAULT_AGENT := "claude"
 ## Text answers, each one line in the prompt's design brief.
-const TEXT_KEYS := ["name", "concept", "archetype", "build", "head", "headwear", "top", "bottom",
-		"footwear", "notes"]
+const TEXT_KEYS := [
+	"name",
+	"concept",
+	"archetype",
+	"build",
+	"head",
+	"headwear",
+	"top",
+	"bottom",
+	"footwear",
+	"notes",
+]
 const PALETTE_KEYS := ["main", "secondary", "accent", "base"]
 ## Longest kept text answer, in characters (`max_length()`): `MAX_LENGTHS`,
 ## or `MAX_TEXT` for other keys and each accessory.
-const MAX_LENGTHS := {"name": 32, "concept": 160, "notes": 400}
+const MAX_LENGTHS := { "name": 32, "concept": 160, "notes": 400 }
 const MAX_TEXT := 80
 const MAX_ACCESSORIES := 16
 ## User argument that makes the game validate a `.glb` and quit instead of
@@ -119,10 +129,12 @@ static func choose_dir(parent: Node, on_chosen: Callable) -> FileDialog:
 	# The default folder may not exist yet; a missing start folder makes the
 	# dialog fall back to an arbitrary one.
 	dialog.current_dir = start if DirAccess.dir_exists_absolute(start) else start.get_base_dir()
-	dialog.dir_selected.connect(func(dir: String) -> void:
-		dialog.queue_free()
-		_save_dir(dir)
-		on_chosen.call(dir))
+	dialog.dir_selected.connect(
+		func(dir: String) -> void:
+			dialog.queue_free()
+			_save_dir(dir)
+			on_chosen.call(dir),
+	)
 	dialog.canceled.connect(dialog.queue_free)
 	parent.add_child(dialog)
 	dialog.popup_centered()
@@ -153,7 +165,7 @@ static func _save_dir(dir: String) -> void:
 
 static func _save_setting(key: String, value: Variant) -> void:
 	var config := ConfigFile.new()
-	config.load(SETTINGS_PATH)  # missing file: start empty
+	config.load(SETTINGS_PATH) # missing file: start empty
 	config.set_value(SETTINGS_SECTION, key, value)
 	var err := config.save(SETTINGS_PATH)
 	if err != OK:
@@ -184,13 +196,13 @@ static func max_length(key: String) -> int:
 ## non-empty accessories; palette colors that aren't `#rrggbb` dropped.
 ## Missing or dropped answers show as `UNSPECIFIED` in the prompt.
 static func sanitize(answers: Dictionary) -> Dictionary:
-	var out := {}
+	var out := { }
 	for key: String in TEXT_KEYS:
 		if answers.has(key):
 			out[key] = clean_text(str(answers[key]), max_length(key))
 	var palette: Variant = answers.get("palette")
 	if palette is Dictionary:
-		var colors := {}
+		var colors := { }
 		var hex := RegEx.create_from_string("^#?([0-9a-fA-F]{6})$")
 		for key: String in PALETTE_KEYS:
 			var m := hex.search(str(palette.get(key, "")).strip_edges())
@@ -216,8 +228,12 @@ static func clean_text(text: String, limit: int) -> String:
 	var out := ""
 	for c in text:
 		var code := c.unicode_at(0)
-		if code < 0x20 or (code >= 0x7f and code <= 0x9f) or (code >= 0x200b and code <= 0x200f) \
-				or (code >= 0x2028 and code <= 0x202e) or (code >= 0x2060 and code <= 0x206f) or code == 0xfeff:
+		if (
+				code < 0x20 or (code >= 0x7f and code <= 0x9f)
+				or (code >= 0x200b and code <= 0x200f) \
+					or (code >= 0x2028 and code <= 0x202e)
+			or (code >= 0x2060 and code <= 0x206f) or code == 0xfeff
+		):
 			out += " "
 		elif c == "`":
 			out += "'"
@@ -235,7 +251,10 @@ static func clean_text(text: String, limit: int) -> String:
 static func prompt(answers: Dictionary, dir: String = saved_dir()) -> String:
 	var template := FileAccess.get_file_as_string(SOURCE_DIR.path_join(PROMPT_TEMPLATE))
 	if template.is_empty():
-		push_error("CreatorKit: can't read %s: %s" % [PROMPT_TEMPLATE, error_string(FileAccess.get_open_error())])
+		push_error(
+			"CreatorKit: can't read %s: %s"
+			% [PROMPT_TEMPLATE, error_string(FileAccess.get_open_error())]
+		)
 		return ""
 	answers = sanitize(answers)
 	var character := slug(str(answers.get("name", "")))
@@ -260,7 +279,14 @@ static func _flatten(value: Variant, key: String, into: Dictionary) -> void:
 		for k in value:
 			_flatten(value[k], "%s.%s" % [key, k] if not key.is_empty() else str(k), into)
 	elif value is Array or value is PackedStringArray:
-		into[key] = ", ".join(PackedStringArray(Array(value).map(func(v: Variant) -> String: return str(v))))
+		into[key] = ", ".join(
+			PackedStringArray(
+				Array(value).map(
+					func(v: Variant) -> String:
+						return str(v),
+				)
+			)
+		)
 	else:
 		into[key] = str(value)
 
@@ -303,7 +329,10 @@ static func write(dir: String, answers: Dictionary) -> String:
 		var source := SOURCE_DIR.path_join(file)
 		var bytes := FileAccess.get_file_as_bytes(source)
 		if bytes.is_empty():
-			push_error("CreatorKit: can't read '%s': %s" % [source, error_string(FileAccess.get_open_error())])
+			push_error(
+				"CreatorKit: can't read '%s': %s"
+				% [source, error_string(FileAccess.get_open_error())]
+			)
 			return ""
 		if not _write_file(folder.path_join(file), bytes):
 			return ""
@@ -312,7 +341,10 @@ static func write(dir: String, answers: Dictionary) -> String:
 		return ""
 	if not _write_file(folder.path_join(PROMPT_NAME), text.to_utf8_buffer()):
 		return ""
-	if not _write_file(folder.path_join(REQUEST_NAME), (JSON.stringify(answers, "\t", false) + "\n").to_utf8_buffer()):
+	if not _write_file(
+		folder.path_join(REQUEST_NAME),
+		(JSON.stringify(answers, "\t", false) + "\n").to_utf8_buffer(),
+	):
 		return ""
 	_save_setting(SETTINGS_LAST_KIT_KEY, folder)
 	return folder
@@ -321,7 +353,9 @@ static func write(dir: String, answers: Dictionary) -> String:
 static func _write_file(path: String, bytes: PackedByteArray) -> bool:
 	var file := FileAccess.open(path, FileAccess.WRITE)
 	if file == null:
-		push_error("CreatorKit: can't write '%s': %s" % [path, error_string(FileAccess.get_open_error())])
+		push_error(
+			"CreatorKit: can't write '%s': %s" % [path, error_string(FileAccess.get_open_error())]
+		)
 		return false
 	file.store_buffer(bytes)
 	return true

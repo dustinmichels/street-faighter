@@ -17,7 +17,7 @@ const SELECTION_SECTION := "characters"
 const PLAYER_CHOICE := "p1"
 ## Characters that ship with the game: display name (also their choice
 ## value) → model.
-const BUILTIN := {"DEFAULT": CharacterLoader.DEFAULT_CHARACTER}
+const BUILTIN := { "DEFAULT": CharacterLoader.DEFAULT_CHARACTER }
 ## Choice used when none was saved.
 const DEFAULT_CHOICE := "DEFAULT"
 ## Settings key (section `ONLINE_SECTION`) of "Show opponents as default
@@ -43,7 +43,7 @@ static func chosen(key: String) -> String:
 ## Saves `choice` (an entry id or a `BUILTIN` name) as choice `key`.
 static func choose(key: String, choice: String) -> void:
 	var config := ConfigFile.new()
-	config.load(settings_path)  # missing file: start empty
+	config.load(settings_path) # missing file: start empty
 	config.set_value(SELECTION_SECTION, key, choice)
 	var err := config.save(settings_path)
 	if err != OK:
@@ -62,7 +62,7 @@ static func opponents_default() -> bool:
 
 static func set_opponents_default(on: bool) -> void:
 	var config := ConfigFile.new()
-	config.load(settings_path)  # missing file: start empty
+	config.load(settings_path) # missing file: start empty
 	config.set_value(ONLINE_SECTION, OPPONENTS_DEFAULT_KEY, on)
 	var err := config.save(settings_path)
 	if err != OK:
@@ -88,8 +88,8 @@ static func descriptor(choice: String) -> Dictionary:
 		var info := entry(choice)
 		var file := FileAccess.open(glb_path(choice), FileAccess.READ)
 		if not info.is_empty() and file != null:
-			return {"sha256": choice, "name": info.name, "size": file.get_length()}
-	return {"builtin": choice if BUILTIN.has(choice) else DEFAULT_CHOICE}
+			return { "sha256": choice, "name": info.name, "size": file.get_length() }
+	return { "builtin": choice if BUILTIN.has(choice) else DEFAULT_CHOICE }
 
 
 ## The sha256 of a `descriptor()` naming a custom character, or "" if it is
@@ -100,8 +100,11 @@ static func descriptor_sha256(desc: Variant) -> String:
 		return ""
 	var id: Variant = desc["sha256"]
 	var size: Variant = desc.get("size")
-	if not id is String or not is_sha256(id) or not size is int \
-			or size <= 0 or size > CharacterValidator.MAX_FILE_BYTES:
+	if (
+			not id is String or not is_sha256(id) or not size is int \
+				or size <= 0
+		or size > CharacterValidator.MAX_FILE_BYTES
+	):
 		return ""
 	return id
 
@@ -129,9 +132,13 @@ static func descriptor_model(desc: Variant) -> String:
 static func clean_descriptor(desc: Variant) -> Dictionary:
 	var id := descriptor_sha256(desc)
 	if not id.is_empty():
-		return {"sha256": id, "name": CreatorKit.clean_text(str(desc.get("name", "")), CreatorKit.max_length("name")), "size": desc.size}
+		return {
+			"sha256": id,
+			"name": CreatorKit.clean_text(str(desc.get("name", "")), CreatorKit.max_length("name")),
+			"size": desc.size,
+		}
 	var name: Variant = desc.get("builtin") if desc is Dictionary else null
-	return {"builtin": name if name is String and BUILTIN.has(name) else DEFAULT_CHOICE}
+	return { "builtin": name if name is String and BUILTIN.has(name) else DEFAULT_CHOICE }
 
 
 ## Where a character downloaded from another player is cached, by its
@@ -154,7 +161,12 @@ static func is_sha256(text: String) -> bool:
 ##   `id`: the entry's sha256 ("" on errors),
 ##   `added`: false if it was invalid or already in the library.
 static func import_file(path: String) -> Dictionary:
-	var result := {"errors": PackedStringArray(), "warnings": PackedStringArray(), "id": "", "added": false}
+	var result := {
+		"errors": PackedStringArray(),
+		"warnings": PackedStringArray(),
+		"id": "",
+		"added": false,
+	}
 	var validator := CharacterValidator.new()
 	result.errors = validator.validate(path)
 	result.warnings = validator.warnings
@@ -168,7 +180,10 @@ static func import_file(path: String) -> Dictionary:
 		return result
 	var err := DirAccess.make_dir_recursive_absolute(dir)
 	if err != OK:
-		result.errors.append("Can't create the library folder '%s': %s" % [ProjectSettings.globalize_path(dir), error_string(err)])
+		result.errors.append(
+			"Can't create the library folder '%s': %s"
+			% [ProjectSettings.globalize_path(dir), error_string(err)]
+		)
 		return result
 	var info := {
 		"name": manifest_name(path),
@@ -179,7 +194,9 @@ static func import_file(path: String) -> Dictionary:
 	if not _write(glb_path(id), validator.file_bytes) \
 			or not _write(_info_path(id), (JSON.stringify(info, "\t") + "\n").to_utf8_buffer()):
 		DirAccess.remove_absolute(glb_path(id))
-		result.errors.append("Can't save the character to '%s'" % ProjectSettings.globalize_path(dir))
+		result.errors.append(
+			"Can't save the character to '%s'" % ProjectSettings.globalize_path(dir)
+		)
 		return result
 	result.added = true
 	return result
@@ -192,8 +209,12 @@ static func import_file(path: String) -> Dictionary:
 static func reimport(id: String) -> Dictionary:
 	var info := entry(id)
 	if info.is_empty():
-		return {"errors": PackedStringArray(["Character %s is not in the library" % id]),
-				"warnings": PackedStringArray(), "id": "", "added": false}
+		return {
+			"errors": PackedStringArray(["Character %s is not in the library" % id]),
+			"warnings": PackedStringArray(),
+			"id": "",
+			"added": false,
+		}
 	var result := import_file(info.source)
 	if result.errors.is_empty() and result.id != id:
 		delete(id)
@@ -223,10 +244,10 @@ static func glb_path(id: String) -> String:
 ## The entry's info (`name`, `source`, `imported`, plus `id`), or {} if missing.
 static func entry(id: String) -> Dictionary:
 	if not has(id):
-		return {}
+		return { }
 	var info: Variant = _parse_json(_info_path(id))
 	if not info is Dictionary:
-		return {}
+		return { }
 	info.id = id
 	info.name = str(info.get("name", id))
 	info.source = str(info.get("source", ""))
@@ -243,10 +264,12 @@ static func entries() -> Array[Dictionary]:
 			var info := entry(file.get_basename())
 			if not info.is_empty():
 				found.append(info)
-	found.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
-		if a.name.naturalnocasecmp_to(b.name) != 0:
-			return a.name.naturalnocasecmp_to(b.name) < 0
-		return str(a.get("imported", "")) < str(b.get("imported", "")))
+	found.sort_custom(
+		func(a: Dictionary, b: Dictionary) -> bool:
+			if a.name.naturalnocasecmp_to(b.name) != 0:
+				return a.name.naturalnocasecmp_to(b.name) < 0
+			return str(a.get("imported", "")) < str(b.get("imported", "")),
+	)
 	return found
 
 
@@ -256,7 +279,10 @@ static func entries() -> Array[Dictionary]:
 static func manifest_name(path: String) -> String:
 	var manifest: Variant = _parse_json(path.get_basename() + ".json")
 	if manifest is Dictionary:
-		var name := CreatorKit.clean_text(str(manifest.get("name", "")), CreatorKit.max_length("name"))
+		var name := CreatorKit.clean_text(
+			str(manifest.get("name", "")),
+			CreatorKit.max_length("name"),
+		)
 		if not name.is_empty():
 			return name
 	return CreatorKit.clean_text(path.get_file().get_basename(), CreatorKit.max_length("name"))
@@ -283,9 +309,11 @@ static func choose_glb(parent: Node, on_chosen: Callable) -> FileDialog:
 	dialog.title = "Import a character (.glb)"
 	var start := CreatorKit.last_kit_dir()
 	dialog.current_dir = start if DirAccess.dir_exists_absolute(start) else start.get_base_dir()
-	dialog.file_selected.connect(func(path: String) -> void:
-		dialog.queue_free()
-		on_chosen.call(path))
+	dialog.file_selected.connect(
+		func(path: String) -> void:
+			dialog.queue_free()
+			on_chosen.call(path),
+	)
 	dialog.canceled.connect(dialog.queue_free)
 	parent.add_child(dialog)
 	dialog.popup_centered()
@@ -332,7 +360,10 @@ static func _info_path(id: String) -> String:
 static func _write(path: String, bytes: PackedByteArray) -> bool:
 	var file := FileAccess.open(path, FileAccess.WRITE)
 	if file == null:
-		push_error("CharacterLibrary: can't write '%s': %s" % [path, error_string(FileAccess.get_open_error())])
+		push_error(
+			"CharacterLibrary: can't write '%s': %s"
+			% [path, error_string(FileAccess.get_open_error())]
+		)
 		return false
 	file.store_buffer(bytes)
 	return true

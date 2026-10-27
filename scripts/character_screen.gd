@@ -20,7 +20,14 @@ signal closed
 ## `CharacterLibrary.PLAYER_CHOICE`.
 signal fight
 
-enum Page { LIBRARY, WIZARD, REVIEW, AGENT, IMPORT, ERRORS }
+enum Page {
+	LIBRARY,
+	WIZARD,
+	REVIEW,
+	AGENT,
+	IMPORT,
+	ERRORS,
+}
 
 ## Library page titles, browsing and selecting.
 const TITLE := "CHARACTERS"
@@ -90,9 +97,29 @@ var _kit_glb_time := 0
 
 
 func _ready() -> void:
-	for button: Button in [_fight, _punch, _reimport, _delete, _create, _import, _close, _review_back,
-			_save_kit, _kit_folder, _agent, _agent_back, _copy_command, _copy_prompt, _open_kit, _agent_next,
-			_import_back, _import_kit, _browse, _errors_back, _copy_errors]:
+	for button: Button in [
+		_fight,
+		_punch,
+		_reimport,
+		_delete,
+		_create,
+		_import,
+		_close,
+		_review_back,
+		_save_kit,
+		_kit_folder,
+		_agent,
+		_agent_back,
+		_copy_command,
+		_copy_prompt,
+		_open_kit,
+		_agent_next,
+		_import_back,
+		_import_kit,
+		_browse,
+		_errors_back,
+		_copy_errors,
+	]:
 		FocusArrows.add(button)
 	_close.pressed.connect(closed.emit)
 	_fight.pressed.connect(_on_fight_pressed)
@@ -110,8 +137,14 @@ func _ready() -> void:
 	_open_kit.pressed.connect(_on_open_kit_pressed)
 	_agent_next.pressed.connect(_open_import.bind(Page.AGENT))
 	_import_back.pressed.connect(go_back)
-	_import_kit.pressed.connect(func() -> void: _import_file(CreatorKit.kit_glb(_kit)))
-	_browse.pressed.connect(func() -> void: CharacterLibrary.choose_glb(self, _import_file))
+	_import_kit.pressed.connect(
+		func() -> void:
+			_import_file(CreatorKit.kit_glb(_kit)),
+	)
+	_browse.pressed.connect(
+		func() -> void:
+			CharacterLibrary.choose_glb(self, _import_file),
+	)
 	_kit_watch.timeout.connect(_check_kit_glb)
 	_import.pressed.connect(_on_import_pressed)
 	_reimport.pressed.connect(_on_reimport_pressed)
@@ -126,7 +159,7 @@ func _ready() -> void:
 ## Up/down on the review and errors pages scroll the text: their buttons are
 ## one row, so the keys are free, and a gamepad can't focus the text itself.
 func _input(event: InputEvent) -> void:
-	var text: TextEdit = {Page.REVIEW: _prompt, Page.ERRORS: _errors}.get(_page)
+	var text: TextEdit = { Page.REVIEW: _prompt, Page.ERRORS: _errors }.get(_page)
 	if text == null or not get_viewport().get_embedded_subwindows().is_empty():
 		return
 	var lines := 0
@@ -144,8 +177,13 @@ func _input(event: InputEvent) -> void:
 func open() -> void:
 	_library_title.text = SELECT_TITLE if selecting else TITLE
 	_fight.visible = selecting
-	_open_library(CharacterLibrary.chosen(CharacterLibrary.PLAYER_CHOICE) if selecting
-			else _selected_choice())
+	_open_library(
+		(
+			CharacterLibrary.chosen(CharacterLibrary.PLAYER_CHOICE)
+			if selecting
+			else _selected_choice()
+		)
+	)
 
 
 # Back on the (refreshed) library page from another page, with `choice`
@@ -211,7 +249,8 @@ func _fill_review() -> void:
 	_prompt.text = CreatorKit.prompt(answers)
 	_prompt.scroll_vertical = 0
 	_status.text = "SAVE KIT WRITES IT TO %s" % CreatorKit.saved_dir().path_join(
-			CreatorKit.slug(str(answers.get("name", ""))))
+		CreatorKit.slug(str(answers.get("name", "")))
+	)
 
 
 func _back_to_wizard() -> void:
@@ -231,9 +270,12 @@ func _on_save_kit_pressed() -> void:
 
 
 func _on_kit_folder_pressed() -> void:
-	CreatorKit.choose_dir(self, func(_dir: String) -> void:
-		_fill_review()
-		_save_kit.grab_focus())
+	CreatorKit.choose_dir(
+		self,
+		func(_dir: String) -> void:
+			_fill_review()
+			_save_kit.grab_focus(),
+	)
 
 
 # Step 2: the terminal command that runs the agent in kit `_kit`.
@@ -376,7 +418,9 @@ func _on_delete_pressed() -> void:
 	if _delete_armed != id:
 		_delete_armed = id
 		_delete.text = "SURE? DELETE"
-		_library_status.text = "PRESS DELETE AGAIN TO REMOVE %s. ITS SOURCE FILE IS KEPT." % _entry_name(id)
+		_library_status.text = "PRESS DELETE AGAIN TO REMOVE %s. ITS SOURCE FILE IS KEPT." % _entry_name(
+			id
+		)
 		return
 	var name := _entry_name(id)
 	# Then select the entry below it (or above, if it was the last).
@@ -434,12 +478,18 @@ func _fill_library(choice := "") -> void:
 	var selected := 0
 	for name: String in CharacterLibrary.BUILTIN:
 		var index := _library.add_item("%s  (BUILT-IN)" % name)
-		_library.set_item_metadata(index, {"id": "", "choice": name, "model": CharacterLibrary.BUILTIN[name]})
+		_library.set_item_metadata(
+			index,
+			{ "id": "", "choice": name, "model": CharacterLibrary.BUILTIN[name] },
+		)
 		if name == choice:
 			selected = index
 	for info in CharacterLibrary.entries():
 		var index := _library.add_item(info.name.to_upper())
-		_library.set_item_metadata(index, {"id": info.id, "choice": info.id, "model": CharacterLibrary.glb_path(info.id)})
+		_library.set_item_metadata(
+			index,
+			{ "id": info.id, "choice": info.id, "model": CharacterLibrary.glb_path(info.id) },
+		)
 		_library.set_item_tooltip(index, info.source)
 		if info.id == choice:
 			selected = index

@@ -30,18 +30,31 @@ const FLOOR_TOLERANCE := 0.05
 ## Half-width of the box the body (arms excluded) must fit in, sideways and front-to-back.
 const MAX_HALF_EXTENT := 0.6
 ## Rest pose tolerances against `REFERENCE`.
-const REST_POSITION_TOLERANCE := 0.002  # meters
-const REST_ANGLE_TOLERANCE := 0.005  # radians
+const REST_POSITION_TOLERANCE := 0.002 # meters
+const REST_ANGLE_TOLERANCE := 0.005 # radians
 const REST_SCALE_TOLERANCE := 0.002
 const REFERENCE := CharacterLoader.DEFAULT_CHARACTER
 const ARM_BONES: PackedStringArray = [
-	"upper_arm.L", "forearm.L", "hand.L", "upper_arm.R", "forearm.R", "hand.R",
+	"upper_arm.L",
+	"forearm.L",
+	"hand.L",
+	"upper_arm.R",
+	"forearm.R",
+	"hand.R",
 ]
 
 const _CHUNK_JSON := 0x4E4F534A
 const _CHUNK_BIN := 0x004E4942
-const _COMPONENT_BYTES := {5120: 1, 5121: 1, 5122: 2, 5123: 2, 5125: 4, 5126: 4}
-const _TYPE_COMPONENTS := {"SCALAR": 1, "VEC2": 2, "VEC3": 3, "VEC4": 4, "MAT2": 4, "MAT3": 9, "MAT4": 16}
+const _COMPONENT_BYTES := { 5120: 1, 5121: 1, 5122: 2, 5123: 2, 5125: 4, 5126: 4 }
+const _TYPE_COMPONENTS := {
+	"SCALAR": 1,
+	"VEC2": 2,
+	"VEC3": 3,
+	"VEC4": 4,
+	"MAT2": 4,
+	"MAT3": 9,
+	"MAT4": 16,
+}
 
 ## Problems found by the last `validate` call (same as its return value).
 var errors := PackedStringArray()
@@ -76,7 +89,7 @@ func validate(path: String) -> PackedStringArray:
 		return errors
 	_check_safety(json, data)
 	if not errors.is_empty():
-		return errors  # never hand unsafe data to GLTFDocument
+		return errors # never hand unsafe data to GLTFDocument
 	_check_content(json, data)
 	var root := _decode(data, path)
 	if root == null:
@@ -93,8 +106,8 @@ func validate(path: String) -> PackedStringArray:
 func _fail(message: String) -> void:
 	errors.append(message)
 
-
 # --- File and container -----------------------------------------------------
+
 
 func _read_file(path: String) -> PackedByteArray:
 	if path.get_extension().to_lower() != "glb":
@@ -119,22 +132,27 @@ func _read_file(path: String) -> PackedByteArray:
 func _parse_glb(bytes: PackedByteArray) -> Dictionary:
 	if bytes.size() < 20 or bytes.slice(0, 4).get_string_from_ascii() != "glTF":
 		_fail("Not a binary glTF file (missing 'glTF' header); export as glTF Binary (.glb)")
-		return {}
+		return { }
 	var version := bytes.decode_u32(4)
 	if version != 2:
 		_fail("glTF version %d is not supported; export glTF 2.0" % version)
-		return {}
+		return { }
 	if bytes.decode_u32(8) != bytes.size():
-		_fail("File is truncated or padded: header says %s, file is %s" % [_bytes(bytes.decode_u32(8)), _bytes(bytes.size())])
-		return {}
+		_fail(
+			"File is truncated or padded: header says %s, file is %s"
+			% [_bytes(bytes.decode_u32(8)), _bytes(bytes.size())]
+		)
+		return { }
 	var json_length := bytes.decode_u32(12)
 	if bytes.decode_u32(16) != _CHUNK_JSON or 20 + json_length > bytes.size():
 		_fail("GLB JSON chunk is missing or truncated")
-		return {}
-	var parsed: Variant = JSON.parse_string(bytes.slice(20, 20 + json_length).get_string_from_utf8())
+		return { }
+	var parsed: Variant = JSON.parse_string(
+		bytes.slice(20, 20 + json_length).get_string_from_utf8()
+	)
 	if not parsed is Dictionary:
 		_fail("GLB JSON chunk is not valid JSON")
-		return {}
+		return { }
 	return parsed
 
 
@@ -148,8 +166,8 @@ func _bin_chunk(bytes: PackedByteArray) -> Vector2i:
 		return Vector2i.ZERO
 	return Vector2i(at + 8, length)
 
-
 # --- Stage 1: JSON safety (before GLTFDocument decodes anything) -------------
+
 
 func _check_safety(json: Dictionary, bytes: PackedByteArray) -> void:
 	var bin := _bin_chunk(bytes)
@@ -159,7 +177,10 @@ func _check_safety(json: Dictionary, bytes: PackedByteArray) -> void:
 	for i in buffers.size():
 		var buffer := _dict(buffers[i])
 		if buffer.has("uri"):
-			_fail("Buffer %d refers to an external file '%s'; export as glTF Binary (.glb) so everything is embedded" % [i, _short(buffer.uri)])
+			_fail(
+				"Buffer %d refers to an external file '%s'; export as glTF Binary (.glb) so everything is embedded"
+				% [i, _short(buffer.uri)]
+			)
 		elif _int(buffer.get("byteLength")) < 0 or _int(buffer.get("byteLength")) > bin.y:
 			_fail("Buffer %d is larger than the file's binary chunk" % i)
 	var buffer_length := _int(_dict(buffers[0]).get("byteLength")) if buffers.size() == 1 else 0
@@ -169,7 +190,10 @@ func _check_safety(json: Dictionary, bytes: PackedByteArray) -> void:
 		var view := _dict(views[i])
 		var offset := _int(view.get("byteOffset", 0))
 		var length := _int(view.get("byteLength"))
-		var ok := _int(view.get("buffer")) == 0 and offset >= 0 and length >= 0 and offset + length <= buffer_length
+		var ok := (
+			_int(view.get("buffer")) == 0 and offset >= 0
+			and length >= 0 and offset + length <= buffer_length
+		)
 		if not ok:
 			_fail("Buffer view %d points outside the binary data" % i)
 		view_ok.append(ok)
@@ -178,32 +202,69 @@ func _check_safety(json: Dictionary, bytes: PackedByteArray) -> void:
 		_fail("Node count %s exceeds %s" % [_thousands(nodes.size()), _thousands(MAX_NODES)])
 	var accessors := _array(json, "accessors")
 	if accessors.size() > MAX_ACCESSORS:
-		_fail("Accessor count %s exceeds %s" % [_thousands(accessors.size()), _thousands(MAX_ACCESSORS)])
+		_fail(
+			"Accessor count %s exceeds %s"
+			% [_thousands(accessors.size()), _thousands(MAX_ACCESSORS)]
+		)
 		return
 	var total := 0
 	for i in accessors.size():
 		var accessor := _dict(accessors[i])
 		var count := _int(accessor.get("count"))
-		var element := int(_COMPONENT_BYTES.get(_int(accessor.get("componentType")), 0)) * int(_TYPE_COMPONENTS.get(accessor.get("type"), 0))
+		var element := int(_COMPONENT_BYTES.get(_int(accessor.get("componentType")), 0)) * int(
+			_TYPE_COMPONENTS.get(accessor.get("type"), 0)
+		)
 		if count < 1 or element == 0:
 			_fail("Accessor %d is malformed (count or type)" % i)
 			continue
 		if count > MAX_ACCESSOR_ELEMENTS:
-			_fail("Accessor %d has %s elements, more than %s" % [i, _thousands(count), _thousands(MAX_ACCESSOR_ELEMENTS)])
+			_fail(
+				"Accessor %d has %s elements, more than %s"
+				% [i, _thousands(count), _thousands(MAX_ACCESSOR_ELEMENTS)]
+			)
 			continue
 		total += count
-		if accessor.has("bufferView") and not _fits(views, view_ok, accessor.bufferView, _int(accessor.get("byteOffset", 0)), count, element):
+		if (
+			accessor.has("bufferView")
+			and not _fits(
+				views,
+				view_ok,
+				accessor.bufferView,
+				_int(accessor.get("byteOffset", 0)),
+				count,
+				element,
+			)
+		):
 			_fail("Accessor %d reads past the end of its buffer view" % i)
 		if accessor.has("sparse"):
 			var sparse := _dict(accessor.sparse)
 			var sparse_count := _int(sparse.get("count"))
-			var index_bytes := int(_COMPONENT_BYTES.get(_int(_dict(sparse.get("indices")).get("componentType")), 0))
+			var index_bytes := int(
+				_COMPONENT_BYTES.get(_int(_dict(sparse.get("indices")).get("componentType")), 0)
+			)
 			if sparse_count < 1 or sparse_count > count or index_bytes == 0 \
-					or not _fits(views, view_ok, _dict(sparse.get("indices")).get("bufferView"), _int(_dict(sparse.get("indices")).get("byteOffset", 0)), sparse_count, index_bytes) \
-					or not _fits(views, view_ok, _dict(sparse.get("values")).get("bufferView"), _int(_dict(sparse.get("values")).get("byteOffset", 0)), sparse_count, element):
+					or not _fits(
+				views,
+				view_ok,
+				_dict(sparse.get("indices")).get("bufferView"),
+				_int(_dict(sparse.get("indices")).get("byteOffset", 0)),
+				sparse_count,
+				index_bytes,
+			) \
+					or not _fits(
+				views,
+				view_ok,
+				_dict(sparse.get("values")).get("bufferView"),
+				_int(_dict(sparse.get("values")).get("byteOffset", 0)),
+				sparse_count,
+				element,
+			):
 				_fail("Accessor %d has malformed sparse data" % i)
 	if total > MAX_TOTAL_ELEMENTS:
-		_fail("Accessors hold %s elements in total, more than %s" % [_thousands(total), _thousands(MAX_TOTAL_ELEMENTS)])
+		_fail(
+			"Accessors hold %s elements in total, more than %s"
+			% [_thousands(total), _thousands(MAX_TOTAL_ELEMENTS)]
+		)
 	var images := _array(json, "images")
 	if images.size() > MAX_TEXTURES:
 		_fail("Texture count %d exceeds %d" % [images.size(), MAX_TEXTURES])
@@ -211,7 +272,10 @@ func _check_safety(json: Dictionary, bytes: PackedByteArray) -> void:
 		var image := _dict(images[i])
 		var label := "Texture '%s'" % image.name if image.get("name") is String else "Texture %d" % i
 		if image.has("uri"):
-			_fail("%s refers to an external file '%s'; pack the image into the .glb" % [label, _short(image.uri)])
+			_fail(
+				"%s refers to an external file '%s'; pack the image into the .glb"
+				% [label, _short(image.uri)]
+			)
 			continue
 		var view_index := _int(image.get("bufferView"))
 		if view_index < 0 or view_index >= views.size() or not view_ok[view_index]:
@@ -224,10 +288,20 @@ func _check_safety(json: Dictionary, bytes: PackedByteArray) -> void:
 		if size == Vector2i.ZERO:
 			_fail("%s is not a PNG or JPEG image" % label)
 		elif size.x > MAX_TEXTURE_SIZE or size.y > MAX_TEXTURE_SIZE:
-			_fail("%s is %d×%d px; the limit is %d×%d" % [label, size.x, size.y, MAX_TEXTURE_SIZE, MAX_TEXTURE_SIZE])
+			_fail(
+				"%s is %d×%d px; the limit is %d×%d"
+				% [label, size.x, size.y, MAX_TEXTURE_SIZE, MAX_TEXTURE_SIZE]
+			)
 
 
-func _fits(views: Array, view_ok: Array, view_index: Variant, offset: int, count: int, element: int) -> bool:
+func _fits(
+	views: Array,
+	view_ok: Array,
+	view_index: Variant,
+	offset: int,
+	count: int,
+	element: int,
+) -> bool:
 	var index := _int(view_index)
 	if index < 0 or index >= views.size() or not view_ok[index] or offset < 0:
 		return false
@@ -261,16 +335,16 @@ static func _image_size(data: PackedByteArray) -> Vector2i:
 static func _u32_be(data: PackedByteArray, at: int) -> int:
 	return (data[at] << 24) | (data[at + 1] << 16) | (data[at + 2] << 8) | data[at + 3]
 
-
 # --- Stage 1b: JSON content (parts, triangles, materials, ignored data) -------
+
 
 func _check_content(json: Dictionary, bytes: PackedByteArray) -> void:
 	var nodes := _array(json, "nodes")
-	var joints := {}
+	var joints := { }
 	for skin in _array(json, "skins"):
 		for joint in _array(_dict(skin), "joints"):
 			joints[_int(joint)] = true
-	var parent_of := {}
+	var parent_of := { }
 	for i in nodes.size():
 		for child in _array(_dict(nodes[i]), "children"):
 			parent_of[_int(child)] = i
@@ -286,7 +360,10 @@ func _check_content(json: Dictionary, bytes: PackedByteArray) -> void:
 		if not node.has("mesh"):
 			continue
 		if node.has("skin"):
-			_fail("Part '%s' is skinned (Armature modifier or vertex groups); remove that and parent it to one bone (Ctrl+P → Bone)" % name)
+			_fail(
+				"Part '%s' is skinned (Armature modifier or vertex groups); remove that and parent it to one bone (Ctrl+P → Bone)"
+				% name
+			)
 		elif not _under_joint(i, joints, parent_of):
 			_fail("Part '%s' isn't parented to a bone; parent it with Ctrl+P → Bone" % name)
 		var mesh_index := _int(node.mesh)
@@ -299,7 +376,10 @@ func _check_content(json: Dictionary, bytes: PackedByteArray) -> void:
 				shape_keys = true
 			var mode := _int(primitive.get("mode", 4))
 			var indices := _accessor_count(accessors, primitive.get("indices"))
-			var vertices := _accessor_count(accessors, _dict(primitive.get("attributes")).get("POSITION"))
+			var vertices := _accessor_count(
+				accessors,
+				_dict(primitive.get("attributes")).get("POSITION"),
+			)
 			var count := indices if indices > 0 else vertices
 			match mode:
 				4:
@@ -307,7 +387,10 @@ func _check_content(json: Dictionary, bytes: PackedByteArray) -> void:
 				5, 6:
 					triangles += maxi(count - 2, 0)
 				_:
-					_fail("Part '%s' contains loose points or edges; delete them (only faces are allowed)" % name)
+					_fail(
+						"Part '%s' contains loose points or edges; delete them (only faces are allowed)"
+						% name
+					)
 	if triangles > MAX_TRIANGLES:
 		_fail("Triangle count %s exceeds %s" % [_thousands(triangles), _thousands(MAX_TRIANGLES)])
 
@@ -317,14 +400,23 @@ func _check_content(json: Dictionary, bytes: PackedByteArray) -> void:
 		var label := "Material '%s'" % material.name if material.get("name") is String else "Material %d" % i
 		var mode: Variant = material.get("alphaMode", "OPAQUE")
 		if mode == "BLEND":
-			_fail("%s uses alpha blending; set Blend Mode to Opaque (fighters must be fully opaque)" % label)
+			_fail(
+				"%s uses alpha blending; set Blend Mode to Opaque (fighters must be fully opaque)"
+				% label
+			)
 		elif mode == "MASK":
-			_fail("%s uses alpha clipping; set Blend Mode to Opaque (fighters must be fully opaque)" % label)
+			_fail(
+				"%s uses alpha clipping; set Blend Mode to Opaque (fighters must be fully opaque)"
+				% label
+			)
 		var factor := _array(_dict(material.get("pbrMetallicRoughness")), "baseColorFactor")
 		if factor.size() == 4 and float(factor[3]) < 1.0:
 			_fail("%s has alpha %.2f; set Alpha to 1.0" % [label, float(factor[3])])
 		if _dict(material.get("extensions")).has("KHR_materials_transmission"):
-			_fail("%s uses transmission; set Transmission to 0 (fighters must be fully opaque)" % label)
+			_fail(
+				"%s uses transmission; set Transmission to 0 (fighters must be fully opaque)"
+				% label
+			)
 
 	var animations := _array(json, "animations").size()
 	if animations > 0:
@@ -340,7 +432,7 @@ func _check_content(json: Dictionary, bytes: PackedByteArray) -> void:
 
 
 func _under_joint(index: int, joints: Dictionary, parent_of: Dictionary) -> bool:
-	var seen := {}
+	var seen := { }
 	while parent_of.has(index) and not seen.has(index):
 		seen[index] = true
 		index = parent_of[index]
@@ -353,8 +445,8 @@ static func _accessor_count(accessors: Array, index: Variant) -> int:
 	var i := _int(index)
 	return _int(_dict(accessors[i]).get("count")) if i >= 0 and i < accessors.size() else 0
 
-
 # --- Stage 2: decoded scene (skeleton, rest pose, bounds) --------------------
+
 
 func _decode(bytes: PackedByteArray, path: String) -> Node3D:
 	var doc := GLTFDocument.new()
@@ -384,17 +476,19 @@ func _check_scene(root: Node3D) -> void:
 	var skeleton := skeletons[0] as Skeleton3D
 	_check_bones(skeleton)
 	if not _transform_to(skeleton, root).is_equal_approx(_reference_skeleton_transform):
-		_fail("The Armature object is moved, rotated, or scaled; keep it at the origin with no rotation and scale 1")
+		_fail(
+			"The Armature object is moved, rotated, or scaled; keep it at the origin with no rotation and scale 1"
+		)
 	_check_bounds(root, skeleton)
 
 
 func _check_bones(skeleton: Skeleton3D) -> void:
 	_load_reference()
-	var clashes := {}  # bone names a part also used (already reported)
+	var clashes := { } # bone names a part also used (already reported)
 	for e in errors:
 		if e.begins_with("Part '") and e.contains("same name as a bone"):
 			clashes[e.get_slice("'", 1)] = true
-	var names := {}
+	var names := { }
 	for i in skeleton.get_bone_count():
 		names[skeleton.get_bone_name(i)] = i
 	for bone in CharacterLoader.REQUIRED_BONES:
@@ -402,7 +496,10 @@ func _check_bones(skeleton: Skeleton3D) -> void:
 			continue
 		var similar := PackedStringArray()
 		for other: String in names:
-			if not _reference_bones.has(other) and (other.begins_with(bone) or other.to_lower() == bone.to_lower()):
+			if (
+				not _reference_bones.has(other)
+				and (other.begins_with(bone) or other.to_lower() == bone.to_lower())
+			):
 				similar.append("'%s'" % other)
 		if similar.is_empty():
 			_fail("Bone '%s' missing" % bone)
@@ -413,9 +510,12 @@ func _check_bones(skeleton: Skeleton3D) -> void:
 			continue
 		var base := name.rsplit("_", true, 1)[0]
 		if clashes.has(base):
-			continue  # Godot renamed the bone after a part took its name
+			continue # Godot renamed the bone after a part took its name
 		if not _similar_to_required(name):
-			_fail("Extra bone '%s'; delete it (the skeleton must have exactly the %d template bones)" % [name, CharacterLoader.REQUIRED_BONES.size()])
+			_fail(
+				"Extra bone '%s'; delete it (the skeleton must have exactly the %d template bones)"
+				% [name, CharacterLoader.REQUIRED_BONES.size()]
+			)
 	for name: String in names:
 		if not _reference_bones.has(name):
 			continue
@@ -424,15 +524,26 @@ func _check_bones(skeleton: Skeleton3D) -> void:
 		var parent := skeleton.get_bone_parent(i)
 		var parent_name := skeleton.get_bone_name(parent) if parent != -1 else ""
 		if parent_name != expected.parent:
-			_fail("Bone '%s' has parent %s, expected %s" % [name, _quoted_or_none(parent_name), _quoted_or_none(expected.parent)])
+			_fail(
+				"Bone '%s' has parent %s, expected %s"
+				% [name, _quoted_or_none(parent_name), _quoted_or_none(expected.parent)]
+			)
 			continue
 		var rest := skeleton.get_bone_rest(i)
 		var want: Transform3D = expected.rest
 		var moved := rest.origin.distance_to(want.origin)
-		var turned := rest.basis.get_rotation_quaternion().angle_to(want.basis.get_rotation_quaternion())
+		var turned := rest.basis.get_rotation_quaternion().angle_to(
+			want.basis.get_rotation_quaternion()
+		)
 		var scaled := (rest.basis.get_scale() - want.basis.get_scale()).abs()
-		if moved > REST_POSITION_TOLERANCE or turned > REST_ANGLE_TOLERANCE or maxf(scaled.x, maxf(scaled.y, scaled.z)) > REST_SCALE_TOLERANCE:
-			_fail("Bone '%s' rest pose differs from the template (moved %.3f m, rotated %.1f°); don't edit bones, rebuild from template.blend" % [name, moved, rad_to_deg(turned)])
+		if (
+			moved > REST_POSITION_TOLERANCE or turned > REST_ANGLE_TOLERANCE
+			or maxf(scaled.x, maxf(scaled.y, scaled.z)) > REST_SCALE_TOLERANCE
+		):
+			_fail(
+				"Bone '%s' rest pose differs from the template (moved %.3f m, rotated %.1f°); don't edit bones, rebuild from template.blend"
+				% [name, moved, rad_to_deg(turned)]
+			)
 
 
 # A non-template bone that `_check_bones` already named in a "missing (found …)" message.
@@ -459,7 +570,7 @@ func _check_bounds(root: Node3D, skeleton: Skeleton3D) -> void:
 			if ancestor is BoneAttachment3D:
 				var bone := (ancestor as BoneAttachment3D).bone_name
 				for arm_bone in ARM_BONES:
-					arm = arm or bone.begins_with(arm_bone)  # also 'hand.L.001'
+					arm = arm or bone.begins_with(arm_bone) # also 'hand.L.001'
 				break
 			ancestor = ancestor.get_parent()
 		var xform := _transform_to(mi, root, skeleton)
@@ -480,16 +591,25 @@ func _check_bounds(root: Node3D, skeleton: Skeleton3D) -> void:
 	if height < MIN_HEIGHT or height > MAX_HEIGHT:
 		_fail("Height %.2f m is outside %.1f–%.1f m (Blender Z)" % [height, MIN_HEIGHT, MAX_HEIGHT])
 	if absf(low.y) > FLOOR_TOLERANCE:
-		_fail("Lowest point is at %.2f m; the soles must rest on Z = 0 (±%.2f m)" % [low.y, FLOOR_TOLERANCE])
+		_fail(
+			"Lowest point is at %.2f m; the soles must rest on Z = 0 (±%.2f m)"
+			% [low.y, FLOOR_TOLERANCE]
+		)
 	if body_low.x == INF:
 		return
 	# Godot +X = Blender +X (sideways); Godot +Z = Blender −Y (front-to-back).
 	var side := maxf(absf(body_low.x), absf(body_high.x))
 	if side > MAX_HALF_EXTENT:
-		_fail("Body (arms excluded) reaches %.2f m sideways (Blender X); the limit is ±%.1f m" % [side, MAX_HALF_EXTENT])
+		_fail(
+			"Body (arms excluded) reaches %.2f m sideways (Blender X); the limit is ±%.1f m"
+			% [side, MAX_HALF_EXTENT]
+		)
 	var depth := maxf(absf(body_low.z), absf(body_high.z))
 	if depth > MAX_HALF_EXTENT:
-		_fail("Body (arms excluded) reaches %.2f m front-to-back (Blender Y); the limit is ±%.1f m" % [depth, MAX_HALF_EXTENT])
+		_fail(
+			"Body (arms excluded) reaches %.2f m front-to-back (Blender Y); the limit is ±%.1f m"
+			% [depth, MAX_HALF_EXTENT]
+		)
 
 
 ## Rest-pose transform of `node` relative to `root`. Nodes under a
@@ -499,7 +619,9 @@ static func _transform_to(node: Node, root: Node, skeleton: Skeleton3D = null) -
 	var xform := Transform3D.IDENTITY
 	while node != null and node != root:
 		if node is BoneAttachment3D and skeleton != null:
-			xform = skeleton.get_bone_global_rest(skeleton.find_bone((node as BoneAttachment3D).bone_name)) * xform
+			xform = skeleton.get_bone_global_rest(
+				skeleton.find_bone((node as BoneAttachment3D).bone_name)
+			) * xform
 		elif node is Node3D:
 			xform = (node as Node3D).transform * xform
 		node = node.get_parent()
@@ -525,8 +647,8 @@ static func _load_reference() -> void:
 	_reference_skeleton_transform = _transform_to(skeleton, root)
 	root.free()
 
-
 # --- Helpers ----------------------------------------------------------------
+
 
 static func _array(dict: Variant, key: String) -> Array:
 	var value: Variant = dict.get(key) if dict is Dictionary else null
@@ -534,7 +656,7 @@ static func _array(dict: Variant, key: String) -> Array:
 
 
 static func _dict(value: Variant) -> Dictionary:
-	return value if value is Dictionary else {}
+	return value if value is Dictionary else { }
 
 
 ## A JSON number that is a whole number, or -1.

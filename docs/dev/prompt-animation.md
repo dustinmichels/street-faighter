@@ -8,31 +8,31 @@ The game is non-commercial, so research-only model licenses aren't a blocker. Se
 
 These models take text such as "a spinning back kick" and output a motion clip for the 22-joint HumanML3D/SMPL skeleton.
 
-| Project | Notes |
-| --- | --- |
-| **MoMask** (`EricGuo5513/momask-codes`) | Among the best-quality open models. Supports filling in motion between keyframes you supply. |
-| **MDM** (`GuyTevet/motion-diffusion-model`) | The standard baseline. Diffusion-based and easy to constrain, for example by fixing the root path or chosen joints. Slow. |
-| **MotionLCM** | A fast version of the diffusion approach, around tens of ms per clip. The only one realistic to run at request time. |
-| **T2M-GPT**, **MotionGPT** (OpenMotionLab) | Treat motion as tokens. MotionGPT can also describe a motion back in text, which helps check that a clip matches its prompt. |
-| **HY-Motion** (Tencent Hunyuan) | Newer and larger. License and quality not yet checked. |
+| Project                                     | Notes                                                                                                                        |
+| ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| **MoMask** (`EricGuo5513/momask-codes`)     | Among the best-quality open models. Supports filling in motion between keyframes you supply.                                 |
+| **MDM** (`GuyTevet/motion-diffusion-model`) | The standard baseline. Diffusion-based and easy to constrain, for example by fixing the root path or chosen joints. Slow.    |
+| **MotionLCM**                               | A fast version of the diffusion approach, around tens of ms per clip. The only one realistic to run at request time.         |
+| **T2M-GPT**, **MotionGPT** (OpenMotionLab)  | Treat motion as tokens. MotionGPT can also describe a motion back in text, which helps check that a clip matches its prompt. |
+| **HY-Motion** (Tencent Hunyuan)             | Newer and larger. License and quality not yet checked.                                                                       |
 
 ### Converting to our skeleton
 
 - **Bone mapping.** HumanML3D joints map onto our bones as follows. The collar and toe joints have no match and are dropped.
 
-  | Our bone | HumanML3D joint |
-  | --- | --- |
-  | `hips` | pelvis |
-  | `spine` | spine1 |
-  | `chest` | spine3 |
-  | `neck` | neck |
-  | `head` | head |
-  | `upper_arm.*` | shoulder |
-  | `forearm.*` | elbow |
-  | `hand.*` | wrist |
-  | `thigh.*` | hip |
-  | `shin.*` | knee |
-  | `foot.*` | ankle |
+  | Our bone      | HumanML3D joint |
+  | ------------- | --------------- |
+  | `hips`        | pelvis          |
+  | `spine`       | spine1          |
+  | `chest`       | spine3          |
+  | `neck`        | neck            |
+  | `head`        | head            |
+  | `upper_arm.*` | shoulder        |
+  | `forearm.*`   | elbow           |
+  | `hand.*`      | wrist           |
+  | `thigh.*`     | hip             |
+  | `shin.*`      | knee            |
+  | `foot.*`      | ankle           |
 
 - **Positions to rotations.** The models output joint positions, not rotations. For each bone, take the direction from its joint to its child's joint. Then compute the rotation that swings the bone's rest direction onto it (`Quaternion(rest_dir, target_dir)`, in the parent's space). No IK is needed.
 - **Twist is lost.** Rotation around a bone's own axis can't be recovered from positions. With rigid parts this is mostly invisible, although wrists may look odd.

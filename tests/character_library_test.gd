@@ -41,16 +41,23 @@ func _test_import() -> void:
 	_check_eq(result.errors, PackedStringArray(), "import: no errors")
 	_check_eq(result.id, id, "import: id is the sha256 of the bytes")
 	_check(result.added, "import: added")
-	_check_eq(FileAccess.get_file_as_bytes(CharacterLibrary.glb_path(id)), default_bytes, "import: bytes copied")
+	_check_eq(
+		FileAccess.get_file_as_bytes(CharacterLibrary.glb_path(id)),
+		default_bytes,
+		"import: bytes copied",
+	)
 	var info := CharacterLibrary.entry(id)
 	_check_eq(info.name, "big_tony", "import: name from file name")
 	_check_eq(info.source, glb, "import: source path")
 	_check(Time.get_unix_time_from_datetime_string(info.imported) > 0, "import: import time")
 
 	# Same bytes again, now with a manifest: nothing changes.
-	_store(glb.get_basename() + ".json", JSON.stringify({"name": "Big ```Tony```\n"}).to_utf8_buffer())
+	_store(glb.get_basename() + ".json", JSON.stringify({ "name": "Big ```Tony```\n" }).to_utf8_buffer())
 	var again := CharacterLibrary.import_file(glb)
-	_check(again.errors.is_empty() and again.id == id and not again.added, "re-import same bytes: no-op")
+	_check(
+		again.errors.is_empty() and again.id == id and not again.added,
+		"re-import same bytes: no-op",
+	)
 	_check_eq(CharacterLibrary.entry(id), info, "re-import same bytes: entry unchanged")
 	_check_eq(CharacterLibrary.manifest_name(glb), "Big '''Tony'''", "manifest name: cleaned")
 	_check_eq(CharacterLibrary.entries().size(), 1, "entries: one")
@@ -66,7 +73,10 @@ func _test_reimport() -> void:
 	settings.save(CharacterLibrary.settings_path)
 
 	var same := CharacterLibrary.reimport(old_id)
-	_check(same.errors.is_empty() and same.id == old_id and CharacterLibrary.has(old_id), "reimport unchanged: same entry")
+	_check(
+		same.errors.is_empty() and same.id == old_id and CharacterLibrary.has(old_id),
+		"reimport unchanged: same entry",
+	)
 
 	# The agent exports again: different bytes, still valid.
 	var changed := _padded(FileAccess.get_file_as_bytes(glb))
@@ -76,27 +86,58 @@ func _test_reimport() -> void:
 	_check_eq(result.errors, PackedStringArray(), "reimport changed: no errors")
 	_check_eq(result.id, new_id, "reimport changed: new id")
 	_check(not CharacterLibrary.has(old_id), "reimport changed: old entry removed")
-	_check_eq(CharacterLibrary.entries().map(func(e: Dictionary) -> String: return e.id), [new_id],
-			"reimport changed: replaced")
-	_check_eq(CharacterLibrary.entry(new_id).name, "Big '''Tony'''", "reimport changed: name from manifest")
+	_check_eq(
+		CharacterLibrary.entries().map(
+			func(e: Dictionary) -> String:
+				return e.id,
+		),
+		[new_id],
+		"reimport changed: replaced",
+	)
+	_check_eq(
+		CharacterLibrary.entry(new_id).name,
+		"Big '''Tony'''",
+		"reimport changed: name from manifest",
+	)
 	settings.load(CharacterLibrary.settings_path)
-	_check_eq(settings.get_value(CharacterLibrary.SELECTION_SECTION, "p1"), new_id, "reimport changed: selection follows")
-	_check_eq(settings.get_value(CharacterLibrary.SELECTION_SECTION, "other"), "x", "reimport changed: other choices kept")
+	_check_eq(
+		settings.get_value(CharacterLibrary.SELECTION_SECTION, "p1"),
+		new_id,
+		"reimport changed: selection follows",
+	)
+	_check_eq(
+		settings.get_value(CharacterLibrary.SELECTION_SECTION, "other"),
+		"x",
+		"reimport changed: other choices kept",
+	)
 
 	# Source gone or broken: errors, the entry stays.
 	_store(glb, "broken".to_utf8_buffer())
 	var broken := CharacterLibrary.reimport(new_id)
-	_check(not broken.errors.is_empty() and CharacterLibrary.has(new_id), "reimport broken source: entry kept")
-	_check(CharacterLibrary.delete(new_id) and CharacterLibrary.entries().is_empty(), "delete: removed")
+	_check(
+		not broken.errors.is_empty() and CharacterLibrary.has(new_id),
+		"reimport broken source: entry kept",
+	)
+	_check(
+		CharacterLibrary.delete(new_id) and CharacterLibrary.entries().is_empty(),
+		"delete: removed",
+	)
 	_check(not CharacterLibrary.reimport(new_id).errors.is_empty(), "reimport missing entry: error")
 
 
 func _test_choice() -> void:
 	DirAccess.remove_absolute(CharacterLibrary.settings_path)
 	var key := CharacterLibrary.PLAYER_CHOICE
-	_check_eq(CharacterLibrary.chosen(key), CharacterLibrary.DEFAULT_CHOICE, "choice: default without settings")
-	_check_eq(CharacterLibrary.model_path(CharacterLibrary.chosen(key)), CharacterLoader.DEFAULT_CHARACTER,
-			"choice: default model")
+	_check_eq(
+		CharacterLibrary.chosen(key),
+		CharacterLibrary.DEFAULT_CHOICE,
+		"choice: default without settings",
+	)
+	_check_eq(
+		CharacterLibrary.model_path(CharacterLibrary.chosen(key)),
+		CharacterLoader.DEFAULT_CHARACTER,
+		"choice: default model",
+	)
 	var glb := ProjectSettings.globalize_path(WORK.path_join("kit/choice.glb"))
 	_store(glb, FileAccess.get_file_as_bytes(CharacterLoader.DEFAULT_CHARACTER))
 	var id: String = CharacterLibrary.import_file(glb).id
@@ -104,7 +145,11 @@ func _test_choice() -> void:
 	_check_eq(CharacterLibrary.chosen(key), id, "choice: saved")
 	_check_eq(CharacterLibrary.model_path(id), CharacterLibrary.glb_path(id), "choice: entry model")
 	CharacterLibrary.delete(id)
-	_check_eq(CharacterLibrary.model_path(id), CharacterLoader.DEFAULT_CHARACTER, "choice: deleted entry → default model")
+	_check_eq(
+		CharacterLibrary.model_path(id),
+		CharacterLoader.DEFAULT_CHARACTER,
+		"choice: deleted entry → default model",
+	)
 
 
 # The same GLB with its JSON chunk padded by spaces (allowed by the spec):

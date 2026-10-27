@@ -18,16 +18,16 @@ The skeleton (bone names, rest pose, axes, model conventions) is specified in on
 
 The kit sources are in `creator_kit/`; the export preset bundles them (`include_filter="creator_kit/*"`). `CreatorKit.write` copies every file there except `PROMPT_TEMPLATE.md` and writes `PROMPT.md` and `character_request.json`. A kit holds:
 
-| File                          | Source                                                                                                    |
-| ----------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `README.md`                   | `creator_kit/README.md`: what the kit is and how to run the agent.                                        |
-| `PROMPT.md`                   | `creator_kit/PROMPT_TEMPLATE.md` with the design brief and the validator command filled in.               |
-| `SKELETON.md`                 | `creator_kit/SKELETON.md`: the skeleton reference ([Skeleton](./skeleton)).                               |
-| `BPY_NOTES.md`                | `bpy` cheat sheet: correct calls for this task and the ones LLMs invent or that changed between versions. |
-| `build_template.py`           | Builds `template.blend` (the bare skeleton). The only copy of the skeleton script.                        |
-| `example_build_character.py`  | A working box fighter: bone parenting, materials, export.                                                 |
-| `export_glb.py`               | Export with fixed settings (GLB, rest pose, no animations, shape keys, cameras, or lights).               |
-| `character_request.json`      | The sanitized questionnaire answers.                                                                      |
+| File                         | Source                                                                                                    |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `README.md`                  | `creator_kit/README.md`: what the kit is and how to run the agent.                                        |
+| `PROMPT.md`                  | `creator_kit/PROMPT_TEMPLATE.md` with the design brief and the validator command filled in.               |
+| `SKELETON.md`                | `creator_kit/SKELETON.md`: the skeleton reference ([Skeleton](./skeleton)).                               |
+| `BPY_NOTES.md`               | `bpy` cheat sheet: correct calls for this task and the ones LLMs invent or that changed between versions. |
+| `build_template.py`          | Builds `template.blend` (the bare skeleton). The only copy of the skeleton script.                        |
+| `example_build_character.py` | A working box fighter: bone parenting, materials, export.                                                 |
+| `export_glb.py`              | Export with fixed settings (GLB, rest pose, no animations, shape keys, cameras, or lights).               |
+| `character_request.json`     | The sanitized questionnaire answers.                                                                      |
 
 Rewriting a kit keeps the agent's own files (`template.blend`, `build_character.py`, `previews/`, `<slug>.glb`, `<slug>.json`). `<slug>.json` is the manifest (`schema_version`, `name`, `model`, `description`); on import, its `name` becomes the library name.
 
@@ -53,18 +53,18 @@ Triangle count 23,410 exceeds 10,000
 
 The file is checked before Godot decodes anything, then the decoded scene is checked:
 
-| Check          | Rule                                                                                                                                       |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| File           | `.glb` (glTF 2.0 binary), ≤ 4 MB, one embedded buffer, no external URIs.                                                                   |
-| Safety         | ≤ 1,024 nodes, ≤ 4,096 accessors, ≤ 100,000 elements per accessor and 1,000,000 in total; buffer views and accessors in bounds.            |
-| Textures       | ≤ 2 images, PNG or JPEG, ≤ 1024×1024 px (read from the image header).                                                                      |
-| Triangles      | ≤ 10,000 in total; no loose points or edges.                                                                                               |
-| Parts          | Every mesh is parented to a bone (Parent type *Bone*); no skinning; no part named like a bone.                                             |
-| Materials      | Opaque only: no alpha blend or clip, base color alpha 1, no transmission.                                                                  |
-| Skeleton       | Exactly one armature with exactly the 17 template bones and parents; rest pose matches `default.glb` within 2 mm and 0.005 rad.            |
-| Armature       | The Armature object at the origin, not rotated or scaled.                                                                                  |
-| Bounds         | At rest, 1.6–2.0 m tall, soles at Z = 0 (±0.05 m), body without the arms within ±0.6 m sideways and front-to-back.                         |
-| Ignored        | Animations, cameras, lights, and shape keys produce warnings, not errors.                                                                  |
+| Check     | Rule                                                                                                                            |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| File      | `.glb` (glTF 2.0 binary), ≤ 4 MB, one embedded buffer, no external URIs.                                                        |
+| Safety    | ≤ 1,024 nodes, ≤ 4,096 accessors, ≤ 100,000 elements per accessor and 1,000,000 in total; buffer views and accessors in bounds. |
+| Textures  | ≤ 2 images, PNG or JPEG, ≤ 1024×1024 px (read from the image header).                                                           |
+| Triangles | ≤ 10,000 in total; no loose points or edges.                                                                                    |
+| Parts     | Every mesh is parented to a bone (Parent type _Bone_); no skinning; no part named like a bone.                                  |
+| Materials | Opaque only: no alpha blend or clip, base color alpha 1, no transmission.                                                       |
+| Skeleton  | Exactly one armature with exactly the 17 template bones and parents; rest pose matches `default.glb` within 2 mm and 0.005 rad. |
+| Armature  | The Armature object at the origin, not rotated or scaled.                                                                       |
+| Bounds    | At rest, 1.6–2.0 m tall, soles at Z = 0 (±0.05 m), body without the arms within ±0.6 m sideways and front-to-back.              |
+| Ignored   | Animations, cameras, lights, and shape keys produce warnings, not errors.                                                       |
 
 The limits are constants at the top of the script; `PROMPT_TEMPLATE.md` states the same budgets to the agent.
 

@@ -62,7 +62,10 @@ func _run() -> void:
 	var guest := _side("Client", 1, client, match_seed, delay, rollback)
 	var sides: Array[Peer] = [host, guest]
 	var frames := 0
-	while client.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED or host.multiplayer.get_peers().is_empty():
+	while (
+		client.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED
+		or host.multiplayer.get_peers().is_empty()
+	):
 		for s in sides:
 			s.multiplayer.poll()
 		frames += 1
@@ -94,7 +97,9 @@ func _run() -> void:
 				s.sync._physics_process(0.0)
 		max_lead = maxi(max_lead, absi(host.world.tick - guest.world.tick))
 		if max_lead > delay + rollback:
-			_fail("one side ran %d ticks ahead (delay %d, rollback %d)" % [max_lead, delay, rollback])
+			_fail(
+				"one side ran %d ticks ahead (delay %d, rollback %d)" % [max_lead, delay, rollback]
+			)
 			return
 		frames += 1
 		if frames > MAX_FRAMES:
@@ -102,10 +107,19 @@ func _run() -> void:
 			return
 		await process_frame
 
-	print("%d ticks in %d frames: %d/%d stalled frames, %d packets dropped, max lead %d" % [
-		ticks, frames, host.world.stalled_frames, guest.world.stalled_frames, dropped, max_lead])
-	print("rollbacks %d/%d, re-simulated ticks %d/%d" % [host.world.rollbacks, guest.world.rollbacks,
-		host.world.resimulated_ticks, guest.world.resimulated_ticks])
+	print(
+		"%d ticks in %d frames: %d/%d stalled frames, %d packets dropped, max lead %d"
+		% [ticks, frames, host.world.stalled_frames, guest.world.stalled_frames, dropped, max_lead]
+	)
+	print(
+		"rollbacks %d/%d, re-simulated ticks %d/%d"
+		% [
+			host.world.rollbacks,
+			guest.world.rollbacks,
+			host.world.resimulated_ticks,
+			guest.world.resimulated_ticks,
+		]
+	)
 	if rollback > 0 and loss > 0.0 and host.world.rollbacks + guest.world.rollbacks == 0:
 		_fail("rollback enabled but no prediction was ever corrected")
 		return
@@ -114,12 +128,18 @@ func _run() -> void:
 			_fail("desync at tick %d (%d != %d)" % [i + 1, host.checksums[i], guest.checksums[i]])
 			return
 	# The same inputs replayed in an offline match must give the same ticks.
-	var replay := _replay(host.sync.local, host.sync.remote, match_seed)
+	var replay := _replay(host.sync.local, host.sync.remote_input, match_seed)
 	for i in ticks:
 		if replay[i] != host.checksums[i]:
-			_fail("tick %d differs from an offline replay of the inputs (%d != %d)" % [i + 1, host.checksums[i], replay[i]])
+			_fail(
+				"tick %d differs from an offline replay of the inputs (%d != %d)"
+				% [i + 1, host.checksums[i], replay[i]]
+			)
 			return
-	print("final checksum %d, health %d/%d" % [host.checksums[-1], host.world.fighters[0].health, host.world.fighters[1].health])
+	print(
+		"final checksum %d, health %d/%d"
+		% [host.checksums[-1], host.world.fighters[0].health, host.world.fighters[1].health]
+	)
 	print("PASS: in sync")
 	quit(0)
 
@@ -143,7 +163,9 @@ func _replay(first: TickInput, second: TickInput, match_seed: int) -> PackedInt6
 	inputs[0].receive(0, first.inputs_from(0, first.end_tick()))
 	inputs[1].receive(0, second.inputs_from(0, second.end_tick()))
 	var sums := PackedInt64Array()
-	while world.fighters[0].input.has_input(world.tick) and world.fighters[1].input.has_input(world.tick):
+	while world.fighters[0].input.has_input(world.tick) and world.fighters[1].input.has_input(
+			world.tick
+		):
 		world._physics_process(0.0)
 		sums.append(world.checksum)
 	return sums
@@ -152,7 +174,14 @@ func _replay(first: TickInput, second: TickInput, match_seed: int) -> PackedInt6
 ## A match from the game's scene where fighter `local_index` is this side's
 ## (AI-driven) player, with an `InputSync` and its own multiplayer branch on
 ## `peer`. Frames are run by `_run()`, not by the engine.
-func _side(scene_name: String, local_index: int, peer: ENetMultiplayerPeer, match_seed: int, delay: int, rollback: int) -> Peer:
+func _side(
+	scene_name: String,
+	local_index: int,
+	peer: ENetMultiplayerPeer,
+	match_seed: int,
+	delay: int,
+	rollback: int,
+) -> Peer:
 	var scene: Node = load(MAIN_SCENE).instantiate()
 	scene.name = scene_name
 	# Display only, and it queries keyboard layouts, which the headless
@@ -172,7 +201,7 @@ func _side(scene_name: String, local_index: int, peer: ENetMultiplayerPeer, matc
 	side.sync = InputSync.new()
 	side.sync.name = "InputSync"
 	side.sync.local = local
-	side.sync.remote = remote
+	side.sync.remote_input = remote
 	side.sync.world = side.world
 	side.world.add_child(side.sync)
 	root.add_child(scene)
@@ -185,7 +214,7 @@ func _side(scene_name: String, local_index: int, peer: ENetMultiplayerPeer, matc
 
 
 func _parse_args() -> Dictionary:
-	var args := {}
+	var args := { }
 	for arg in OS.get_cmdline_user_args():
 		if not arg.begins_with("--"):
 			continue

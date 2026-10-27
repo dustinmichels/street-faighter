@@ -3,7 +3,7 @@ extends Node
 ## Exchanges inputs with the peer in an online match (`docs/dev/netcode.md`).
 ## Every physics frame, after the `Match` has stepped, it sends the peer one
 ## unreliable packet with every `local` input the peer hasn't acknowledged
-## yet (at most `MAX_INPUTS`) and an acknowledgement of the `remote` inputs
+## yet (at most `MAX_INPUTS`) and an acknowledgement of the `remote_input` inputs
 ## received so far. A lost packet is never resent as such: the next one
 ## (a frame later) carries the same inputs again, until the peer acknowledges
 ## them. Packets go out even while the match stalls, so the acks keep flowing
@@ -81,7 +81,7 @@ const LOSS_WINDOW := 60
 ## This machine's player, the inputs sent.
 @export var local: LocalInput
 ## The other player, filled from the packets received.
-@export var remote: NetworkInput
+@export var remote_input: NetworkInput
 ## The match being synced: its tick is reported to the peer and it is held
 ## for a frame when this side runs ahead. null = no tick sync.
 @export var world: Match
@@ -240,7 +240,19 @@ func _physics_process(_delta: float) -> void:
 		check_tick = world.confirmed_tick
 		check_sum = world.checksum_at(check_tick)
 		_sync_ticks()
-	_send([match_id, remote.end_tick(), _peer_has, local.inputs_from(_peer_has, MAX_INPUTS), tick, advantage, check_tick, check_sum, _send_seq])
+	_send(
+		[
+			match_id,
+			remote_input.end_tick(),
+			_peer_has,
+			local.inputs_from(_peer_has, MAX_INPUTS),
+			tick,
+			advantage,
+			check_tick,
+			check_sum,
+			_send_seq,
+		]
+	)
 	_send_seq += 1
 	_release(_outbox, _transmit)
 
@@ -359,7 +371,17 @@ func _measure_rtt() -> int:
 ## simulated network if on. Packets with the wrong argument count or types
 ## never get here: Godot's RPC layer rejects them (with an error in the log).
 @rpc("any_peer", "call_remote", "unreliable_ordered", 1)
-func _receive_inputs(match_number: int, ack: int, first: int, inputs: PackedByteArray, tick: int, peer_advantage: float, check_tick: int, check_sum: int, seq: int) -> void:
+func _receive_inputs(
+	match_number: int,
+	ack: int,
+	first: int,
+	inputs: PackedByteArray,
+	tick: int,
+	peer_advantage: float,
+	check_tick: int,
+	check_sum: int,
+	seq: int,
+) -> void:
 	var mp := multiplayer
 	if mp == null or mp.get_remote_sender_id() != peer_id or match_number != match_id:
 		return
@@ -377,13 +399,25 @@ func _process_packet(args: Array) -> void:
 ## Applies a packet of the peer (`_receive_inputs()`). Dropped whole if any
 ## value is impossible (`_valid_packet()`, `_valid_seq()`), or if it arrives
 ## after a later one.
-func _handle_inputs(ack: int, first: int, inputs: PackedByteArray, tick: int, peer_advantage: float, check_tick: int, check_sum: int, seq: int) -> void:
-	if not _valid_seq(seq) or not _valid_packet(ack, first, inputs, tick, peer_advantage, check_tick, check_sum):
+func _handle_inputs(
+	ack: int,
+	first: int,
+	inputs: PackedByteArray,
+	tick: int,
+	peer_advantage: float,
+	check_tick: int,
+	check_sum: int,
+	seq: int,
+) -> void:
+	if (
+		not _valid_seq(seq)
+		or not _valid_packet(ack, first, inputs, tick, peer_advantage, check_tick, check_sum)
+	):
 		return
 	_count_packet(seq)
 	_peer_has = maxi(ack, _peer_has)
 	_last_packet_msec = Time.get_ticks_msec()
-	remote.receive(first, inputs)
+	remote_input.receive(first, inputs)
 	remote_tick = maxi(remote_tick, tick)
 	remote_advantage = peer_advantage
 	if check_tick >= 0 and _desync_tick < 0 and not _peer_ticks.is_empty():
@@ -417,7 +451,9 @@ func _count_packet(seq: int) -> void:
 func _valid_seq(seq: int) -> bool:
 	if seq <= _recv_seq:
 		return false
-	return _recv_seq < 0 or seq - _recv_seq <= 2.0 * TIMEOUT_SECONDS * Engine.physics_ticks_per_second
+	return (
+		_recv_seq < 0 or seq - _recv_seq <= 2.0 * TIMEOUT_SECONDS * Engine.physics_ticks_per_second
+	)
 
 
 ## Whether an input packet's values are possible for a well-behaved peer:
@@ -427,8 +463,16 @@ func _valid_seq(seq: int) -> bool:
 ## confirmed tick no further ahead than our inputs allow (plus rollback), a
 ## finite advantage below `TIMEOUT_SECONDS` worth of ticks (peers further
 ## apart time out) and a 32-bit checksum.
-func _valid_packet(ack: int, first: int, inputs: PackedByteArray, tick: int, peer_advantage: float, check_tick: int, check_sum: int) -> bool:
-	if inputs.size() > MAX_INPUTS or first < 0 or first > remote.end_tick():
+func _valid_packet(
+	ack: int,
+	first: int,
+	inputs: PackedByteArray,
+	tick: int,
+	peer_advantage: float,
+	check_tick: int,
+	check_sum: int,
+) -> bool:
+	if inputs.size() > MAX_INPUTS or first < 0 or first > remote_input.end_tick():
 		return false
 	for b in inputs:
 		if b & ~InputSource.BUTTONS:
@@ -437,9 +481,15 @@ func _valid_packet(ack: int, first: int, inputs: PackedByteArray, tick: int, pee
 	# on predictions, at most `Match.HISTORY` ticks.
 	if ack < 0 or ack > local.end_tick() or tick < 0 or tick > local.end_tick() + Match.HISTORY:
 		return false
-	if check_tick < -1 or check_tick > mini(tick, local.end_tick()) or check_sum < 0 or check_sum > 0xFFFFFFFF:
+	if (
+		check_tick < -1 or check_tick > mini(tick, local.end_tick())
+		or check_sum < 0 or check_sum > 0xFFFFFFFF
+	):
 		return false
-	return is_finite(peer_advantage) and absf(peer_advantage) <= TIMEOUT_SECONDS * Engine.physics_ticks_per_second
+	return (
+		is_finite(peer_advantage)
+		and absf(peer_advantage) <= TIMEOUT_SECONDS * Engine.physics_ticks_per_second
+	)
 
 
 ## The peer found its state at `tick` differs from ours (`state`, empty if
@@ -450,11 +500,20 @@ func _valid_packet(ack: int, first: int, inputs: PackedByteArray, tick: int, pee
 @rpc("any_peer", "call_remote", "reliable")
 func _receive_desync_state(match_number: int, tick: int, state: PackedInt64Array) -> void:
 	var mp := multiplayer
-	if mp == null or mp.get_remote_sender_id() != peer_id or match_number != match_id or _desync_done:
+	if (
+		mp == null or mp.get_remote_sender_id() != peer_id
+		or match_number != match_id or _desync_done
+	):
 		return
 	if tick < maxi(_recorded - CHECK_HISTORY, 0) or tick > local.end_tick():
 		return
-	if not state.is_empty() and (state.size() != 1 + 2 * Fighter.SNAPSHOT_SIZE or state[0] != tick or state == _own_state(tick)):
+	if (
+		not state.is_empty()
+		and (
+			state.size() != 1 + 2 * Fighter.SNAPSHOT_SIZE
+			or state[0] != tick or state == _own_state(tick)
+		)
+	):
 		return
 	_start_desync(tick)
 	if tick == _desync_tick:

@@ -20,10 +20,10 @@ A pixel-art fighting game driven by real 3D models. Describe a fighter in a few 
 
 ## One idea in, one fighter out
 
-Jim Bean, *a french lizard man* in a beret, built by an AI agent from a seven-line brief:
+Jim Bean, _a french lizard man_ in a beret, built by an AI agent from a seven-line brief:
 
-| The agent's Blender preview render                          | The same model in game                                        |
-| ----------------------------------------------------------- | ------------------------------------------------------------- |
+| The agent's Blender preview render                                | The same model in game                                       |
+| ----------------------------------------------------------------- | ------------------------------------------------------------ |
 | ![Jim Bean preview render](docs/public/media/jim-bean-render.png) | ![Jim Bean on the street stage](docs/public/media/stage.png) |
 
 In game: **CHARACTERS → CREATE NEW**, hand the kit to your agent, then **IMPORT** the result. See [Make your own fighter](docs/guide/custom-characters.md).
@@ -42,12 +42,12 @@ godot --headless --path . -s tests/determinism_test.gd  # run a test (see tests/
 
 ## Docs
 
-| Players                                                  | Developers                                                   |
-| -------------------------------------------------------- | ------------------------------------------------------------ |
-| [Download & install](docs/guide/download.md)             | [Run from source](docs/dev/index.md)                         |
-| [How to play](docs/guide/playing.md)                     | [Tests](docs/dev/testing.md)                                 |
-| [Online multiplayer](docs/guide/online.md)               | [Netcode](docs/dev/netcode.md)                               |
-| [Make your own fighter](docs/guide/custom-characters.md) | [Custom character pipeline](docs/dev/custom-characters.md)   |
-| [Troubleshooting](docs/guide/troubleshooting.md)         | [Skeleton reference](creator_kit/SKELETON.md)                |
+| Players                                                  | Developers                                                 |
+| -------------------------------------------------------- | ---------------------------------------------------------- |
+| [Download & install](docs/guide/download.md)             | [Run from source](docs/dev/index.md)                       |
+| [How to play](docs/guide/playing.md)                     | [Tests](docs/dev/testing.md)                               |
+| [Online multiplayer](docs/guide/online.md)               | [Netcode](docs/dev/netcode.md)                             |
+| [Make your own fighter](docs/guide/custom-characters.md) | [Custom character pipeline](docs/dev/custom-characters.md) |
+| [Troubleshooting](docs/guide/troubleshooting.md)         | [Skeleton reference](creator_kit/SKELETON.md)              |
 
 The [docs site](https://dustinmichels.github.io/street-faighter/) is built with VitePress from [`docs/`](docs/) and deploys to GitHub Pages on every push to `main` that touches `docs/`. Preview locally with `mise run docs`. Plans and progress logs live in [`docs-todo/`](docs-todo/).

@@ -2,14 +2,14 @@
 
 All tests are headless Godot scripts. Each exits 0 on success and 1 with a list of failures.
 
-| Test                                              | Command                                                    | Needs     |
-| ------------------------------------------------- | ---------------------------------------------------------- | --------- |
-| [Determinism](#determinism)                       | `godot --headless --path . -s tests/determinism_test.gd`   |           |
-| [Lockstep](#lockstep)                             | `godot --headless --path . -s tests/lockstep_test.gd`      |           |
-| [Creator kit](#creator-kit)                       | `godot --headless --path . -s tests/creator_kit_test.gd`   |           |
-| [Character validator](#character-validator)       | `godot --headless --path . -s tests/character_validator_test.gd` |     |
-| [Skeleton drift](#skeleton-drift)                 | `godot --headless --path . -s tests/skeleton_drift_test.gd` | Blender  |
-| [Character sync](#character-sync)                 | `godot --headless --path . -s tests/character_sync_test.gd` |          |
+| Test                                        | Command                                                          | Needs   |
+| ------------------------------------------- | ---------------------------------------------------------------- | ------- |
+| [Determinism](#determinism)                 | `godot --headless --path . -s tests/determinism_test.gd`         |         |
+| [Lockstep](#lockstep)                       | `godot --headless --path . -s tests/lockstep_test.gd`            |         |
+| [Creator kit](#creator-kit)                 | `godot --headless --path . -s tests/creator_kit_test.gd`         |         |
+| [Character validator](#character-validator) | `godot --headless --path . -s tests/character_validator_test.gd` |         |
+| [Skeleton drift](#skeleton-drift)           | `godot --headless --path . -s tests/skeleton_drift_test.gd`      | Blender |
+| [Character sync](#character-sync)           | `godot --headless --path . -s tests/character_sync_test.gd`      |         |
 
 ## Determinism
 

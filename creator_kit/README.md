@@ -26,15 +26,15 @@ To change the design later, edit `build_character.py` (or ask the agent to), rer
 
 ## Files
 
-| File                          | What it is                                                                                   |
-| ----------------------------- | -------------------------------------------------------------------------------------------- |
-| `PROMPT.md`                   | The instructions for the agent, with your design brief filled in.                            |
-| [`SKELETON.md`](SKELETON.md)  | The skeleton every character uses: bone names, rest pose, axes, and model conventions. The game's one skeleton reference. |
-| `BPY_NOTES.md`                | Correct Blender Python calls for this task, and the ones that don't exist.                   |
-| `build_template.py`           | Builds `template.blend` (the bare skeleton) next to itself.                                  |
-| `example_build_character.py`  | A complete, working example: a box fighter, built and exported.                              |
-| `export_glb.py`               | Exports the scene with the settings the game expects. Every build script calls it.           |
-| `character_request.json`      | Your questionnaire answers, so the game can reopen them.                                     |
+| File                         | What it is                                                                                                                |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `PROMPT.md`                  | The instructions for the agent, with your design brief filled in.                                                         |
+| [`SKELETON.md`](SKELETON.md) | The skeleton every character uses: bone names, rest pose, axes, and model conventions. The game's one skeleton reference. |
+| `BPY_NOTES.md`               | Correct Blender Python calls for this task, and the ones that don't exist.                                                |
+| `build_template.py`          | Builds `template.blend` (the bare skeleton) next to itself.                                                               |
+| `example_build_character.py` | A complete, working example: a box fighter, built and exported.                                                           |
+| `export_glb.py`              | Exports the scene with the settings the game expects. Every build script calls it.                                        |
+| `character_request.json`     | Your questionnaire answers, so the game can reopen them.                                                                  |
 
 The agent adds `template.blend`, `build_character.py`, `previews/` (render images), `<name>.glb` (the character), and `<name>.json` (its name and description).
 

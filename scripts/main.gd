@@ -1,7 +1,11 @@
 extends Node
 ## Match root. Offline, the `restart` action (R) reloads the whole scene,
 ## resetting fighters, health and camera; it works at any time, not only
-## after a KO.
+## after a KO, and also while the HUD's controls screen pauses the game: this
+## node and the HUD process while paused, `GameView` (the fight) doesn't
+## (`main.tscn` process modes). After a KO, the `controls` action (Esc)
+## returns to the menu, online leaving the session first
+## (`Session.close()`); before it, the HUD uses Esc for the controls screen.
 ##
 ## Online (`Session.is_online()`), it rewires the scene before anything in it
 ## is ready: the `Match` is set up from the host's `Session.match_config`
@@ -55,7 +59,9 @@ func _enter_tree() -> void:
 		_wire_online(world)
 	else:
 		var choice := CharacterLibrary.chosen(CharacterLibrary.PLAYER_CHOICE)
-		_missing_choice = not CharacterLibrary.BUILTIN.has(choice) and not CharacterLibrary.has(choice)
+		_missing_choice = not CharacterLibrary.BUILTIN.has(choice) and not CharacterLibrary.has(
+				choice
+			)
 		var player_model := CharacterLibrary.model_path(choice)
 		for f in world.fighters:
 			if not f.input is AIInput:
@@ -100,7 +106,7 @@ func _wire_online(world: Match) -> void:
 	_sync = InputSync.new()
 	_sync.name = "InputSync"
 	_sync.local = local
-	_sync.remote = remote
+	_sync.remote_input = remote
 	_sync.world = world
 	_sync.match_id = Session.match_number
 	_sync.apply_sim_args(OS.get_cmdline_user_args())
@@ -180,22 +186,35 @@ func _on_sync_timed_out() -> void:
 ## The peers' simulations diverged: logs both states at the first mismatched
 ## tick confirmed by both (Godot's log, `user://logs/`) and ends the session,
 ## after `DESYNC_LINGER_SECONDS` so this side's report still reaches the peer.
-func _on_sync_desynced(tick: int, own_state: PackedInt64Array, peer_state: PackedInt64Array) -> void:
+func _on_sync_desynced(
+	tick: int,
+	own_state: PackedInt64Array,
+	peer_state: PackedInt64Array,
+) -> void:
 	printerr(desync_report(tick, own_state, peer_state, Session.match_number, Session.local_index))
 	Session.fail("Desync at tick %d: the games went out of sync" % tick, DESYNC_LINGER_SECONDS)
 
 
 ## A table of both sides' `Match.save_state()` values at `tick`, one per
 ## line, differing ones marked; an empty state is shown as missing.
-static func desync_report(tick: int, own_state: PackedInt64Array, peer_state: PackedInt64Array, match_number: int, local_index: int) -> String:
+static func desync_report(
+	tick: int,
+	own_state: PackedInt64Array,
+	peer_state: PackedInt64Array,
+	match_number: int,
+	local_index: int,
+) -> String:
 	var names := PackedStringArray(["tick"])
 	for i in 2:
 		for field in Fighter.SNAPSHOT_FIELDS:
 			names.append("fighter%d.%s" % [i + 1, field])
-	var lines := PackedStringArray([
-		"DESYNC at tick %d (match %d, this side plays fighter %d)" % [tick, match_number, local_index + 1],
-		"%-26s %12s %12s" % ["value", "this side", "opponent"],
-	])
+	var lines := PackedStringArray(
+		[
+			"DESYNC at tick %d (match %d, this side plays fighter %d)"
+			% [tick, match_number, local_index + 1],
+			"%-26s %12s %12s" % ["value", "this side", "opponent"],
+		]
+	)
 	for i in names.size():
 		var own := str(own_state[i]) if i < own_state.size() else "-"
 		var peer := str(peer_state[i]) if i < peer_state.size() else "-"
@@ -207,6 +226,11 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed(&"ai_difficulty") and not event.is_echo() and not Session.is_online():
 		get_viewport().set_input_as_handled()
 		_cycle_difficulty()
+		return
+	if event.is_action_pressed(&"controls") and not event.is_echo() and _world.is_over():
+		get_viewport().set_input_as_handled()
+		Session.close()
+		_return_to_menu()
 		return
 	if not event.is_action_pressed(&"restart") or event.is_echo():
 		return

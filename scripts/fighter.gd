@@ -12,11 +12,30 @@ extends Node3D
 ## node itself (`position`, `visual`, the animation) only displays the state,
 ## via `sync_visual()`.
 
-enum State { IDLE, WALK, JUMP, PUNCH, HIT, KNOCKED_DOWN, BLOCK, CROUCH, SWEEP, SWEPT, GRAB, THROW, THROWN }
+enum State {
+	IDLE,
+	WALK,
+	JUMP,
+	PUNCH,
+	HIT,
+	KNOCKED_DOWN,
+	BLOCK,
+	CROUCH,
+	SWEEP,
+	SWEPT,
+	GRAB,
+	THROW,
+	THROWN,
+}
 ## Parts of the `jump` state, each with its own clip (`JUMP_CLIPS`). `KICK`
 ## replaces `AIR` once the attack button is pressed mid-air and lasts until
 ## touchdown (the clip ends back in the tuck and holds it).
-enum JumpPhase { TAKEOFF, AIR, LANDING, KICK }
+enum JumpPhase {
+	TAKEOFF,
+	AIR,
+	LANDING,
+	KICK,
+}
 
 ## Gameplay rate: `step()` runs once per physics tick and times are counted in
 ## whole ticks. Must equal the project's `physics/common/physics_ticks_per_second`.
@@ -80,15 +99,27 @@ const JUMP_CLIPS: Array[StringName] = [&"jump_start", &"jump_air", &"jump_land",
 static var PUNCH_LENGTH := ticks(ANIMATIONS.get_animation(&"punch").length)
 ## The punch clip's active window in ticks (markers `active_start`/`active_end`);
 ## the hitbox is live from the start up to, not including, the end.
-static var PUNCH_ACTIVE_START := ticks(ANIMATIONS.get_animation(&"punch").get_marker_time(&"active_start"))
-static var PUNCH_ACTIVE_END := ticks(ANIMATIONS.get_animation(&"punch").get_marker_time(&"active_end"))
+static var PUNCH_ACTIVE_START := ticks(
+	ANIMATIONS.get_animation(&"punch").get_marker_time(&"active_start")
+)
+static var PUNCH_ACTIVE_END := ticks(
+	ANIMATIONS.get_animation(&"punch").get_marker_time(&"active_end")
+)
 ## The air kick clip's active window, counted from the start of `KICK`.
-static var AIR_KICK_ACTIVE_START := ticks(ANIMATIONS.get_animation(&"air_kick").get_marker_time(&"active_start"))
-static var AIR_KICK_ACTIVE_END := ticks(ANIMATIONS.get_animation(&"air_kick").get_marker_time(&"active_end"))
+static var AIR_KICK_ACTIVE_START := ticks(
+	ANIMATIONS.get_animation(&"air_kick").get_marker_time(&"active_start")
+)
+static var AIR_KICK_ACTIVE_END := ticks(
+	ANIMATIONS.get_animation(&"air_kick").get_marker_time(&"active_end")
+)
 ## Full sweep duration and its active window (`sweep` clip).
 static var SWEEP_LENGTH := ticks(ANIMATIONS.get_animation(&"sweep").length)
-static var SWEEP_ACTIVE_START := ticks(ANIMATIONS.get_animation(&"sweep").get_marker_time(&"active_start"))
-static var SWEEP_ACTIVE_END := ticks(ANIMATIONS.get_animation(&"sweep").get_marker_time(&"active_end"))
+static var SWEEP_ACTIVE_START := ticks(
+	ANIMATIONS.get_animation(&"sweep").get_marker_time(&"active_start")
+)
+static var SWEEP_ACTIVE_END := ticks(
+	ANIMATIONS.get_animation(&"sweep").get_marker_time(&"active_end")
+)
 ## How long a swept fighter is down before acting again: the whole `swept`
 ## clip (fall, lie, get up).
 static var SWEPT_LENGTH := ticks(ANIMATIONS.get_animation(&"swept").length)
@@ -121,8 +152,12 @@ const THROW_DAMAGE := 20
 ## the grab to catch it (0.9 m: past arm's reach of a standing pair, 0.6 m).
 const GRAB_RANGE := 9000
 ## The grab clip's active window (`grab` markers) and whiff length.
-static var GRAB_ACTIVE_START := ticks(ANIMATIONS.get_animation(&"grab").get_marker_time(&"active_start"))
-static var GRAB_ACTIVE_END := ticks(ANIMATIONS.get_animation(&"grab").get_marker_time(&"active_end"))
+static var GRAB_ACTIVE_START := ticks(
+	ANIMATIONS.get_animation(&"grab").get_marker_time(&"active_start")
+)
+static var GRAB_ACTIVE_END := ticks(
+	ANIMATIONS.get_animation(&"grab").get_marker_time(&"active_end")
+)
 static var GRAB_LENGTH := ticks(ANIMATIONS.get_animation(&"grab").length)
 ## Thrower's whole throw, the tick the victim lands (`throw` clip, marker
 ## `slam`) and the victim's whole `thrown` state (slam, lie, get up).
@@ -222,7 +257,10 @@ var anim: AnimationPlayer
 
 
 func _ready() -> void:
-	assert(Engine.physics_ticks_per_second == TICK_RATE, "physics tick rate must be %d Hz" % TICK_RATE)
+	assert(
+		Engine.physics_ticks_per_second == TICK_RATE,
+		"physics tick rate must be %d Hz" % TICK_RATE,
+	)
 	pos_x = roundi(position.x * SCALE)
 	pos_y = roundi(position.y * SCALE)
 	if not character_path.is_empty():
@@ -241,8 +279,14 @@ func step(buttons: int, opponent_x: int) -> void:
 	var pressed := buttons & ~prev_buttons
 	prev_buttons = buttons
 	var dir := int((buttons & InputSource.RIGHT) != 0) - int((buttons & InputSource.LEFT) != 0)
-	attack_buffer = INPUT_BUFFER if (pressed & InputSource.PUNCH) != 0 else maxi(attack_buffer - 1, 0)
-	special_buffer = INPUT_BUFFER if (pressed & InputSource.SPECIAL) != 0 else maxi(special_buffer - 1, 0)
+	attack_buffer = INPUT_BUFFER if (pressed & InputSource.PUNCH) != 0 else maxi(
+		attack_buffer - 1,
+		0,
+	)
+	special_buffer = INPUT_BUFFER if (pressed & InputSource.SPECIAL) != 0 else maxi(
+		special_buffer - 1,
+		0,
+	)
 	var jump_held := (buttons & InputSource.JUMP) != 0
 	var block_held := (buttons & InputSource.BLOCK) != 0
 	var crouch_held := (buttons & InputSource.CROUCH) != 0
@@ -342,20 +386,50 @@ static func _toward_zero(v: int, amount: int) -> int:
 ## fighters; the `Match` hashes them into its per-tick checksum and keeps
 ## recent ones for rollback (`restore()`).
 func snapshot() -> PackedInt64Array:
-	return PackedInt64Array([
-		pos_x, pos_y, vel_x, vel_y, state, state_ticks, jump_phase, facing,
-		move_dir, prev_buttons, attack_buffer, special_buffer, hit_streak, block_stun, health,
-		int(attack_landed), wall_limit,
-	])
+	return PackedInt64Array(
+		[
+			pos_x,
+			pos_y,
+			vel_x,
+			vel_y,
+			state,
+			state_ticks,
+			jump_phase,
+			facing,
+			move_dir,
+			prev_buttons,
+			attack_buffer,
+			special_buffer,
+			hit_streak,
+			block_stun,
+			health,
+			int(attack_landed),
+			wall_limit,
+		]
+	)
 
 
 ## Number of values in a `snapshot()`.
 const SNAPSHOT_SIZE := 17
 ## Names of the `snapshot()` values, in order (desync logs).
 const SNAPSHOT_FIELDS: PackedStringArray = [
-	"pos_x", "pos_y", "vel_x", "vel_y", "state", "state_ticks", "jump_phase", "facing",
-	"move_dir", "prev_buttons", "attack_buffer", "special_buffer", "hit_streak", "block_stun", "health",
-	"attack_landed", "wall_limit",
+	"pos_x",
+	"pos_y",
+	"vel_x",
+	"vel_y",
+	"state",
+	"state_ticks",
+	"jump_phase",
+	"facing",
+	"move_dir",
+	"prev_buttons",
+	"attack_buffer",
+	"special_buffer",
+	"hit_streak",
+	"block_stun",
+	"health",
+	"attack_landed",
+	"wall_limit",
 ]
 
 
@@ -387,7 +461,13 @@ func restore(values: PackedInt64Array, offset := 0) -> void:
 ## nothing), else a held block button guards in place, else a held crouch
 ## button crouches in place (sweeping on a buffered punch), else a buffered
 ## punch, then a held jump, else walk or stand.
-func _neutral(dir: int, jump_held: bool, block_held: bool, crouch_held: bool, on_floor: bool) -> void:
+func _neutral(
+	dir: int,
+	jump_held: bool,
+	block_held: bool,
+	crouch_held: bool,
+	on_floor: bool,
+) -> void:
 	if special_buffer > 0 and on_floor and special_ready():
 		special_buffer = 0
 		attack_buffer = 0
@@ -495,7 +575,10 @@ func hitbox_center() -> Vector2i:
 func attack_connects(target: Fighter) -> bool:
 	if not is_hitbox_active() or attack_landed:
 		return false
-	if state == State.SWEEP and target.state == State.JUMP and target.jump_phase != JumpPhase.LANDING:
+	if (
+		state == State.SWEEP and target.state == State.JUMP
+		and target.jump_phase != JumpPhase.LANDING
+	):
 		return false
 	return target.hurtbox_overlaps(hitbox_center(), HITBOX_HALF)
 
@@ -513,7 +596,10 @@ func is_low() -> bool:
 func hurtbox_overlaps(center: Vector2i, half: int) -> bool:
 	var top := CROUCH_HURTBOX_TOP if is_low() else HURTBOX_TOP
 	var dx := maxi(maxi(center.x - half - pos_x, pos_x - center.x - half), 0)
-	var dy := maxi(maxi(center.y - half - (pos_y + top), pos_y + HURTBOX_BOTTOM - center.y - half), 0)
+	var dy := maxi(
+		maxi(center.y - half - (pos_y + top), pos_y + HURTBOX_BOTTOM - center.y - half),
+		0,
+	)
 	return dx * dx + dy * dy < BODY_RADIUS * BODY_RADIUS
 
 
