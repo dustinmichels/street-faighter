@@ -251,7 +251,7 @@ func _build_page(page: Page, box: Control) -> void:
 			_notes = _field(box, "ANYTHING ELSE THE AGENT SHOULD KNOW?", "a scar over the left eye",
 					CreatorKit.max_length("notes"))
 			_notes.custom_minimum_size.x = 380
-			box.add_child(_note("Next: review the prompt for your AI agent and save the creator kit."))
+			box.add_child(_note("Next: save the creator kit, run your AI agent on it, and import the character."))
 
 
 func _show_page(page: Page) -> void:

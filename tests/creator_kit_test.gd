@@ -50,6 +50,14 @@ func _test_validator_command() -> void:
 	_check(command.ends_with(" -- %s '/k/big tony.glb'" % CreatorKit.VALIDATE_ARG), "validator: user args last")
 	_check(command.contains(" --path %s " % CreatorKit.shell_quote(ProjectSettings.globalize_path("res://"))),
 			"validator: editor run adds --path")
+	_check_eq(CreatorKit.agent_command("/k/big tony", "claude"), "cd '/k/big tony' && claude 'Read PROMPT.md and follow it.'",
+			"agent command: quoted folder and request")
+	_check_eq(CreatorKit.agent_command("/k/a", "antigravity"), "cd /k/a && agy -i 'Read PROMPT.md and follow it.'",
+			"agent command: interactive flag")
+	_check_eq(CreatorKit.agent_command("/k/a", "other"), "cd /k/a", "agent command: other agent only enters the kit")
+	_check_eq(CreatorKit.agent_command("/k/a", "gone"), CreatorKit.agent_command("/k/a", CreatorKit.DEFAULT_AGENT),
+			"agent command: unknown agent falls back to the default")
+	_check_eq(CreatorKit.kit_glb("/k/big_tony"), "/k/big_tony/big_tony.glb", "kit glb: <folder>/<slug>.glb")
 
 
 func _test_sanitize() -> void:

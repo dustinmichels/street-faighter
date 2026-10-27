@@ -29,10 +29,25 @@ const UNSPECIFIED := "(not specified)"
 const SETTINGS_PATH := "user://settings.cfg"
 const SETTINGS_SECTION := "creator_kit"
 const SETTINGS_DIR_KEY := "dir"
-## The kit folder `write()` last produced (`last_kit_dir()`).
+## The kit folder `write()` last produced (`last_kit()`).
 const SETTINGS_LAST_KIT_KEY := "last_kit"
-## What the player does after `hand_off()`; the UI shows it with the folder.
-const NEXT_STEP := "Open a terminal in this folder, run `claude`, and paste the prompt."
+## The agent the player runs in the kit (`agent()`, an `AGENTS` key).
+const SETTINGS_AGENT_KEY := "agent"
+## What `agent_command()` asks the agent to do first.
+const AGENT_REQUEST := "Read PROMPT.md and follow it."
+## Agents `agent_command()` can start: id → `name` (for the UI) and `run`,
+## the CLI starting an interactive session on a first prompt (`%s`). `other`
+## has no `run`: the player starts their own agent in the kit folder.
+const AGENTS := {
+	"claude": {"name": "Claude Code", "run": "claude %s"},
+	"codex": {"name": "Codex", "run": "codex %s"},
+	"gemini": {"name": "Gemini CLI", "run": "gemini -i %s"},
+	"antigravity": {"name": "Antigravity", "run": "agy -i %s"},
+	"pi": {"name": "Pi", "run": "pi %s"},
+	"omp": {"name": "Oh My Pi", "run": "omp %s"},
+	"other": {"name": "Other agent", "run": ""},
+}
+const DEFAULT_AGENT := "claude"
 ## Text answers, each one line in the prompt's design brief.
 const TEXT_KEYS := ["name", "concept", "archetype", "build", "head", "headwear", "top", "bottom",
 		"footwear", "notes"]
@@ -47,19 +62,35 @@ const MAX_ACCESSORIES := 16
 const VALIDATE_ARG := "--validate-character"
 
 
-## Run after `write()`: copies the kit's `PROMPT.md` to the clipboard and opens
-## `folder` in the file manager. Returns the text for the UI to show: the
-## folder and `NEXT_STEP`.
-static func hand_off(folder: String) -> String:
-	var text := FileAccess.get_file_as_string(folder.path_join(PROMPT_NAME))
-	if text.is_empty():
-		push_error("CreatorKit: can't read '%s': %s" % [folder.path_join(PROMPT_NAME), error_string(FileAccess.get_open_error())])
-	else:
-		DisplayServer.clipboard_set(text)
-	var err := OS.shell_show_in_file_manager(folder)
-	if err != OK:
-		push_error("CreatorKit: can't open '%s': %s" % [folder, error_string(err)])
-	return "Kit saved to %s\n%s" % [folder, NEXT_STEP]
+## One line to paste into a terminal: enters the kit `folder` and starts
+## `agent_id` (an `AGENTS` key) on `AGENT_REQUEST`; for `other`, only enters the
+## folder. Single-quoted words and `&&` work in POSIX shells and PowerShell 7.
+static func agent_command(folder: String, agent_id: String) -> String:
+	var command := "cd %s" % shell_quote(folder)
+	var run: String = AGENTS.get(agent_id, AGENTS[DEFAULT_AGENT]).run
+	if not run.is_empty():
+		command += " && " + run % shell_quote(AGENT_REQUEST)
+	return command
+
+
+## The agent the player last picked (`set_agent()`), or `DEFAULT_AGENT`.
+static func agent() -> String:
+	var config := ConfigFile.new()
+	if config.load(SETTINGS_PATH) == OK:
+		var id: Variant = config.get_value(SETTINGS_SECTION, SETTINGS_AGENT_KEY, DEFAULT_AGENT)
+		if id is String and AGENTS.has(id):
+			return id
+	return DEFAULT_AGENT
+
+
+static func set_agent(agent_id: String) -> void:
+	_save_setting(SETTINGS_AGENT_KEY, agent_id)
+
+
+## Where the agent exports the character of the kit `folder`: `<slug>.glb`
+## in it (`write()` names the folder after the slug).
+static func kit_glb(folder: String) -> String:
+	return folder.path_join(folder.get_file() + ".glb")
 
 
 ## `~/Documents/street-fAIghter characters` (per platform).
@@ -101,16 +132,22 @@ static func choose_dir(parent: Node, on_chosen: Callable) -> FileDialog:
 	return dialog
 
 
-## The kit folder `write()` last produced, where the agent exports its `.glb`
-## (the "Import…" dialog starts there), or `saved_dir()` if there is none or
-## it was removed.
-static func last_kit_dir() -> String:
+## The kit folder `write()` last produced, or "" if there is none or it was
+## removed.
+static func last_kit() -> String:
 	var config := ConfigFile.new()
 	if config.load(SETTINGS_PATH) == OK:
 		var dir: String = config.get_value(SETTINGS_SECTION, SETTINGS_LAST_KIT_KEY, "")
 		if not dir.is_empty() and DirAccess.dir_exists_absolute(dir):
 			return dir
-	return saved_dir()
+	return ""
+
+
+## `last_kit()`, where the agent exports its `.glb` (the "Import…" dialog
+## starts there), or `saved_dir()` if there is none.
+static func last_kit_dir() -> String:
+	var kit := last_kit()
+	return kit if not kit.is_empty() else saved_dir()
 
 
 static func _save_dir(dir: String) -> void:
@@ -207,7 +244,7 @@ static func prompt(answers: Dictionary, dir: String = saved_dir()) -> String:
 	var character := slug(str(answers.get("name", "")))
 	var values := {
 		"slug": character,
-		"validator_command": validator_command(dir.path_join(character).path_join(character + ".glb")),
+		"validator_command": validator_command(kit_glb(dir.path_join(character))),
 	}
 	_flatten(answers, "", values)
 	var placeholder := RegEx.create_from_string("\\{\\{\\s*([\\w.]+)\\s*\\}\\}")

@@ -63,24 +63,25 @@ These shortcuts act on the first menu only: once a session ends, the instance st
   - Instance 2: `--resolution 960x540 --position 960,40 -- --join=127.0.0.1:7777`
 
   Then Run Project (F5) starts both, side by side, already connected. Add the `--net-…` options to one of them to test a worse network. The setting is stored in `.godot/` (not versioned), so each checkout sets it once. If the editor embeds the running game (Game tab), turn that off (Game tab → "Embed Game on Next Play") so both windows appear.
+
 - **Terminal:** `mise run mp` (alias of `mise run multiplayer`, defined in `mise.toml`) starts a host and a joiner side by side, already connected; Ctrl-C closes both. Without mise: `godot --path . --resolution 960x540 --position 0,40 -- --host & godot --path . --resolution 960x540 --position 960,40 -- --join=127.0.0.1:7777`
 
 Keyboard input goes to the focused window only; click the other window to play its fighter. A gamepad drives both instances at once.
 
 ### Controls
 
-| Action   | Keyboard                                                                                  | Gamepad                   |
-| -------- | ----------------------------------------------------------------------------------------- | ------------------------- |
-| Move     | A / D or ← / →                                                                            | D-pad or left stick       |
-| Jump     | W / ↑ / Space (hold to keep jumping; add a direction during the takeoff to jump that way) | D-pad up or stick up      |
-| Punch    | J or Z (kick while airborne, sweep while crouching)                                       | X / □ or A / ✕            |
-| Block    | K or X (hold)                                                                             | RB / R1 or RT / R2 (hold) |
-| Crouch   | S or ↓ (hold)                                                                             | D-pad down or stick down (hold) |
-| Special  | I or C (once ★ is ready)                                                                  | Y / △                     |
-| Controls | Esc                                                                                       | Start                     |
-| Restart  | R (any time)                                                                              | Back / Select             |
-| Network debug overlay | F3                                                                             | —                         |
-| CPU difficulty (debug) | F1 (default / easy)                                                           | —                         |
+| Action                 | Keyboard                                                                                  | Gamepad                         |
+| ---------------------- | ----------------------------------------------------------------------------------------- | ------------------------------- |
+| Move                   | A / D or ← / →                                                                            | D-pad or left stick             |
+| Jump                   | W / ↑ / Space (hold to keep jumping; add a direction during the takeoff to jump that way) | D-pad up or stick up            |
+| Punch                  | J or Z (kick while airborne, sweep while crouching)                                       | X / □ or A / ✕                  |
+| Block                  | K or X (hold)                                                                             | RB / R1 or RT / R2 (hold)       |
+| Crouch                 | S or ↓ (hold)                                                                             | D-pad down or stick down (hold) |
+| Special                | I or C (once ★ is ready)                                                                  | Y / △                           |
+| Controls               | Esc                                                                                       | Start                           |
+| Restart                | R (any time)                                                                              | Back / Select                   |
+| Network debug overlay  | F3                                                                                        | —                               |
+| CPU difficulty (debug) | F1 (default / easy)                                                                       | —                               |
 
 - Hold block to guard in place against hits from the front. You don't move while guarding, and letting go makes you act again immediately. A blocked hit holds your guard for 0.2 s.
 - Hold crouch to duck in place: punches pass over you, but air kicks still hit. You don't move while crouching, and a held block takes priority. A crouching (or sweeping) fighter can be jumped over to switch sides.
@@ -95,7 +96,7 @@ In game, press Esc or click the **Controls** button (bottom-right) to show or hi
 
 ### Custom characters
 
-Menu → **CHARACTERS** → **CREATE NEW** asks a few questions about your fighter and saves a creator kit (by default in `~/Documents/street-fAIghter characters/<name>/`), copies its prompt to the clipboard, and opens the folder. Open a terminal there, run `claude`, and paste the prompt: the agent builds the character in Blender (4.2+) on the game's skeleton, exports a `.glb`, and checks it with the game's validator. Then use **IMPORT…** (or drop the `.glb` onto the window) to add it to your library, and pick it on **CHOOSE YOUR FIGHTER**. Online, your opponent's game downloads it automatically. Custom characters are cosmetic: the hitboxes and moves are the same for everyone.
+Menu → **CHARACTERS** → **CREATE NEW** asks a few questions about your fighter, then walks you through three steps. **1.** Save the creator kit (by default in `~/Documents/street-fAIghter characters/<name>/`). **2.** Pick your agent (Claude Code, Codex, Gemini CLI, Antigravity, Pi, Oh My Pi, or another one) and paste the copied command into a terminal: it starts the agent in the kit folder on its `PROMPT.md`, and the agent builds the character in Blender (4.2+) on the game's skeleton, exports a `.glb`, and checks it with the game's validator. **3.** Press **IMPORT** once the game finds the `.glb` in the kit folder (it checks every second; **CHARACTERS** → **IMPORT…** returns to this step later, and you can also browse for or drop a `.glb`). Then pick it on **CHOOSE YOUR FIGHTER**. Online, your opponent's game downloads it automatically. Custom characters are cosmetic: the hitboxes and moves are the same for everyone.
 
 To check a `.glb` by hand: `godot --headless --path . -- --validate-character /absolute/path/to/character.glb` (prints every problem, or `OK`). Pipeline, kit layout, and validator limits: [`docs/custom-characters.md`](docs/custom-characters.md). The skeleton: [`docs/skeleton.md`](docs/skeleton.md).
 

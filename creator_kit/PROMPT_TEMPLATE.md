@@ -116,4 +116,4 @@ It prints one problem per line, or `OK` (exit code 0, or 1 on problems). Lines s
 
 ## 7. Finish
 
-Print the absolute path of `{{slug}}.glb` and tell the player: in the game, open "Characters", click "Import…", and pick that file. Mention anything from the brief you couldn't do, and that they can ask you for changes (you edit `build_character.py`, rebuild, and validate; they click "Re-import").
+Print the absolute path of `{{slug}}.glb` and tell the player: in the game, press "Next" and then "Import" (or open "Characters" and click "Import…"); the game finds the file in this folder by itself. Mention anything from the brief you couldn't do, and that they can ask you for changes (you edit `build_character.py`, rebuild, and validate; they click "Re-import").

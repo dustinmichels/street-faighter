@@ -3,8 +3,9 @@ extends Control
 ## The "CHARACTERS" screen of the start menu (`menu.gd`): the character
 ## library (`CharacterLibrary`) with a turning preview of the selected entry
 ## (`CharacterPreview`), "CREATE NEW" (the questionnaire, `CharacterWizard`,
-## then a review page with the prompt that writes a creator kit, `CreatorKit`)
-## and "IMPORT…" (a page listing the validator's errors if the file is
+## then three steps: save the creator kit, `CreatorKit`; run the agent in it;
+## import its `.glb`) and "IMPORT…" (the import step for the last kit, else a
+## file picker; a page listing the validator's errors if the file is
 ## rejected). The menu shows it with `open()`, forwards Esc to `go_back()`,
 ## and takes over again on `closed`.
 ##
@@ -19,7 +20,7 @@ signal closed
 ## `CharacterLibrary.PLAYER_CHOICE`.
 signal fight
 
-enum Page { LIBRARY, WIZARD, REVIEW, ERRORS }
+enum Page { LIBRARY, WIZARD, REVIEW, AGENT, IMPORT, ERRORS }
 
 ## Library page titles, browsing and selecting.
 const TITLE := "CHARACTERS"
@@ -48,9 +49,27 @@ var selecting := false
 @onready var _prompt: TextEdit = %Prompt
 @onready var _status: Label = %Status
 @onready var _review_back: Button = %ReviewBack
-@onready var _copy_prompt: Button = %CopyPrompt
 @onready var _save_kit: Button = %SaveKit
 @onready var _kit_folder: Button = %KitFolder
+@onready var _agent_page: Control = %AgentPage
+@onready var _agent: Button = %Agent
+@onready var _agent_steps: Label = %AgentSteps
+@onready var _command: TextEdit = %Command
+@onready var _agent_after: Label = %AgentAfter
+@onready var _agent_status: Label = %AgentStatus
+@onready var _agent_back: Button = %AgentBack
+@onready var _copy_command: Button = %CopyCommand
+@onready var _copy_prompt: Button = %CopyPrompt
+@onready var _open_kit: Button = %OpenKit
+@onready var _agent_next: Button = %AgentNext
+@onready var _import_page: Control = %ImportPage
+@onready var _import_title: Label = %ImportTitle
+@onready var _import_path: Label = %ImportPath
+@onready var _import_status: Label = %ImportStatus
+@onready var _import_back: Button = %ImportBack
+@onready var _import_kit: Button = %ImportKit
+@onready var _browse: Button = %Browse
+@onready var _kit_watch: Timer = %KitWatch
 @onready var _errors_page: Control = %ErrorsPage
 @onready var _errors_title: Label = %ErrorsTitle
 @onready var _errors: TextEdit = %Errors
@@ -61,11 +80,19 @@ var selecting := false
 var _page := Page.LIBRARY
 # Entry id armed by a first DELETE press; a second press deletes it.
 var _delete_armed := ""
+# The kit folder of the agent and import steps.
+var _kit := ""
+# Where BACK leaves the import and errors pages.
+var _import_return := Page.LIBRARY
+var _errors_return := Page.LIBRARY
+# Modified time of the kit's `.glb` the import page last saw (0: none yet).
+var _kit_glb_time := 0
 
 
 func _ready() -> void:
 	for button: Button in [_fight, _punch, _reimport, _delete, _create, _import, _close, _review_back,
-			_copy_prompt, _save_kit, _kit_folder, _errors_back, _copy_errors]:
+			_save_kit, _kit_folder, _agent, _agent_back, _copy_command, _copy_prompt, _open_kit, _agent_next,
+			_import_back, _import_kit, _browse, _errors_back, _copy_errors]:
 		FocusArrows.add(button)
 	_close.pressed.connect(closed.emit)
 	_fight.pressed.connect(_on_fight_pressed)
@@ -74,15 +101,24 @@ func _ready() -> void:
 	_wizard.canceled.connect(_open_library)
 	_wizard.finished.connect(_open_review)
 	_review_back.pressed.connect(_back_to_wizard)
-	_copy_prompt.pressed.connect(_on_copy_prompt_pressed)
 	_save_kit.pressed.connect(_on_save_kit_pressed)
 	_kit_folder.pressed.connect(_on_kit_folder_pressed)
+	_agent_back.pressed.connect(go_back)
+	_agent.pressed.connect(_on_agent_pressed)
+	_copy_command.pressed.connect(_on_copy_command_pressed)
+	_copy_prompt.pressed.connect(_on_copy_prompt_pressed)
+	_open_kit.pressed.connect(_on_open_kit_pressed)
+	_agent_next.pressed.connect(_open_import.bind(Page.AGENT))
+	_import_back.pressed.connect(go_back)
+	_import_kit.pressed.connect(func() -> void: _import_file(CreatorKit.kit_glb(_kit)))
+	_browse.pressed.connect(func() -> void: CharacterLibrary.choose_glb(self, _import_file))
+	_kit_watch.timeout.connect(_check_kit_glb)
 	_import.pressed.connect(_on_import_pressed)
 	_reimport.pressed.connect(_on_reimport_pressed)
 	_punch.pressed.connect(_preview.punch)
 	_delete.pressed.connect(_on_delete_pressed)
 	_library.item_selected.connect(_on_selection_changed.unbind(1))
-	_errors_back.pressed.connect(_back_to_library)
+	_errors_back.pressed.connect(go_back)
 	_copy_errors.pressed.connect(_on_copy_errors_pressed)
 	get_window().files_dropped.connect(_on_files_dropped)
 
@@ -129,8 +165,19 @@ func go_back() -> void:
 			_wizard.back()
 		Page.REVIEW:
 			_back_to_wizard()
+		Page.AGENT:
+			_show(Page.REVIEW)
+			_save_kit.grab_focus()
+		Page.IMPORT:
+			if _import_return == Page.AGENT:
+				_open_agent()
+			else:
+				_back_to_library()
 		Page.ERRORS:
-			_back_to_library()
+			if _errors_return == Page.IMPORT:
+				_open_import(_import_return)
+			else:
+				_back_to_library()
 
 
 func _show(page: Page) -> void:
@@ -138,7 +185,11 @@ func _show(page: Page) -> void:
 	_library_page.visible = page == Page.LIBRARY
 	_wizard_page.visible = page == Page.WIZARD
 	_review_page.visible = page == Page.REVIEW
+	_agent_page.visible = page == Page.AGENT
+	_import_page.visible = page == Page.IMPORT
 	_errors_page.visible = page == Page.ERRORS
+	if page != Page.IMPORT:
+		_kit_watch.stop()
 
 
 func _on_create_pressed() -> void:
@@ -146,12 +197,21 @@ func _on_create_pressed() -> void:
 	_wizard.reset()
 
 
+# Step 1: the prompt, and SAVE KIT.
 func _open_review() -> void:
 	_show(Page.REVIEW)
-	_prompt.text = CreatorKit.prompt(_wizard.answers())
-	_prompt.scroll_vertical = 0
-	_show_kit_dir()
+	_fill_review()
 	_save_kit.grab_focus()
+
+
+# The prompt and the kit folder for the current answers and `saved_dir()`
+# (the prompt holds the kit's validator path).
+func _fill_review() -> void:
+	var answers := _wizard.answers()
+	_prompt.text = CreatorKit.prompt(answers)
+	_prompt.scroll_vertical = 0
+	_status.text = "SAVE KIT WRITES IT TO %s" % CreatorKit.saved_dir().path_join(
+			CreatorKit.slug(str(answers.get("name", ""))))
 
 
 func _back_to_wizard() -> void:
@@ -159,31 +219,117 @@ func _back_to_wizard() -> void:
 	_wizard.resume()
 
 
-func _on_copy_prompt_pressed() -> void:
-	DisplayServer.clipboard_set(_prompt.text)
-	_status.text = "PROMPT COPIED. SAVE THE KIT TOO: YOUR AGENT WORKS IN ITS FOLDER."
-
-
 func _on_save_kit_pressed() -> void:
 	var folder := CreatorKit.write(CreatorKit.saved_dir(), _wizard.answers())
 	if folder.is_empty():
 		_status.text = "COULD NOT SAVE THE KIT TO %s. TRY ANOTHER FOLDER." % CreatorKit.saved_dir()
 		return
-	_status.text = CreatorKit.hand_off(folder)
+	_kit = folder
+	_open_agent()
+	DisplayServer.clipboard_set(_command.text)
+	_agent_status.text = "KIT SAVED. COMMAND COPIED."
 
 
 func _on_kit_folder_pressed() -> void:
 	CreatorKit.choose_dir(self, func(_dir: String) -> void:
-		_show_kit_dir()
+		_fill_review()
 		_save_kit.grab_focus())
 
 
-func _show_kit_dir() -> void:
-	_status.text = "KITS ARE SAVED IN %s" % CreatorKit.saved_dir()
+# Step 2: the terminal command that runs the agent in kit `_kit`.
+func _open_agent() -> void:
+	_show(Page.AGENT)
+	_fill_agent()
+	_agent_status.text = ""
+	_agent_next.grab_focus()
+
+
+# The steps and command for the player's agent (`CreatorKit.agent()`).
+func _fill_agent() -> void:
+	var id := CreatorKit.agent()
+	var name: String = CreatorKit.AGENTS[id].name.to_upper()
+	FocusArrows.set_text(_agent, "AGENT: %s" % name)
+	_command.text = CreatorKit.agent_command(_kit, id)
+	if CreatorKit.AGENTS[id].run.is_empty():
+		_agent_steps.text = "1. OPEN A TERMINAL.\n2. PASTE THIS COMMAND (IT'S ON YOUR CLIPBOARD) AND PRESS ENTER " \
+				+ "TO GO TO THE KIT FOLDER. START YOUR AGENT THERE AND TELL IT: \"%s\"" % CreatorKit.AGENT_REQUEST
+		name = "YOUR AGENT"
+	else:
+		_agent_steps.text = "1. OPEN A TERMINAL.\n2. PASTE THIS COMMAND (IT'S ON YOUR CLIPBOARD) AND PRESS ENTER. " \
+				+ "%s STARTS IN THE KIT FOLDER AND READS ITS PROMPT.md." % name
+	_agent_after.text = "3. %s BUILDS THE CHARACTER IN BLENDER, EXPORTS IT, AND CHECKS IT WITH THE GAME'S " % name \
+			+ "VALIDATOR. THAT TAKES A WHILE. WHEN IT'S DONE, PRESS NEXT."
+
+
+# Switches to the next agent in `CreatorKit.AGENTS` and copies its command.
+func _on_agent_pressed() -> void:
+	var ids := CreatorKit.AGENTS.keys()
+	CreatorKit.set_agent(ids[(ids.find(CreatorKit.agent()) + 1) % ids.size()])
+	_fill_agent()
+	_on_copy_command_pressed()
+
+
+func _on_copy_command_pressed() -> void:
+	DisplayServer.clipboard_set(_command.text)
+	_agent_status.text = "COMMAND COPIED."
+
+
+func _on_copy_prompt_pressed() -> void:
+	var path := _kit.path_join(CreatorKit.PROMPT_NAME)
+	var text := FileAccess.get_file_as_string(path)
+	if text.is_empty():
+		_agent_status.text = "CAN'T READ %s. SAVE THE KIT AGAIN." % path
+		return
+	DisplayServer.clipboard_set(text)
+	_agent_status.text = "PROMPT COPIED. PASTE IT TO AN AGENT RUNNING IN THE KIT FOLDER."
+
+
+func _on_open_kit_pressed() -> void:
+	var err := OS.shell_show_in_file_manager(_kit)
+	if err != OK:
+		_agent_status.text = "CAN'T OPEN %s: %s" % [_kit, error_string(err)]
+
+
+# Step 3 (or "IMPORT…" with a kit): imports kit `_kit`'s `.glb` once it
+# exists, checking for it every second; BACK returns to `from`.
+func _open_import(from: Page) -> void:
+	_import_return = from
+	_show(Page.IMPORT)
+	_import_title.text = "STEP 3 OF 3: IMPORT" if from == Page.AGENT else "IMPORT"
+	_import_path.text = "LOOKING FOR %s" % CreatorKit.kit_glb(_kit)
+	_kit_glb_time = -1
+	_check_kit_glb()
+	_kit_watch.start()
+	(_browse if _import_kit.disabled else _import_kit).grab_focus()
+
+
+# Updates the import page when the kit's `.glb` appears, changes or goes.
+func _check_kit_glb() -> void:
+	var path := CreatorKit.kit_glb(_kit)
+	var time := FileAccess.get_modified_time(path) if FileAccess.file_exists(path) else 0
+	if time == _kit_glb_time:
+		return
+	var appeared := _kit_glb_time == 0 and time != 0
+	_kit_glb_time = time
+	_import_kit.disabled = time == 0
+	if time == 0:
+		_import_status.text = "NOT EXPORTED YET. IT SHOWS UP HERE WHEN YOUR AGENT IS DONE."
+		if _import_kit.has_focus():
+			_browse.grab_focus()
+		return
+	var bias: int = Time.get_time_zone_from_system().bias
+	_import_status.text = "FOUND, SAVED AT %s. PRESS IMPORT." \
+			% Time.get_time_string_from_unix_time(time + bias * 60).left(5)
+	if appeared:
+		_import_kit.grab_focus()
 
 
 func _on_import_pressed() -> void:
-	CharacterLibrary.choose_glb(self, _import_file)
+	_kit = CreatorKit.last_kit()
+	if _kit.is_empty():
+		CharacterLibrary.choose_glb(self, _import_file)
+	else:
+		_open_import(Page.LIBRARY)
 
 
 ## A `.glb` dropped onto the window while this screen is shown is imported
@@ -258,7 +404,10 @@ func _entry_name(id: String) -> String:
 	return CharacterLibrary.entry(id).get("name", "").to_upper()
 
 
+# The validator's `errors` for `path`; BACK returns to the current page if it
+# is the import page, else to the library.
 func _show_errors(path: String, errors: PackedStringArray) -> void:
+	_errors_return = _page
 	_show(Page.ERRORS)
 	_errors_title.text = "CAN'T IMPORT %s" % path.get_file().to_upper()
 	_errors.text = "The game's validator rejected %s:\n- %s\n" % [path, "\n- ".join(errors)]
