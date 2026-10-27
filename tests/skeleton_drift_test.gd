@@ -5,7 +5,7 @@ extends SceneTree
 ##
 ## - the rig `creator_kit/build_template.py` actually builds in Blender (dumped
 ##   by `tests/dump_skeleton.py`: names, parents, head/tail, roll, local axes),
-## - the `docs/skeleton.md` tables (copied into every kit as `SKELETON.md`),
+## - the `creator_kit/SKELETON.md` tables (copied into every kit),
 ## - the rest pose of `characters/default/default.glb` (the validator's reference),
 ## - `CharacterLoader.REQUIRED_BONES`.
 ##
@@ -14,7 +14,7 @@ extends SceneTree
 ##
 ##   godot --headless --path . -s tests/skeleton_drift_test.gd
 
-const DOC := "res://docs/skeleton.md"
+const DOC := "res://creator_kit/SKELETON.md"
 const DUMP_SCRIPT := "res://tests/dump_skeleton.py"
 const DUMP := "user://skeleton_drift_test.json"
 const POSITION_TOLERANCE := 0.0005  # meters; the doc gives positions in cm
@@ -72,7 +72,7 @@ func _dump_rig() -> Dictionary:
 	return rig
 
 
-# --- docs/skeleton.md ----------------------------------------------------------
+# --- creator_kit/SKELETON.md -------------------------------------------------
 
 ## {bones: name -> {parent, head, tail, connected}, axes: name -> {x, z}, count}
 ## where axes values are the table text ("+X (left)", "mostly down").
@@ -104,24 +104,24 @@ func _read_doc() -> Dictionary:
 
 func _compare_doc(rig: Dictionary, doc: Dictionary) -> void:
 	var bones: Dictionary = doc.bones
-	_check_eq(_sorted(bones.keys()), _sorted(rig.keys()), "skeleton.md bone table = template bones")
-	_check_eq(doc.count, rig.size(), "skeleton.md 'There are N bones'")
+	_check_eq(_sorted(bones.keys()), _sorted(rig.keys()), "SKELETON.md bone table = template bones")
+	_check_eq(doc.count, rig.size(), "SKELETON.md 'There are N bones'")
 	for name: String in rig:
 		var actual: Dictionary = rig[name]
-		_check(is_zero_approx(actual.roll), "%s: roll 0 (skeleton.md 'Every bone has roll 0')" % name)
+		_check(is_zero_approx(actual.roll), "%s: roll 0 (SKELETON.md 'Every bone has roll 0')" % name)
 		_check_dir(actual.y, (actual.tail - actual.head).normalized(), "%s: local +Y points from head to tail" % name)
 		if bones.has(name):
 			var row: Dictionary = bones[name]
-			_check_eq(actual.parent, row.parent, "skeleton.md %s: parent" % name)
-			_check_eq(actual.connected, row.connected, "skeleton.md %s: connected" % name)
-			_check_near(actual.head, row.head, "skeleton.md %s: head" % name)
-			_check_near(actual.tail, row.tail, "skeleton.md %s: tail" % name)
+			_check_eq(actual.parent, row.parent, "SKELETON.md %s: parent" % name)
+			_check_eq(actual.connected, row.connected, "SKELETON.md %s: connected" % name)
+			_check_near(actual.head, row.head, "SKELETON.md %s: head" % name)
+			_check_near(actual.tail, row.tail, "SKELETON.md %s: tail" % name)
 		var axes := _doc_axes(doc.axes, name)
 		if axes.is_empty():
-			_fail("skeleton.md Bone axes: no row for %s" % name)
+			_fail("SKELETON.md Bone axes: no row for %s" % name)
 			continue
-		_check_axis(actual.x, axes.x, "skeleton.md Bone axes %s: local +X" % name)
-		_check_axis(actual.z, axes.z, "skeleton.md Bone axes %s: local +Z" % name)
+		_check_axis(actual.x, axes.x, "SKELETON.md Bone axes %s: local +X" % name)
+		_check_axis(actual.z, axes.z, "SKELETON.md Bone axes %s: local +Z" % name)
 
 
 # Axes row for a bone: exact name or a `<name>.*` pattern.

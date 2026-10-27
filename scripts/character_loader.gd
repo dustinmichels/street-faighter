@@ -2,7 +2,7 @@ class_name CharacterLoader
 extends RefCounted
 ## Loads character `.glb` files at runtime with `GLTFDocument` (not editor-imported
 ## scenes), so characters can be swapped without re-importing. Conventions are in
-## `docs/skeleton.md`.
+## `creator_kit/SKELETON.md`.
 
 const TOON_SHADER := preload("res://shaders/toon.gdshader")
 
@@ -13,7 +13,7 @@ const DEFAULT_CHARACTER := "res://characters/default/default.glb"
 ## match, so both fighters are told apart: red turns blue.
 const MIRROR_TINT := 0.6
 
-## Bones every character must have (`docs/skeleton.md`). Animations target these names.
+## Bones every character must have (`creator_kit/SKELETON.md`). Animations target these names.
 const REQUIRED_BONES: PackedStringArray = [
 	"hips", "spine", "chest", "neck", "head",
 	"upper_arm.L", "forearm.L", "hand.L",

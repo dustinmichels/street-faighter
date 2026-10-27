@@ -14,7 +14,7 @@ const BLOCK := 16
 const CROUCH := 32
 const SPECIAL := 64
 ## Every defined button bit. A sample is always within it (one byte on the
-## wire, `docs/netcode.md`); bits outside it from the network are dropped.
+## wire, `docs/dev/netcode.md`); bits outside it from the network are dropped.
 const BUTTONS := LEFT | RIGHT | JUMP | PUNCH | BLOCK | CROUCH | SPECIAL
 
 

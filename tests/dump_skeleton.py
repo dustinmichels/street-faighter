@@ -1,6 +1,6 @@
 """Build the template skeleton with creator_kit/build_template.py and dump it as JSON.
 
-Used by tests/skeleton_drift_test.gd, which compares the dump with docs/skeleton.md and
+Used by tests/skeleton_drift_test.gd, which compares the dump with creator_kit/SKELETON.md and
 default.glb. The dump comes from the rig Blender actually builds, not from the script's
 tables: bone name, parent, head, tail, connected, roll, and the local X/Y/Z axes at rest,
 all in Blender armature space (meters, Z up, -Y forward).

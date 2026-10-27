@@ -4,7 +4,7 @@ A player answers a few questions in the game. The game turns the answers into a 
 
 Custom characters are **cosmetic only**. Hitboxes, hurtboxes, and all gameplay numbers are fixed in `Fighter`/`Match` and never come from the mesh, so a model can't change the simulation, the checksums, or the determinism tests. The game never runs Blender or the agent itself.
 
-The skeleton (bone names, rest pose, axes, model conventions) is specified in one place: [`skeleton.md`](skeleton.md). Every kit gets a copy of it as `SKELETON.md`.
+The skeleton (bone names, rest pose, axes, model conventions) is specified in one place: `creator_kit/SKELETON.md` ([Skeleton](./skeleton)). Every kit gets a copy.
 
 ## Pipeline
 
@@ -16,13 +16,13 @@ The skeleton (bone names, rest pose, axes, model conventions) is specified in on
 
 ## Kit layout
 
-The kit sources are in `creator_kit/`; the export preset bundles them (`include_filter="creator_kit/*, docs/skeleton.md"`). `CreatorKit.write` copies every file there except `PROMPT_TEMPLATE.md`, and adds:
+The kit sources are in `creator_kit/`; the export preset bundles them (`include_filter="creator_kit/*"`). `CreatorKit.write` copies every file there except `PROMPT_TEMPLATE.md` and writes `PROMPT.md` and `character_request.json`. A kit holds:
 
 | File                          | Source                                                                                                    |
 | ----------------------------- | --------------------------------------------------------------------------------------------------------- |
 | `README.md`                   | `creator_kit/README.md`: what the kit is and how to run the agent.                                        |
 | `PROMPT.md`                   | `creator_kit/PROMPT_TEMPLATE.md` with the design brief and the validator command filled in.               |
-| `SKELETON.md`                 | A copy of `docs/skeleton.md`.                                                                             |
+| `SKELETON.md`                 | `creator_kit/SKELETON.md`: the skeleton reference ([Skeleton](./skeleton)).                               |
 | `BPY_NOTES.md`                | `bpy` cheat sheet: correct calls for this task and the ones LLMs invent or that changed between versions. |
 | `build_template.py`           | Builds `template.blend` (the bare skeleton). The only copy of the skeleton script.                        |
 | `example_build_character.py`  | A working box fighter: bone parenting, materials, export.                                                 |
@@ -80,4 +80,4 @@ The match config carries a descriptor per fighter: `{"builtin": "DEFAULT"}` or `
 
 ## Tests
 
-Described in the README: creator kit, character validator (broken fixtures in `tests/fixtures/`, built by `tests/fixtures/build_bad_characters.py`), skeleton drift (the rig Blender builds vs `docs/skeleton.md` and `default.glb`), and character sync (two processes).
+Described in [Testing](./testing): creator kit, character validator (broken fixtures in `tests/fixtures/`, built by `tests/fixtures/build_bad_characters.py`), skeleton drift (the rig Blender builds vs `creator_kit/SKELETON.md` and `default.glb`), and character sync (two processes).

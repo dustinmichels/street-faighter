@@ -12,7 +12,7 @@ extends TickInput
 ## a sample taken only when its own tick is simulated would wait forever.
 
 ## Default `delay`: 3 ticks (50 ms) covers a one-way latency up to ~50 ms
-## without stalling (`docs/netcode.md`).
+## without stalling (`docs/dev/netcode.md`).
 const DEFAULT_DELAY := 3
 
 ## Live source sampled each tick (keyboard and gamepad by default).

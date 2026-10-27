@@ -1,7 +1,7 @@
 class_name CharacterPreview
 extends SubViewportContainer
-## A small turning view of one character for the library
-## (`docs/todo/custom-characters.md` §5): its own 3D world with the in-game
+## A small turning view of one character for the library:
+## its own 3D world with the in-game
 ## look (toon materials from `CharacterLoader`, the outline post-process,
 ## an orthographic camera at about the in-game pixel scale), the model playing
 ## `idle`. `punch()` plays the punch once, to check that the parts follow the

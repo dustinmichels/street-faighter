@@ -1,7 +1,7 @@
 class_name CreatorKit
 extends RefCounted
 ## Writes a creator kit: the folder a player's AI agent works in to build one
-## custom character in Blender (`docs/todo/custom-characters.md` §1). The kit
+## custom character in Blender. The kit
 ## sources are bundled in `res://creator_kit/` (`export_presets.cfg`
 ## `include_filter`), so a kit always matches the game version and needs no
 ## internet.
@@ -16,9 +16,6 @@ extends RefCounted
 const SOURCE_DIR := "res://creator_kit"
 ## Filled in by `prompt()`; not copied into the kit.
 const PROMPT_TEMPLATE := "PROMPT_TEMPLATE.md"
-## The single skeleton reference, copied into the kit under its kit name.
-const SKELETON_SOURCE := "res://docs/skeleton.md"
-const SKELETON_NAME := "SKELETON.md"
 const PROMPT_NAME := "PROMPT.md"
 const REQUEST_NAME := "character_request.json"
 ## Folder for kits under the player's Documents folder (`default_dir()`).
@@ -288,7 +285,7 @@ static func shell_quote(arg: String) -> String:
 	return "'%s'" % arg.replace("'", "'\\''")
 
 
-## Writes the kit into `<dir>/<slug>/`: the kit files, `SKELETON.md`, the
+## Writes the kit into `<dir>/<slug>/`: the kit files (`SKELETON.md` among them), the
 ## filled-in `PROMPT.md`, and `character_request.json` (the `sanitize()`d
 ## answers, so the questionnaire can be reopened). Kit files and those two are
 ## overwritten if the folder exists; the agent's own files there are kept.
@@ -300,14 +297,13 @@ static func write(dir: String, answers: Dictionary) -> String:
 	if err != OK:
 		push_error("CreatorKit: can't create '%s': %s" % [folder, error_string(err)])
 		return ""
-	var sources := {SKELETON_NAME: SKELETON_SOURCE}
 	for file in DirAccess.get_files_at(SOURCE_DIR):
-		if file != PROMPT_TEMPLATE:
-			sources[file] = SOURCE_DIR.path_join(file)
-	for file: String in sources:
-		var bytes := FileAccess.get_file_as_bytes(sources[file])
+		if file == PROMPT_TEMPLATE:
+			continue
+		var source := SOURCE_DIR.path_join(file)
+		var bytes := FileAccess.get_file_as_bytes(source)
 		if bytes.is_empty():
-			push_error("CreatorKit: can't read '%s': %s" % [sources[file], error_string(FileAccess.get_open_error())])
+			push_error("CreatorKit: can't read '%s': %s" % [source, error_string(FileAccess.get_open_error())])
 			return ""
 		if not _write_file(folder.path_join(file), bytes):
 			return ""

@@ -8,7 +8,7 @@ extends SceneTree
 ## with the template skeleton: put the `AnimationPlayer` next to the model's
 ## `Skeleton3D` (its default `root_node` is the parent).
 ##
-## Poses are authored against the template skeleton (`docs/skeleton.md`):
+## Poses are authored against the template skeleton (`creator_kit/SKELETON.md`):
 ## each bone's value is a rotation in degrees (Euler, Godot's default YXZ order)
 ## relative to the bone's rest pose, in the bone's own local axes. `.R` bones
 ## are written through `_m()`, which mirrors a `.L` rotation, so the same

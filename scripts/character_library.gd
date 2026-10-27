@@ -1,6 +1,6 @@
 class_name CharacterLibrary
 extends RefCounted
-## The player's imported characters (`docs/todo/custom-characters.md` §5).
+## The player's imported characters.
 ##
 ## Each entry is a validated copy `<dir>/<sha256>.glb` (the hash of its bytes
 ## is its id) plus `<sha256>.json`: `name`, `source` (the path it was imported

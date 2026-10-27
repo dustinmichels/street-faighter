@@ -1,5 +1,5 @@
 extends SceneTree
-## Headless determinism test for the match simulation (`docs/netcode.md`):
+## Headless determinism test for the match simulation (`docs/dev/netcode.md`):
 ## replays one input log twice in fresh matches and compares
 ## `Match.checksum` every tick. Exits 0 when all runs agree, 1 otherwise.
 ##

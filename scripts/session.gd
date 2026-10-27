@@ -3,7 +3,7 @@ extends Node
 ## version handshake, and which fighter this machine plays. Lives across scene
 ## changes, so the connection outlasts each match scene. Local play doesn't
 ## use it (`mode` stays `LOCAL`), except for `player_name`, entered in the
-## menu. Design in `docs/netcode.md` → "Session".
+## menu. Design in `docs/dev/netcode.md` → "Session".
 ##
 ## The host listens for exactly one client; once its handshake passes, both
 ## machines load the match scene (`main.gd` wires it from this session) and

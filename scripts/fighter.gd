@@ -3,7 +3,7 @@ extends Node3D
 ## A fighter. Its character model is loaded at runtime from `character_path`
 ## and placed under `$Visual`, the node that is moved/mirrored for display.
 ##
-## Gameplay is a deterministic simulation for netcode (`docs/netcode.md`): all
+## Gameplay is a deterministic simulation for netcode (`docs/dev/netcode.md`): all
 ## of it lives in the plain variables below (fixed-point integers, see
 ## `SCALE`), advanced only by `step()`, which the `Match` calls once per tick
 ## for both fighters in a fixed order. No Godot physics is involved: movement
@@ -150,7 +150,7 @@ const KNOCKDOWN_HIPS_BACK := 8000
 ## `knockdown` clip length: a knockout by throw starts there (already flat).
 static var KNOCKDOWN_LENGTH := ticks(ANIMATIONS.get_animation(&"knockdown").length)
 
-## Character `.glb` to load on ready (see `docs/skeleton.md`).
+## Character `.glb` to load on ready (see `creator_kit/SKELETON.md`).
 @export_file("*.glb") var character_path: String
 ## Controls, sampled once per tick by the `Match`. Swap in another
 ## `InputSource` (network, AI) to drive the fighter without touching this

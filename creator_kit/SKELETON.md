@@ -1,6 +1,6 @@
 # Skeleton
 
-Every character uses this one skeleton. The game owns all animations and plays them on the skeleton by bone name, so a model only needs the right bone names and rest pose to work. `build_template.py` builds `template.blend`, a file with this skeleton and nothing else. Build new characters on it. (In the game's repo, the script is `creator_kit/build_template.py` and the file is `characters/template/template.blend`; the game copies this document into every creator kit as `SKELETON.md`.)
+Every character uses this one skeleton. The game owns all animations and plays them on the skeleton by bone name, so a model only needs the right bone names and rest pose to work. `build_template.py` builds `template.blend`, a file with this skeleton and nothing else. Build new characters on it. (In the game's repo, the script is `creator_kit/build_template.py`, the file is `characters/template/template.blend`, and this document is `creator_kit/SKELETON.md`, which the game copies into every creator kit.)
 
 ## Model conventions
 

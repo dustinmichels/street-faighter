@@ -12,3 +12,13 @@ guest=$!
 trap 'kill $host $guest 2>/dev/null' EXIT INT TERM
 wait
 """
+
+[tasks.docs]
+description = "Preview the documentation site (VitePress) with hot reload"
+dir = "{{config_root}}/docs"
+run = "npm install && npm run dev"
+
+[tasks.docs-build]
+description = "Build the documentation site into docs/.vitepress/dist"
+dir = "{{config_root}}/docs"
+run = "npm ci && npm run build"

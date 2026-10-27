@@ -8,7 +8,7 @@ extends Node3D
 ## input turns out different (rollback). `step()` depends only on the
 ## simulation state and its `inputs`, never on wall-clock time, the scene
 ## tree order or Godot physics, so two peers fed the same inputs stay
-## identical (`docs/netcode.md`).
+## identical (`docs/dev/netcode.md`).
 ## Sits on the `World` node: it is ready after the fighters and processes
 ## before its children (the camera reads this tick's positions).
 ## In a mirror match (both fighters show the same model), fighter 2 gets

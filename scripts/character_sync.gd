@@ -1,6 +1,6 @@
 class_name CharacterSync
 extends Node
-## Online character exchange (`docs/todo/custom-characters.md` §7), a child of
+## Online character exchange, a child of
 ## the `Session` autoload so it outlives match scenes.
 ##
 ## After the handshake each side announces its character

@@ -1,6 +1,6 @@
 # Netcode
 
-Decisions for online play (`docs/todo/multiplayer.md`, step 2). Each one gives the choice, the reasons for it, and when to revisit it.
+Decisions for online play (`docs-todo/multiplayer.md`, step 2). Each one gives the choice, the reasons for it, and when to revisit it.
 
 ## Sync model: input sync (lockstep with input delay, optional rollback)
 
@@ -20,7 +20,7 @@ Why input sync over state sync (authoritative host):
 - **It fits the code.** `Fighter` already advances once per 60 Hz physics tick by a fixed `TICK` and counts time in whole ticks (`scripts/fighter.gd`). It reads controls only through `InputSource.poll()`, which returns a bitmask, so a `NetworkInput` slots in without changing `Fighter`.
 - **Fairness.** With state sync, the client's inputs reach the simulation one RTT late unless it predicts locally, and in a fighting game client-side prediction of hits and knockdowns means visible corrections. Input sync gives both players the same input delay.
 - **Bandwidth.** About 1 byte per tick plus redundancy (every input the peer hasn't acknowledged, a few per packet), compared with snapshots of two fighters' full state at 60 Hz.
-- **Desync detection.** A per-tick state checksum (`Match.checksum`) shows exactly where the peers diverge, which also makes a good regression test (`tests/determinism_test.gd`, see `README.md`).
+- **Desync detection.** A per-tick state checksum (`Match.checksum`) shows exactly where the peers diverge, which also makes a good regression test (`tests/determinism_test.gd`, see [Tests](./testing#determinism)).
 - **Standard practice.** GGPO-style input delay plus rollback is what fighting games ship, and there is a Godot addon for it (Snopek's "Godot Rollback Netcode") if building it ourselves proves too costly.
 
 What this costs (handled in todo §2):

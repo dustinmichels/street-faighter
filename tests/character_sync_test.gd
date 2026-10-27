@@ -1,5 +1,5 @@
 extends SceneTree
-## Headless online character test (`docs/todo/custom-characters.md` §7) with
+## Headless online character test with
 ## two processes: this one hosts and starts a second one as the client (same
 ## script, `--role=client`). Both run the real `Session` and match scene over
 ## ENet on 127.0.0.1, each with its own character library under

@@ -1,5 +1,5 @@
 extends SceneTree
-## Headless netcode test (`docs/netcode.md`): a host and a client match in
+## Headless netcode test (`docs/dev/netcode.md`): a host and a client match in
 ## one process, each in its own `SceneMultiplayer` branch, connected over ENet
 ## on 127.0.0.1. Each side's player is a `LocalInput` driven by an AI, the
 ## other a `NetworkInput` fed by `InputSync`. Every loop iteration runs one

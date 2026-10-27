@@ -25,7 +25,7 @@ COLORS = {
 
 
 # bone: material, boxes as (min, max) corners in Blender world space (meters, -Y = front).
-# .L only; .R is mirrored at -X. Joints stay on the skeleton from docs/skeleton.md.
+# .L only; .R is mirrored at -X. Joints stay on the skeleton from creator_kit/SKELETON.md.
 CENTER = {
     "hips": ("pants", [((-0.16, -0.10, 0.88), (0.16, 0.10, 1.05))]),
     "spine": ("shirt", [((-0.14, -0.09, 1.05), (0.14, 0.09, 1.25))]),

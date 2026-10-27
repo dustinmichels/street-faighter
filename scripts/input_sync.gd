@@ -1,6 +1,6 @@
 class_name InputSync
 extends Node
-## Exchanges inputs with the peer in an online match (`docs/netcode.md`).
+## Exchanges inputs with the peer in an online match (`docs/dev/netcode.md`).
 ## Every physics frame, after the `Match` has stepped, it sends the peer one
 ## unreliable packet with every `local` input the peer hasn't acknowledged
 ## yet (at most `MAX_INPUTS`) and an acknowledgement of the `remote` inputs

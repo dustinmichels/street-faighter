@@ -1,6 +1,6 @@
 class_name CharacterValidator
 extends RefCounted
-## Checks a character `.glb` against the contract in `docs/skeleton.md` and
+## Checks a character `.glb` against the contract in `creator_kit/SKELETON.md` and
 ## collects every problem, worded so a player can paste the list to the agent
 ## that built the model. `CharacterLoader.load_character` and the
 ## `--validate-character` CLI both use it.

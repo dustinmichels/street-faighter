@@ -100,7 +100,7 @@ func _test_write() -> void:
 			"character_request.json", "example_build_character.py", "export_glb.py"]
 	_check_eq(Array(DirAccess.get_files_at(folder)), expected, "write: kit files")
 	_check_eq(FileAccess.get_file_as_string(folder.path_join("SKELETON.md")),
-			FileAccess.get_file_as_string("res://docs/skeleton.md"), "write: SKELETON.md is docs/skeleton.md")
+			FileAccess.get_file_as_string("res://creator_kit/SKELETON.md"), "write: SKELETON.md copied")
 	_check_eq(FileAccess.get_file_as_string(folder.path_join("PROMPT.md")), CreatorKit.prompt(answers, dir), "write: PROMPT.md")
 	_check(FileAccess.get_file_as_string(folder.path_join("PROMPT.md")).contains(
 			CreatorKit.validator_command(folder.path_join("big_tony.glb"))), "write: validator command for the kit's .glb")
