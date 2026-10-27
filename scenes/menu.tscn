@@ -1,6 +1,15 @@
-[gd_scene format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://scripts/menu.gd" id="1_menu"]
+[ext_resource type="Theme" path="res://scenes/menu_theme.tres" id="2_theme"]
+[ext_resource type="Shader" path="res://shaders/arcade_background.gdshader" id="3_bg"]
+[ext_resource type="Shader" path="res://shaders/scanlines.gdshader" id="4_scan"]
+
+[sub_resource type="ShaderMaterial" id="Mat_bg"]
+shader = ExtResource("3_bg")
+
+[sub_resource type="ShaderMaterial" id="Mat_scan"]
+shader = ExtResource("4_scan")
 
 [node name="Menu" type="Control"]
 layout_mode = 3
@@ -9,9 +18,11 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+theme = ExtResource("2_theme")
 script = ExtResource("1_menu")
 
 [node name="Background" type="ColorRect" parent="."]
+material = SubResource("Mat_bg")
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -19,59 +30,137 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-color = Color(0.32, 0.38, 0.5, 1)
+color = Color(0, 0, 0, 1)
 
 [node name="Center" type="CenterContainer" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
+offset_bottom = -24.0
 grow_horizontal = 2
 grow_vertical = 2
+mouse_filter = 2
 
 [node name="Items" type="VBoxContainer" parent="Center"]
 layout_mode = 2
+mouse_filter = 2
 theme_override_constants/separation = 8
 
-[node name="Title" type="Label" parent="Center/Items"]
+[node name="TitleBox" type="VBoxContainer" parent="Center/Items"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.98, 0.82, 0.2, 1)
-theme_override_colors/font_outline_color = Color(0.08, 0.06, 0.1, 1)
+mouse_filter = 2
+theme_override_constants/separation = 2
+
+[node name="Street" type="Label" parent="Center/Items/TitleBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_outline_color = Color(0.75, 0.05, 0.15, 1)
+theme_override_colors/font_shadow_color = Color(0.08, 0.02, 0.12, 1)
 theme_override_constants/outline_size = 6
-theme_override_font_sizes/font_size = 36
-text = "Street fAIghter"
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 2
+theme_override_font_sizes/font_size = 16
+text = "STREET"
+horizontal_alignment = 1
+
+[node name="Title" type="RichTextLabel" parent="Center/Items/TitleBox"]
+custom_minimum_size = Vector2(320, 0)
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/default_color = Color(0.98, 0.82, 0.2, 1)
+theme_override_colors/font_outline_color = Color(0.75, 0.05, 0.15, 1)
+theme_override_colors/font_shadow_color = Color(0.08, 0.02, 0.12, 1)
+theme_override_constants/outline_size = 10
+theme_override_constants/shadow_offset_x = 4
+theme_override_constants/shadow_offset_y = 4
+theme_override_constants/shadow_outline_size = 10
+theme_override_font_sizes/normal_font_size = 32
+bbcode_enabled = true
+text = "[center]F[color=#19d9ff]AI[/color]GHTER[/center]"
+fit_content = true
+scroll_active = false
+autowrap_mode = 0
+
+[node name="Tagline" type="Label" parent="Center/Items/TitleBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.1, 0.85, 1, 1)
+text = "MAN VS MACHINE"
 horizontal_alignment = 1
 
 [node name="Spacer" type="Control" parent="Center/Items"]
-custom_minimum_size = Vector2(0, 12)
+custom_minimum_size = Vector2(0, 16)
 layout_mode = 2
+mouse_filter = 2
 
-[node name="Start" type="VBoxContainer" parent="Center/Items"]
+[node name="PressStart" type="Label" parent="Center/Items"]
 unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.98, 0.82, 0.2, 1)
+theme_override_font_sizes/font_size = 16
+text = "PRESS START"
+horizontal_alignment = 1
+
+[node name="NameEntry" type="VBoxContainer" parent="Center/Items"]
+unique_name_in_owner = true
+visible = false
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="Singleplayer" type="Button" parent="Center/Items/Start"]
+[node name="Prompt" type="Label" parent="Center/Items/NameEntry"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.98, 0.82, 0.2, 1)
+text = "ENTER YOUR NAME"
+horizontal_alignment = 1
+
+[node name="NameEdit" type="LineEdit" parent="Center/Items/NameEntry"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(160, 0)
+custom_minimum_size = Vector2(176, 0)
 layout_mode = 2
 size_flags_horizontal = 4
-theme_override_font_sizes/font_size = 12
-text = "Singleplayer"
+theme_override_font_sizes/font_size = 16
+placeholder_text = "PLAYER"
+alignment = 1
+max_length = 10
+context_menu_enabled = false
+
+[node name="Hint" type="Label" parent="Center/Items/NameEntry"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.58, 0.7, 1)
+text = "ENTER: OK    ESC: BACK"
+horizontal_alignment = 1
+
+[node name="Start" type="VBoxContainer" parent="Center/Items"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Singleplayer" type="Button" parent="Center/Items/Start"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(224, 0)
+layout_mode = 2
+size_flags_horizontal = 4
+text = "1 PLAYER  VS CPU"
 
 [node name="Multiplayer" type="Button" parent="Center/Items/Start"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(160, 0)
+custom_minimum_size = Vector2(224, 0)
 layout_mode = 2
 size_flags_horizontal = 4
-theme_override_font_sizes/font_size = 12
-text = "Multiplayer (online)"
+text = "2 PLAYERS  ONLINE"
+
+[node name="Hint" type="Label" parent="Center/Items/Start"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.58, 0.7, 1)
+text = "ESC: BACK"
+horizontal_alignment = 1
 
 [node name="Online" type="VBoxContainer" parent="Center/Items"]
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
-theme_override_constants/separation = 8
+theme_override_constants/separation = 6
 
 [node name="HostRow" type="HBoxContainer" parent="Center/Items/Online"]
 layout_mode = 2
@@ -80,18 +169,16 @@ theme_override_constants/separation = 4
 
 [node name="HostPort" type="LineEdit" parent="Center/Items/Online/HostRow"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(160, 0)
+custom_minimum_size = Vector2(176, 0)
 layout_mode = 2
-theme_override_font_sizes/font_size = 12
-placeholder_text = "Port (default 7777)"
+placeholder_text = "PORT (7777)"
 
 [node name="Host" type="Button" parent="Center/Items/Online/HostRow"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(60, 0)
+custom_minimum_size = Vector2(80, 0)
 layout_mode = 2
 tooltip_text = "Wait for an opponent on the specified UDP port (default 7777). You play the red fighter."
-theme_override_font_sizes/font_size = 12
-text = "Host"
+text = "HOST"
 
 [node name="JoinRow" type="HBoxContainer" parent="Center/Items/Online"]
 layout_mode = 2
@@ -100,32 +187,78 @@ theme_override_constants/separation = 4
 
 [node name="Address" type="LineEdit" parent="Center/Items/Online/JoinRow"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(160, 0)
+custom_minimum_size = Vector2(176, 0)
 layout_mode = 2
-theme_override_font_sizes/font_size = 12
-placeholder_text = "Host IP or IP:port"
+placeholder_text = "HOST IP OR IP:PORT"
 
 [node name="Join" type="Button" parent="Center/Items/Online/JoinRow"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(60, 0)
+custom_minimum_size = Vector2(80, 0)
 layout_mode = 2
 tooltip_text = "Connect to a host (port 7777 unless given). You play the blue fighter."
-theme_override_font_sizes/font_size = 12
-text = "Join"
+text = "JOIN"
 
 [node name="Back" type="Button" parent="Center/Items/Online"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(224, 0)
+custom_minimum_size = Vector2(260, 0)
 layout_mode = 2
 size_flags_horizontal = 4
-theme_override_font_sizes/font_size = 12
-text = "Back"
+text = "BACK"
 
 [node name="Status" type="Label" parent="Center/Items"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(300, 0)
+custom_minimum_size = Vector2(320, 0)
 layout_mode = 2
-theme_override_colors/font_color = Color(1, 1, 1, 0.85)
-theme_override_font_sizes/font_size = 8
+theme_override_colors/font_color = Color(1, 0.55, 0.35, 1)
 horizontal_alignment = 1
 autowrap_mode = 3
+
+[node name="PlayerTag" type="Label" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+offset_left = 8.0
+offset_top = 8.0
+offset_right = 160.0
+offset_bottom = 32.0
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_constants/line_spacing = 4
+
+[node name="Version" type="Label" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 8.0
+offset_top = -16.0
+offset_right = 160.0
+offset_bottom = -8.0
+grow_vertical = 0
+theme_override_colors/font_color = Color(0.6, 0.58, 0.7, 1)
+
+[node name="FreePlay" type="Label" parent="."]
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -160.0
+offset_top = -16.0
+offset_right = -8.0
+offset_bottom = -8.0
+grow_horizontal = 0
+grow_vertical = 0
+theme_override_colors/font_color = Color(0.6, 0.58, 0.7, 1)
+text = "FREE PLAY"
+horizontal_alignment = 2
+
+[node name="Scanlines" type="ColorRect" parent="."]
+material = SubResource("Mat_scan")
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2

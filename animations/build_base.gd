@@ -327,35 +327,57 @@ const SWEEP_ACTIVE_START := 6.0 / 60.0
 const SWEEP_ACTIVE_END := 10.0 / 60.0
 const SWEEP_LENGTH := 28.0 / 60.0
 
-## Low sweep fully extended from the crouch: the front (left) leg straight and
-## sliding along the floor (ankle ≈ 0.65 m forward, 0.08 m up, toes up), the
-## back leg still folded under the body, torso leaning over it.
+## Low spinning sweep, leg fully out: the back (right) leg straight and
+## reaching behind the body along the floor (ankle ≈ 0.75 m from the hips,
+## 0.08 m up), the front leg folded under as the pivot, torso leaning away
+## over it. `sweep()` spins the whole body around the hips so this leg arrives
+## in front, toward the opponent, on the active frames.
 static var SWEEP := _pose(DUCK, {
 	HIPS_POS: Vector3(0, -0.42, -0.1),
 	"spine": Vector3(35, 0, 0),
 	"chest": Vector3(15, 0, 0),
 	"neck": Vector3(-25, 0, 0),
 	"head": Vector3(-15, 0, 0),
-	"thigh.L": Vector3(-59, 0, -4),
-	"shin.L": Vector3(0, 0, 0),
-	"foot.L": Vector3(-25, 0, 0),
+	"thigh.R": _m(Vector3(59, 0, -4)),
+	"shin.R": Vector3(0, 0, 0),
+	"foot.R": Vector3(-10, 0, 0),
 })
 
 
-## Sweep: from the crouch, chamber the front knee, swing the straight leg out
-## along the floor and hold it (active), then pull back into `DUCK`.
+## `pose` with the body turned `yaw` degrees around the vertical axis at the
+## hips (everything above and below them turns along).
+static func _spun(pose: Dictionary, yaw: float) -> Dictionary:
+	return _pose(pose, {"hips": Vector3(0, yaw, 0)})
+
+
+## Sweep: one full turn on the crouched front foot. The back leg kicks out
+## behind while the body turns, sweeps across the front (yaw 150°–210°, the
+## leg pointing at the opponent at 180°) on the active frames, keeps turning
+## while it is pulled back in and ends facing forward again in `DUCK`. Keys
+## are at most 70° apart, so rotation interpolation can't take the short
+## way back.
 static func sweep() -> Array:
 	var chamber := _pose(DUCK, {
-		"thigh.L": Vector3(-45, 0, -4),
-		"shin.L": Vector3(60, 0, 0),
-		"foot.L": Vector3(-20, 0, 0),
+		"thigh.R": _m(Vector3(20, 0, -4)),
+		"shin.R": Vector3(70, 0, 0),
+		"foot.R": Vector3(-20, 0, 0),
 	})
+	var retract := _pose(SWEEP, {
+		"thigh.R": _m(Vector3(10, 0, -4)),
+		"shin.R": Vector3(90, 0, 0),
+		"foot.R": Vector3(-40, 0, 0),
+	})
+	var active_mid := (SWEEP_ACTIVE_START + SWEEP_ACTIVE_END) / 2.0
 	return [
 		[0.0, DUCK],
-		[3.0 / 60.0, chamber],
-		[SWEEP_ACTIVE_START, SWEEP],
-		[SWEEP_ACTIVE_END, SWEEP],
-		[SWEEP_LENGTH, DUCK],
+		[2.0 / 60.0, _spun(chamber, 40)],
+		[4.0 / 60.0, _spun(SWEEP, 100)],
+		[SWEEP_ACTIVE_START, _spun(SWEEP, 150)],
+		[active_mid, _spun(SWEEP, 180)],
+		[SWEEP_ACTIVE_END, _spun(SWEEP, 210)],
+		[16.0 / 60.0, _spun(SWEEP, 280)],
+		[22.0 / 60.0, _spun(retract, 340)],
+		[SWEEP_LENGTH, _spun(DUCK, 360)],
 	]
 
 

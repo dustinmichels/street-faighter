@@ -15,6 +15,13 @@ extends PixelCamera
 ## (wall-clock, display only), then emits `intro_finished` and starts
 ## following. The orbit pivots on the point at the fighters' depth (z = 0)
 ## that the resting view is centered on. The stage walls are hidden meanwhile.
+##
+## While `player` sweeps (`Fighter.State.SWEEP`), the view orbits one full
+## turn around the same kind of pivot, timed by the sweep's `state_ticks`
+## (display only, so rollbacks agree with the simulation), the opposite way to
+## the kicker's own spin so that spin stays visible. The backdrop dims
+## meanwhile (shader global `backdrop_dim`, see `toon.gdshader`) so the
+## fighters stand out. The opponent's sweeps leave the view alone.
 
 ## Emitted once the intro has settled into the resting view (right away,
 ## during `_ready()`, when `intro_duration` is 0).
@@ -22,6 +29,9 @@ signal intro_finished
 
 ## Fighters to keep centered (their midpoint along X).
 @export var fighters: Array[Fighter] = []
+## This machine's player (set by `Main`): only its sweeps spin the view. Null
+## means no fighter's do.
+var player: Fighter
 ## Bounds the view; null means no clamping.
 @export var stage: Stage
 ## Degrees the resting view is swung around the vertical axis from straight
@@ -36,6 +46,11 @@ signal intro_finished
 @export_range(-60.0, 70.0) var intro_pitch := 15.0
 ## ...and `size` multiplier.
 @export_range(0.1, 4.0) var intro_zoom := 1.0
+## While the view orbits for a sweep, how far (m) in front of the nearest
+## fighter the camera comes, measured along the ground. The camera moves in
+## that close, so from behind the street the buildings and props are behind
+## it (clipped), not between it and the fighters.
+@export_range(0.3, 5.0, 0.1) var spin_clearance := 1.2
 
 ## Seconds of intro played; negative once it is over.
 var _intro_time := -1.0
@@ -46,6 +61,20 @@ var _pivot: Vector3
 ## Camera X minus the X of the point at the fighters' depth it centers on
 ## (nonzero once yawed).
 var _follow_offset := 0.0
+## The view is currently orbiting for a sweep (`_spin_for_sweep()`).
+var _spinning := false
+## Ticks the backdrop takes to dim at the start of a sweep's spin, and to
+## come back at its end.
+const DIM_FADE_TICKS := 4
+
+
+func _enter_tree() -> void:
+	# A scene reload can cut a spin short; never start dimmed.
+	_set_backdrop_dim(0.0)
+
+
+func _exit_tree() -> void:
+	_set_backdrop_dim(0.0)
 
 
 func _ready() -> void:
@@ -58,11 +87,11 @@ func _ready() -> void:
 	_follow_offset = global_position.x - pivot.x
 	super()
 	_follow()
+	_rest_basis = global_basis
+	_rest_size = size
 	if intro_duration <= 0.0:
 		intro_finished.emit()
 		return
-	_rest_basis = global_basis
-	_rest_size = size
 	_pivot = _center_at_fighters()
 	_intro_time = 0.0
 	_set_walls_visible(false)
@@ -71,8 +100,14 @@ func _ready() -> void:
 
 ## Where the view axis meets the fighters' plane (z = 0).
 func _center_at_fighters() -> Vector3:
-	var forward := -global_basis.z
-	return global_position + forward * (-global_position.z / forward.z)
+	return _center_at(global_position, global_basis)
+
+
+## Where the view axis of a camera at `from` with basis `basis` meets the
+## fighters' plane (z = 0).
+static func _center_at(from: Vector3, basis: Basis) -> Vector3:
+	var forward := -basis.z
+	return from + forward * (-from.z / forward.z)
 
 
 func _process(delta: float) -> void:
@@ -94,8 +129,53 @@ func _process(delta: float) -> void:
 
 
 func _physics_process(_delta: float) -> void:
-	if _intro_time < 0.0:
-		_follow()
+	if _intro_time >= 0.0:
+		return
+	if _spinning:
+		# `_follow()` measures the view in the resting orientation.
+		global_basis = _rest_basis
+		_spinning = false
+		_set_backdrop_dim(0.0)
+	_follow()
+	_spin_for_sweep()
+
+
+## If `player` is sweeping, orbits the view around the point at the
+## fighters' depth it is centered on, one full turn eased in and out over
+## the sweep. Midway the camera comes in to `spin_clearance` in front of the
+## nearest fighter; at both ends it is at the resting distance, so the orbit
+## starts and ends without a jump. The backdrop is dimmed, fading in and out
+## over `DIM_FADE_TICKS`. The fighters' visuals are re-snapped to the turned
+## pixel grid.
+func _spin_for_sweep() -> void:
+	var kicker := player
+	if kicker == null or kicker.state != Fighter.State.SWEEP:
+		return
+	_spinning = true
+	var ticks := kicker.state_ticks
+	_set_backdrop_dim(clampf(float(mini(ticks, Fighter.SWEEP_LENGTH - ticks)) / DIM_FADE_TICKS, 0.0, 1.0))
+	var turn := smoothstep(0.0, 1.0, clampf(float(ticks) / Fighter.SWEEP_LENGTH, 0.0, 1.0))
+	# The kicker's model spins toward +yaw mirrored by `facing`; go against it.
+	var swing := Basis(Vector3.UP, -kicker.facing * TAU * turn)
+	var pivot := _center_at(target_position, _rest_basis)
+	var rest_distance := pivot.distance_to(target_position)
+	var dir := swing * (target_position - pivot) / rest_distance
+	var ground := Vector3(dir.x, 0.0, dir.z)
+	var reach := 0.0
+	for f in fighters:
+		reach = maxf(reach, (f.global_position - pivot).dot(ground.normalized()))
+	var close_distance := (reach + spin_clearance) / ground.length()
+	var distance := lerpf(rest_distance, close_distance, sin(PI * turn))
+	global_basis = swing * _rest_basis
+	global_position = snap(pivot + dir * distance)
+	for f in fighters:
+		f.sync_visual()
+
+
+## Sets the shader global that dims everything but the fighters (0 = normal,
+## 1 = fully dimmed).
+static func _set_backdrop_dim(amount: float) -> void:
+	RenderingServer.global_shader_parameter_set(&"backdrop_dim", amount)
 
 
 ## Whether the intro is still playing.

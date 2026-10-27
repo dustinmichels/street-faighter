@@ -20,6 +20,9 @@ extends Node
 ##
 ## Offline, the match stays frozen until the camera's intro swing
 ## (`FollowCamera.intro_finished`) is over.
+##
+## The HUD labels each health bar with its fighter's name (`_fighter_name()`).
+## The camera spins only for this machine's player's sweeps (`_local_index()`).
 
 ## Seconds the reason an online match ended stays up before the menu.
 const END_NOTICE_SECONDS := 3.0
@@ -32,11 +35,42 @@ var _sync: InputSync
 
 
 func _enter_tree() -> void:
-	if not Session.is_online():
-		return
+	var world: Match = $GameView/GameViewport/World
+	if Session.is_online():
+		_wire_online(world)
+	var hud := get_node_or_null("Hud") as Hud
+	if hud != null:
+		hud.left_name = _fighter_name(world, 0)
+		hud.right_name = _fighter_name(world, 1)
+	var camera: FollowCamera = world.get_node("Camera3D")
+	var local := _local_index(world)
+	camera.player = world.fighters[local] if local >= 0 else null
+
+
+## Index of the fighter this machine's player controls: online
+## `Session.local_index`, offline the first one not driven by the computer
+## (`AIInput`); -1 if the computer drives both.
+static func _local_index(world: Match) -> int:
+	if Session.is_online():
+		return Session.local_index
+	for i in world.fighters.size():
+		if not world.fighters[i].input is AIInput:
+			return i
+	return -1
+
+
+## Name shown on fighter `index`'s health bar: this player's
+## `Session.player_name`; online the opponent's, offline a random one for a
+## computer opponent (`AIInput.random_name()`).
+static func _fighter_name(world: Match, index: int) -> String:
+	if Session.is_online():
+		return Session.player_name if index == Session.local_index else Session.peer_name
+	return AIInput.random_name() if world.fighters[index].input is AIInput else Session.player_name
+
+
+func _wire_online(world: Match) -> void:
 	# Children exist but aren't ready yet, so the `Match` starts the new
 	# inputs in its `_ready()`.
-	var world: Match = $GameView/GameViewport/World
 	world.apply_config(Session.match_config)
 	var local := LocalInput.new()
 	var remote := NetworkInput.new()

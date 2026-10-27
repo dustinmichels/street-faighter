@@ -1,10 +1,13 @@
-"""Regenerate template.blend: the shared character skeleton (spec: docs/skeleton.md).
+"""Build template.blend: the shared character skeleton (spec: SKELETON.md).
 
-Run from the repo root:
-    blender -b --factory-startup --python characters/template/build_template.py
+Writes template.blend next to this script, or to the path given after `--`:
+    blender -b --factory-startup --python build_template.py
+In the game repo (the game copies this file into every creator kit):
+    blender -b --factory-startup --python creator_kit/build_template.py -- characters/template/template.blend
 """
 
 import os
+import sys
 
 import bpy
 
@@ -58,6 +61,7 @@ for name, parent, head, tail, connected in bones():
         b.use_connect = connected
 bpy.ops.object.mode_set(mode="OBJECT")
 
-out = os.path.join(os.path.dirname(os.path.abspath(__file__)), "template.blend")
+args = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
+out = os.path.abspath(args[0]) if args else os.path.join(os.path.dirname(os.path.abspath(__file__)), "template.blend")
 bpy.ops.wm.save_as_mainfile(filepath=out, compress=True)
 print(f"wrote {out} ({len(arm.bones)} bones)")

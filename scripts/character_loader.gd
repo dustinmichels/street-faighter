@@ -17,7 +17,8 @@ const REQUIRED_BONES: PackedStringArray = [
 
 
 ## Loads a character `.glb` and checks it has the required skeleton. Returns the
-## scene root, or null after pushing an error naming what's wrong.
+## scene root, or null after pushing an error naming what's wrong. Its toon
+## materials are `spotlit`: they stay bright when the backdrop dims.
 static func load_character(path: String) -> Node3D:
 	var root := load_glb(path)
 	if root == null:
@@ -25,6 +26,12 @@ static func load_character(path: String) -> Node3D:
 	if check_skeleton(root, path) == null:
 		root.free()
 		return null
+	for node in root.find_children("*", "MeshInstance3D", true, false):
+		var mesh := (node as MeshInstance3D).mesh
+		if mesh == null:
+			continue
+		for i in mesh.get_surface_count():
+			(mesh.surface_get_material(i) as ShaderMaterial).set_shader_parameter("spotlit", true)
 	return root
 
 

@@ -1,0 +1,80 @@
+[gd_resource type="Theme" load_steps=6 format=3]
+
+[ext_resource type="FontFile" path="res://assets/fonts/PressStart2P-Regular.ttf" id="1_font"]
+
+[sub_resource type="StyleBoxEmpty" id="Style_button"]
+content_margin_left = 2.0
+content_margin_top = 2.0
+content_margin_right = 2.0
+content_margin_bottom = 2.0
+
+[sub_resource type="StyleBoxFlat" id="Style_edit"]
+content_margin_left = 4.0
+content_margin_top = 4.0
+content_margin_right = 4.0
+content_margin_bottom = 4.0
+bg_color = Color(0, 0, 0, 0.65)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.1, 0.85, 1, 1)
+
+[sub_resource type="StyleBoxFlat" id="Style_edit_focus"]
+content_margin_left = 4.0
+content_margin_top = 4.0
+content_margin_right = 4.0
+content_margin_bottom = 4.0
+draw_center = false
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.98, 0.82, 0.2, 1)
+
+[sub_resource type="StyleBoxFlat" id="Style_tooltip"]
+content_margin_left = 4.0
+content_margin_top = 4.0
+content_margin_right = 4.0
+content_margin_bottom = 4.0
+bg_color = Color(0.03, 0, 0.07, 0.95)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.1, 0.85, 1, 1)
+
+[resource]
+default_font = ExtResource("1_font")
+default_font_size = 8
+Button/colors/font_color = Color(0.92, 0.92, 0.95, 1)
+Button/colors/font_disabled_color = Color(0.45, 0.42, 0.5, 1)
+Button/colors/font_focus_color = Color(0.98, 0.82, 0.2, 1)
+Button/colors/font_hover_color = Color(0.98, 0.82, 0.2, 1)
+Button/colors/font_hover_pressed_color = Color(1, 0.5, 0.2, 1)
+Button/colors/font_outline_color = Color(0.08, 0.02, 0.12, 1)
+Button/colors/font_pressed_color = Color(1, 0.5, 0.2, 1)
+Button/constants/outline_size = 4
+Button/styles/disabled = SubResource("Style_button")
+Button/styles/focus = SubResource("Style_button")
+Button/styles/hover = SubResource("Style_button")
+Button/styles/hover_pressed = SubResource("Style_button")
+Button/styles/normal = SubResource("Style_button")
+Button/styles/pressed = SubResource("Style_button")
+Label/colors/font_color = Color(0.92, 0.92, 0.95, 1)
+Label/colors/font_outline_color = Color(0.08, 0.02, 0.12, 1)
+Label/colors/font_shadow_color = Color(0, 0, 0, 0.6)
+Label/constants/outline_size = 4
+Label/constants/shadow_offset_x = 1
+Label/constants/shadow_offset_y = 1
+LineEdit/colors/caret_color = Color(0.98, 0.82, 0.2, 1)
+LineEdit/colors/font_color = Color(1, 1, 1, 1)
+LineEdit/colors/font_placeholder_color = Color(0.5, 0.48, 0.6, 1)
+LineEdit/colors/font_uneditable_color = Color(0.45, 0.42, 0.5, 1)
+LineEdit/colors/selection_color = Color(0.1, 0.85, 1, 0.4)
+LineEdit/constants/caret_width = 2
+LineEdit/styles/focus = SubResource("Style_edit_focus")
+LineEdit/styles/normal = SubResource("Style_edit")
+LineEdit/styles/read_only = SubResource("Style_edit")
+TooltipLabel/colors/font_color = Color(0.92, 0.92, 0.95, 1)
+TooltipPanel/styles/panel = SubResource("Style_tooltip")

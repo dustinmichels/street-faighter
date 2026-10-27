@@ -98,6 +98,13 @@ net_debug={
 ]
 }
 
+[shader_globals]
+
+backdrop_dim={
+"type": "float",
+"value": 0.0
+}
+
 [physics]
 
 3d/physics_engine="Jolt Physics"
@@ -106,4 +113,5 @@ common/physics_ticks_per_second=60
 [rendering]
 
 textures/canvas_textures/default_texture_filter=0
+textures/vram_compression/import_etc2_astc=true
 rendering_device/driver.windows="d3d12"

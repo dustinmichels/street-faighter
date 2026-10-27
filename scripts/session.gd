@@ -2,7 +2,8 @@ extends Node
 ## The online session (autoload `Session`): hosting or joining over ENet, the
 ## version handshake, and which fighter this machine plays. Lives across scene
 ## changes, so the connection outlasts each match scene. Local play doesn't
-## use it (`mode` stays `LOCAL`). Design in `docs/netcode.md` → "Session".
+## use it (`mode` stays `LOCAL`), except for `player_name`, entered in the
+## menu. Design in `docs/netcode.md` → "Session".
 ##
 ## The host listens for exactly one client; once its handshake passes, both
 ## machines load the match scene (`main.gd` wires it from this session) and
@@ -11,9 +12,10 @@ extends Node
 ##
 ## Handshake: `SceneMultiplayer` authentication, before the peers count as
 ## connected (no RPCs, no `peer_connected` until both sides complete it). The
-## client sends `[MAGIC, game version, PROTOCOL_VERSION]`; the host answers
-## with its own triple plus a rejection reason ("" = accepted). Each side
-## checks the other's versions. Raw `var_to_bytes` arrays, not RPCs: RPCs are
+## client sends `[MAGIC, game version, PROTOCOL_VERSION, player name]`; the
+## host answers with its own four values plus a rejection reason ("" =
+## accepted). Each side checks the other's versions and keeps its name as
+## `peer_name`. Raw `var_to_bytes` arrays, not RPCs: RPCs are
 ## matched by method index, which differs between game versions, while this
 ## format is stable, so even an incompatible build gets a readable reason.
 
@@ -29,7 +31,7 @@ enum Mode { LOCAL, HOST, CLIENT }
 const DEFAULT_PORT := 7777
 ## Bump whenever the network messages or the simulation change in a way older
 ## builds can't follow; peers with different values refuse each other.
-const PROTOCOL_VERSION := 5
+const PROTOCOL_VERSION := 6
 ## First handshake value, so a packet from something that isn't this game is
 ## rejected as such.
 const MAGIC := "street-faighter"
@@ -48,6 +50,10 @@ const CHARACTERS: Array[String] = [
 ## counts simulation ticks, so in lockstep both peers reach "FIGHT!" on the
 ## same tick, however their wall clocks differ.
 const COUNTDOWN_TICKS := 180
+## Player names (`clean_name()`): at most this many characters, and the one
+## used when none was entered.
+const MAX_NAME_LENGTH := 10
+const DEFAULT_NAME := "PLAYER"
 
 var mode := Mode.LOCAL
 ## The other player's multiplayer peer id once the handshake passed, else 0.
@@ -55,6 +61,11 @@ var peer_id := 0
 ## The fighter this machine controls (`Match.fighters` index): host 0,
 ## client 1. The other one is driven by the peer's inputs.
 var local_index := 0
+## This machine's player, entered in the menu (`clean_name()` form). Kept
+## across sessions; sent to the opponent in the handshake.
+var player_name := DEFAULT_NAME
+## The opponent's `player_name` once the handshake passed, else "".
+var peer_name := ""
 ## Why the last session ended, for the menu after returning to it ("" = no
 ## error). Cleared when read by `take_end_reason()`.
 var _end_reason := ""
@@ -133,6 +144,18 @@ static func parse_port(text: String) -> int:
 		return -1
 	var port := text.to_int()
 	return port if port >= 1 and port <= 65535 else -1
+
+
+## `text` as a player name: printable ASCII only (what the arcade font can
+## draw), upper case, trimmed to `MAX_NAME_LENGTH`; `DEFAULT_NAME` if
+## nothing is left. Also applied to the peer's name from the handshake.
+static func clean_name(text: String) -> String:
+	var kept := ""
+	for c in text.to_upper():
+		if c.unicode_at(0) >= 0x20 and c.unicode_at(0) <= 0x7E:
+			kept += c
+	kept = kept.strip_edges().left(MAX_NAME_LENGTH).strip_edges()
+	return kept if not kept.is_empty() else DEFAULT_NAME
 
 ## Starts listening on `port` for one opponent; this machine plays fighter 1.
 ## Returns false (and emits `ended`) if the port can't be opened.
@@ -288,7 +311,7 @@ func _start_match(config: Dictionary) -> void:
 # --- Handshake ---
 
 func _hello() -> PackedByteArray:
-	return var_to_bytes([MAGIC, game_version(), PROTOCOL_VERSION])
+	return var_to_bytes([MAGIC, game_version(), PROTOCOL_VERSION, player_name])
 
 
 ## Why `data` (the peer's handshake) is incompatible with this build, or ""
@@ -303,6 +326,8 @@ static func _check_hello(data: PackedByteArray) -> String:
 		return "Protocol version mismatch (this game: %d, other: %d)" % [PROTOCOL_VERSION, hello[2]]
 	if hello[1] != game_version():
 		return "Game version mismatch (this game: %s, other: %s)" % [game_version(), hello[1]]
+	if hello.size() < 4 or not hello[3] is String:
+		return "Malformed handshake"
 	return ""
 
 
@@ -321,18 +346,19 @@ func _on_auth(id: int, data: PackedByteArray) -> void:
 		# A rejected client disconnects itself on the reply; if it doesn't,
 		# the auth timeout drops it.
 		if problem.is_empty():
+			peer_name = clean_name(bytes_to_var(data)[3])
 			mp.complete_auth(id)
 		else:
 			status_changed.emit("Refused a player: %s. Still waiting..." % problem)
 		return
 	# Client: the host's reply, with its verdict on us.
-	if problem.is_empty():
-		var reply: Array = bytes_to_var(data)
-		if reply.size() >= 4 and reply[3] is String:
-			problem = reply[3]
+	var reply: Array = bytes_to_var(data) if problem.is_empty() else []
+	if reply.size() >= 5 and reply[4] is String:
+		problem = reply[4]
 	if not problem.is_empty():
 		fail("Rejected by the host: %s" % problem)
 		return
+	peer_name = clean_name(reply[3])
 	mp.complete_auth(id)
 
 
@@ -346,7 +372,7 @@ func _on_peer_authentication_failed(_id: int) -> void:
 func _on_peer_connected(id: int) -> void:
 	if mode == Mode.HOST:
 		peer_id = id
-		status_changed.emit("Opponent joined, starting...")
+		status_changed.emit("%s joined, starting..." % peer_name)
 		_start_match.rpc(_new_match_config())
 
 
@@ -406,6 +432,7 @@ func _reset() -> void:
 	multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
 	mode = Mode.LOCAL
 	peer_id = 0
+	peer_name = ""
 	local_index = 0
 	_loaded = false
 	_peer_loaded = false

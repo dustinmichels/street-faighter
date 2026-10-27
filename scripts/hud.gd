@@ -3,6 +3,8 @@ extends Control
 ## Fight overlay drawn at the internal 480×270 resolution, on top of the game
 ## view (and outside its quantize shader). Health bars sit in the top corners;
 ## each fills from its outer edge, so lost health shows up next to the center.
+## Under each bar, aligned to its outer edge, its fighter's name
+## (`left_name` / `right_name`, set by `main.gd`) in the arcade font.
 ## Once either fighter is knocked down, a centered "K.O." and a hint appear:
 ## offline the restart (`main.gd`), online the rematch status (`ko_hint()`).
 ## A "Controls" button in the bottom-right corner, or the `controls` action
@@ -13,7 +15,7 @@ extends Control
 ## `show_notice()` replaces both, and the K.O., with a centered message
 ## (online: why the match ended). Online (`net` set), the bottom-left corner
 ## shows the ping and this side's input delay (`net_status_text()`). The
-## `net_debug` action (F3) toggles a debug overlay under the left bar:
+## `net_debug` action (F3) toggles a debug overlay under the left name:
 ## ticks, rollbacks, stalls and packet loss (`net_debug_text()`).
 
 const BAR_SIZE := Vector2(200, 8)
@@ -41,6 +43,12 @@ const CONTROLS: Array[Array] = [
 	[&"net_debug", "Network debug overlay"],
 ]
 const CONTROLS_FONT_SIZE := 10
+## Fighter names under the bars: the menu's pixel font at its native size,
+## `NAME_GAP` px below the bar's border.
+const NAME_FONT: Font = preload("res://assets/fonts/PressStart2P-Regular.ttf")
+const NAME_FONT_SIZE := 8
+const NAME_GAP := 3
+const NAME_COLOR := Color.WHITE
 
 ## Shown on the left bar.
 @export var left_fighter: Fighter
@@ -48,12 +56,17 @@ const CONTROLS_FONT_SIZE := 10
 @export var right_fighter: Fighter
 ## Its `tick` and `start_tick` drive the countdown.
 @export var fight: Match
+## Shown under the left / right bar.
+var left_name := ""
+var right_name := ""
 ## Online: the match's input exchange, for the ping and input delay. null
 ## offline (no network line).
 var net: InputSync
 
 var _left_fill: ColorRect
 var _right_fill: ColorRect
+var _left_name: Label
+var _right_name: Label
 ## "K.O." plus `_ko_hint`, hidden until a knockdown.
 var _ko: VBoxContainer
 var _ko_hint: Label
@@ -67,7 +80,7 @@ var _countdown: Label
 var _notice: Label
 ## Bottom-left ping / input delay line, hidden offline.
 var _net_status: Label
-## Debug overlay under the left bar, hidden until `net_debug` toggles it.
+## Debug overlay under the left name, hidden until `net_debug` toggles it.
 var _net_debug: Label
 
 
@@ -75,6 +88,8 @@ func _ready() -> void:
 	mouse_filter = MOUSE_FILTER_IGNORE
 	_left_fill = _make_bar(false)
 	_right_fill = _make_bar(true)
+	_left_name = _make_name(false)
+	_right_name = _make_name(true)
 	_ko = _make_ko()
 	_countdown = _make_label("", 48, COUNTDOWN_COLOR)
 	_countdown.mouse_filter = MOUSE_FILTER_IGNORE
@@ -97,7 +112,7 @@ func _ready() -> void:
 	_net_debug = _make_label("", CONTROLS_FONT_SIZE, Color.WHITE)
 	_net_debug.mouse_filter = MOUSE_FILTER_IGNORE
 	_net_debug.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	_net_debug.position = Vector2(BAR_MARGIN.x, BAR_MARGIN.y + BAR_SIZE.y + 4)
+	_net_debug.position = Vector2(BAR_MARGIN.x, _name_top() + NAME_FONT_SIZE + 4)
 	_net_debug.visible = false
 	add_child(_net_debug)
 	_update()
@@ -119,6 +134,8 @@ func _process(_delta: float) -> void:
 func _update() -> void:
 	_set_fill(_left_fill, left_fighter, false)
 	_set_fill(_right_fill, right_fighter, true)
+	_left_name.text = left_name
+	_right_name.text = right_name
 	_ko.visible = _is_down(left_fighter) or _is_down(right_fighter)
 	if _ko.visible:
 		var session := get_node_or_null("/root/Session")
@@ -285,6 +302,31 @@ func _make_label(text: String, font_size: int, color: Color) -> Label:
 	label.add_theme_color_override(&"font_color", color)
 	label.add_theme_color_override(&"font_outline_color", BORDER_COLOR)
 	label.add_theme_constant_override(&"outline_size", maxi(font_size / 6, 2))
+	return label
+
+
+## Top of the name labels: `NAME_GAP` px under the bars' bottom border.
+static func _name_top() -> float:
+	return BAR_MARGIN.y + BAR_SIZE.y + BORDER + NAME_GAP
+
+
+## Adds the name label under the left (or right) bar, aligned to its outer edge.
+func _make_name(right: bool) -> Label:
+	var label := _make_label("", NAME_FONT_SIZE, NAME_COLOR)
+	label.add_theme_font_override(&"font", NAME_FONT)
+	label.mouse_filter = MOUSE_FILTER_IGNORE
+	label.offset_top = _name_top()
+	if right:
+		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		label.anchor_left = 1.0
+		label.anchor_right = 1.0
+		label.offset_left = -BAR_MARGIN.x - BAR_SIZE.x
+		label.offset_right = -BAR_MARGIN.x
+	else:
+		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		label.offset_left = BAR_MARGIN.x
+		label.offset_right = BAR_MARGIN.x + BAR_SIZE.x
+	add_child(label)
 	return label
 
 
