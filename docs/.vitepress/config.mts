@@ -1,8 +1,8 @@
 import { defineConfig } from 'vitepress'
 
 const repo = 'https://github.com/dustinmichels/street-faighter'
-// Site root; '/street-faighter/' for a GitHub Pages project site.
-const base = '/'
+// Site root: GitHub Pages project site at dustinmichels.github.io/street-faighter/.
+const base = '/street-faighter/'
 
 export default defineConfig({
   title: 'Street fAIghter',
