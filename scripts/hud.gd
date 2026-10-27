@@ -130,7 +130,7 @@ func _update() -> void:
 		_countdown.text = countdown_text(fight.tick, fight.start_tick)
 	_net_status.visible = net != null
 	if net != null:
-		_net_status.text = net_status_text(net.rtt_ms, net.local.delay if net.local != null else 0)
+		_net_status.text = net_status_text(net.ping_ms(), net.local.delay if net.local != null else 0)
 	if _net_debug.visible:
 		_net_debug.text = net_debug_text(fight, net)
 	if _notice.visible:
@@ -148,8 +148,9 @@ func show_notice(text: String) -> void:
 ## The debug overlay's lines for `world` and, online, its `sync`: this
 ## side's tick and last confirmed tick, the peer's last reported tick and
 ## this side's lead (`InputSync.lead()`), rollbacks / re-simulated ticks /
-## window, frames stalled and skipped (tick sync), and the peer's packets
-## received and lost, with the loss of the last `InputSync.LOSS_WINDOW`.
+## window, frames stalled and skipped (tick sync), the peer's packets
+## received and lost, with the loss of the last `InputSync.LOSS_WINDOW`, and
+## the simulated network conditions, if any.
 static func net_debug_text(world: Match, sync: InputSync) -> String:
 	if world == null:
 		return ""
@@ -165,6 +166,8 @@ static func net_debug_text(world: Match, sync: InputSync) -> String:
 		"Stalled %d  skipped %d frames" % [world.stalled_frames, world.skipped_frames],
 		"Packets %d in, %d lost  loss %d%%" % [sync.packets_received, sync.packets_lost, roundi(sync.packet_loss * 100.0)],
 	])
+	if sync.is_simulating():
+		lines.append("Simulated +%d ms (+0-%d) each way, %d%% loss" % [sync.sim_latency_ms, sync.sim_jitter_ms, roundi(sync.sim_loss * 100.0)])
 	return "\n".join(lines)
 
 

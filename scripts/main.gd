@@ -14,7 +14,9 @@ extends Node
 ## host restarts the match scene on both sides over the same connection.
 ## When the session ends mid-match (opponent disconnected, ...), `Session`
 ## calls `end_online()`: the match freezes, the HUD shows why, and after
-## `END_NOTICE_SECONDS` the game returns to the menu.
+## `END_NOTICE_SECONDS` the game returns to the menu. Command-line user args
+## `--net-latency=MS`, `--net-jitter=MS`, `--net-loss=PERCENT` simulate a
+## worse network (`InputSync.apply_sim_args()`).
 ##
 ## Offline, the match stays frozen until the camera's intro swing
 ## (`FollowCamera.intro_finished`) is over.
@@ -46,6 +48,7 @@ func _enter_tree() -> void:
 	_sync.remote = remote
 	_sync.world = world
 	_sync.match_id = Session.match_number
+	_sync.apply_sim_args(OS.get_cmdline_user_args())
 	_sync.timed_out.connect(_on_sync_timed_out)
 	_sync.desynced.connect(_on_sync_desynced)
 	world.add_child(_sync)

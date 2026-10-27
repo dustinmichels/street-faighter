@@ -46,6 +46,7 @@ When hosting over the public internet with direct IP:
 - Host on port 7777: `godot --path . -- --host`
 - Host on a custom port: `godot --path . -- --host --port=8888`
 - Join a host: `godot --path . -- --join=127.0.0.1:7777`
+- Simulate a worse network on this instance: add `--net-latency=MS` (one-way delay added to each direction), `--net-jitter=MS` (extra random 0–MS delay per packet) and/or `--net-loss=PERCENT`, e.g. `godot --path . -- --host --net-latency=50 --net-jitter=20 --net-loss=5`. It shapes the input packets this instance sends and receives, so set it on one instance only; that side's ping (and the F3 overlay) includes it, the other side's ping doesn't.
 
 ### Controls
 

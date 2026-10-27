@@ -354,15 +354,30 @@ func _measure_rtt() -> int:
 ## tick `ack - 1`, sends its inputs for ticks `first`, `first + 1`, ..., was
 ## at match tick `tick` with tick advantage `peer_advantage`, its checksum
 ## at its confirmed tick `check_tick` is `check_sum` (-1: none), and it is
-## its packet number `seq`. Dropped whole if any value is impossible
-## (`_valid_packet()`, `_valid_seq()`). Packets with the wrong argument
-## count or types never get here: Godot's RPC layer rejects them (with an
-## error in the log).
+## its packet number `seq`. Packets from anyone but `peer_id` or of another
+## match are ignored; the rest go to `_handle_inputs()`, through the
+## simulated network if on. Packets with the wrong argument count or types
+## never get here: Godot's RPC layer rejects them (with an error in the log).
 @rpc("any_peer", "call_remote", "unreliable_ordered", 1)
 func _receive_inputs(match_number: int, ack: int, first: int, inputs: PackedByteArray, tick: int, peer_advantage: float, check_tick: int, check_sum: int, seq: int) -> void:
 	var mp := multiplayer
 	if mp == null or mp.get_remote_sender_id() != peer_id or match_number != match_id:
 		return
+	if is_simulating():
+		_delay(_inbox, [ack, first, inputs, tick, peer_advantage, check_tick, check_sum, seq])
+	else:
+		_handle_inputs(ack, first, inputs, tick, peer_advantage, check_tick, check_sum, seq)
+
+
+## `_handle_inputs()` with its arguments in an array (simulated network).
+func _process_packet(args: Array) -> void:
+	_handle_inputs.callv(args)
+
+
+## Applies a packet of the peer (`_receive_inputs()`). Dropped whole if any
+## value is impossible (`_valid_packet()`, `_valid_seq()`), or if it arrives
+## after a later one.
+func _handle_inputs(ack: int, first: int, inputs: PackedByteArray, tick: int, peer_advantage: float, check_tick: int, check_sum: int, seq: int) -> void:
 	if not _valid_seq(seq) or not _valid_packet(ack, first, inputs, tick, peer_advantage, check_tick, check_sum):
 		return
 	_count_packet(seq)
