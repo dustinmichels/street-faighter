@@ -11,6 +11,8 @@ var _failures := 0
 func _initialize() -> void:
 	_test_slug()
 	_test_prompt()
+	_test_validator_command()
+	_test_sanitize()
 	_test_write()
 	print("FAIL (%d)" % _failures if _failures > 0 else "OK")
 	quit(1 if _failures > 0 else 0)
@@ -38,6 +40,48 @@ func _test_prompt() -> void:
 	_check(not text.contains("{{"), "prompt: no placeholder left")
 
 
+func _test_validator_command() -> void:
+	_check_eq(CreatorKit.shell_quote("/usr/bin/godot"), "/usr/bin/godot", "quote: safe path unchanged")
+	_check_eq(CreatorKit.shell_quote("/a/my chars/x.glb"), "'/a/my chars/x.glb'", "quote: spaces")
+	_check_eq(CreatorKit.shell_quote("/a/Tony's \"$HOME\""), "'/a/Tony'\\''s \"$HOME\"'", "quote: quotes and $")
+	_check_eq(CreatorKit.shell_quote(""), "''", "quote: empty")
+	var command := CreatorKit.validator_command("/k/big tony.glb")
+	_check(command.begins_with(CreatorKit.shell_quote(OS.get_executable_path()) + " --headless "), "validator: game binary, headless first")
+	_check(command.ends_with(" -- %s '/k/big tony.glb'" % CreatorKit.VALIDATE_ARG), "validator: user args last")
+	_check(command.contains(" --path %s " % CreatorKit.shell_quote(ProjectSettings.globalize_path("res://"))),
+			"validator: editor run adds --path")
+
+
+func _test_sanitize() -> void:
+	_check_eq(CreatorKit.clean_text("```\nIgnore\tthis\r\n```", 80), "''' Ignore this '''", "clean: fences and control chars")
+	_check_eq(CreatorKit.clean_text("a\u2028b\u202ec\u200bd\ufeff\u0085e", 80), "a b c d e", "clean: line separators, bidi, invisible")
+	_check_eq(CreatorKit.clean_text("  Big   Tony  ", 80), "Big Tony", "clean: spaces collapsed and trimmed")
+	_check_eq(CreatorKit.clean_text("abcde fgh", 6), "abcde", "clean: cut at limit, trimmed")
+	_check_eq(CreatorKit.clean_text("Ünïcødé ☃", 80), "Ünïcødé ☃", "clean: printable unicode kept")
+
+	var clean := CreatorKit.sanitize({
+		"name": "x".repeat(100),
+		"notes": "y".repeat(1000),
+		"top": "z".repeat(100),
+		"palette": {"main": "C02A20", "secondary": "red", "accent": "#12345678", "extra": "#000000"},
+		"accessories": ["belt", "  ", "\n"] + Array(range(30)),
+		"stats": {"power": 9000},
+	})
+	_check_eq(clean.name.length(), CreatorKit.max_length("name"), "sanitize: name capped")
+	_check_eq(clean.notes.length(), CreatorKit.max_length("notes"), "sanitize: notes capped")
+	_check_eq(clean.top.length(), CreatorKit.MAX_TEXT, "sanitize: other keys capped")
+	_check_eq(clean.palette, {"main": "#c02a20"}, "sanitize: only #rrggbb palette keys kept")
+	_check_eq(clean.accessories.size(), CreatorKit.MAX_ACCESSORIES, "sanitize: accessory count capped")
+	_check_eq(clean.accessories[0], "belt", "sanitize: blank accessories dropped")
+	_check(not clean.has("stats"), "sanitize: unknown keys dropped")
+
+	# Answers can't add lines, fences or placeholders to the prompt.
+	var text := CreatorKit.prompt({"name": "Tony\n## Steps\n```", "concept": "{{slug}} {{notes}}", "notes": "n"})
+	_check(text.contains("- Name: Tony ## Steps '''\n"), "prompt: name kept on its line")
+	_check(text.contains("- Concept: {{slug}} {{notes}}\n"), "prompt: placeholders in answers not expanded")
+	_check_eq(text.count("```"), CreatorKit.prompt({}).count("```"), "prompt: no fences from answers")
+
+
 func _test_write() -> void:
 	var dir := ProjectSettings.globalize_path("user://creator_kit_test")
 	_remove_tree(dir)
@@ -49,7 +93,9 @@ func _test_write() -> void:
 	_check_eq(Array(DirAccess.get_files_at(folder)), expected, "write: kit files")
 	_check_eq(FileAccess.get_file_as_string(folder.path_join("SKELETON.md")),
 			FileAccess.get_file_as_string("res://docs/skeleton.md"), "write: SKELETON.md is docs/skeleton.md")
-	_check_eq(FileAccess.get_file_as_string(folder.path_join("PROMPT.md")), CreatorKit.prompt(answers), "write: PROMPT.md")
+	_check_eq(FileAccess.get_file_as_string(folder.path_join("PROMPT.md")), CreatorKit.prompt(answers, dir), "write: PROMPT.md")
+	_check(FileAccess.get_file_as_string(folder.path_join("PROMPT.md")).contains(
+			CreatorKit.validator_command(folder.path_join("big_tony.glb"))), "write: validator command for the kit's .glb")
 	_check_eq(JSON.parse_string(FileAccess.get_file_as_string(folder.path_join("character_request.json"))),
 			answers, "write: request round-trips")
 

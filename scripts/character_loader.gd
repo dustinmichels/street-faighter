@@ -6,6 +6,10 @@ extends RefCounted
 
 const TOON_SHADER := preload("res://shaders/toon.gdshader")
 
+## Built-in character, also the reference skeleton and rest pose for
+## `CharacterValidator` and the fallback when a character can't be loaded.
+const DEFAULT_CHARACTER := "res://characters/default/default.glb"
+
 ## Bones every character must have (`docs/skeleton.md`). Animations target these names.
 const REQUIRED_BONES: PackedStringArray = [
 	"hips", "spine", "chest", "neck", "head",
@@ -16,31 +20,18 @@ const REQUIRED_BONES: PackedStringArray = [
 ]
 
 
-## Loads a character `.glb` and checks it has the required skeleton. Returns the
-## scene root, or null after pushing an error naming what's wrong.
+## Loads a character `.glb` after `CharacterValidator` accepts it. Returns the
+## scene root, or null after pushing an error that lists every problem.
 static func load_character(path: String) -> Node3D:
-	var root := load_glb(path)
-	if root == null:
+	var validator := CharacterValidator.new()
+	var errors := validator.validate(path)
+	if not errors.is_empty():
+		push_error("CharacterLoader: '%s' is not a valid character:\n  %s" % [path, "\n  ".join(errors)])
 		return null
-	if check_skeleton(root, path) == null:
-		root.free()
-		return null
-	return root
-
-
-## Returns the character's `Skeleton3D` if it has every required bone; otherwise
-## pushes an error (prefixed with `source`) and returns null.
-static func check_skeleton(root: Node, source: String) -> Skeleton3D:
-	var skeleton := find_skeleton(root)
-	if skeleton == null:
-		push_error("CharacterLoader: '%s' has no Skeleton3D (export the armature from the template, see docs/skeleton.md)" % source)
-		return null
-	var missing := missing_bones(skeleton)
-	if not missing.is_empty():
-		push_error("CharacterLoader: '%s' is missing %d required bone(s): %s (bones present: %s)" % [
-			source, missing.size(), ", ".join(missing), ", ".join(_bone_names(skeleton))])
-		return null
-	return skeleton
+	for warning in validator.warnings:
+		push_warning("CharacterLoader: '%s': %s" % [path, warning])
+	_apply_toon_materials(validator.scene)
+	return validator.scene
 
 
 ## First `Skeleton3D` at or under `root`, or null.
@@ -49,22 +40,6 @@ static func find_skeleton(root: Node) -> Skeleton3D:
 		return root
 	var found := root.find_children("*", "Skeleton3D", true, false)
 	return found[0] as Skeleton3D if not found.is_empty() else null
-
-
-## Names from `REQUIRED_BONES` that `skeleton` lacks (exact, case-sensitive match).
-static func missing_bones(skeleton: Skeleton3D) -> PackedStringArray:
-	var missing := PackedStringArray()
-	for bone in REQUIRED_BONES:
-		if skeleton.find_bone(bone) == -1:
-			missing.append(bone)
-	return missing
-
-
-static func _bone_names(skeleton: Skeleton3D) -> PackedStringArray:
-	var names := PackedStringArray()
-	for i in skeleton.get_bone_count():
-		names.append(skeleton.get_bone_name(i))
-	return names
 
 
 ## Loads the `.glb` at `path` (res://, user://, or absolute) and returns its
@@ -87,7 +62,7 @@ static func load_glb(path: String) -> Node3D:
 		push_error("CharacterLoader: '%s' produced no scene" % path)
 		return null
 	root.name = path.get_file().get_basename().validate_node_name()
-	_bake_importer_meshes(root)
+	bake_importer_meshes(root)
 	_apply_toon_materials(root)
 	return root
 
@@ -95,7 +70,7 @@ static func load_glb(path: String) -> Node3D:
 ## In the editor (tool scripts such as `Stage`), `generate_scene()` leaves
 ## `ImporterMeshInstance3D`s, which don't render; swap them for real
 ## `MeshInstance3D`s. A no-op in the running game.
-static func _bake_importer_meshes(root: Node) -> void:
+static func bake_importer_meshes(root: Node) -> void:
 	for node in root.find_children("*", "ImporterMeshInstance3D", true, false):
 		var src := node as ImporterMeshInstance3D
 		var mi := MeshInstance3D.new()

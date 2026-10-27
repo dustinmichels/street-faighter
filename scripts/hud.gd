@@ -18,7 +18,9 @@ extends Control
 ## (online: why the match ended). Online (`net` set), the bottom-left corner
 ## shows the ping and this side's input delay (`net_status_text()`). The
 ## `net_debug` action (F3) toggles a debug overlay under the left name:
-## ticks, rollbacks, stalls and packet loss (`net_debug_text()`).
+## ticks, rollbacks, stalls and packet loss (`net_debug_text()`). Offline,
+## `debug_text` (set by `main.gd`, e.g. a non-default CPU difficulty) shows in
+## the bottom-left corner instead.
 
 const BAR_SIZE := Vector2(200, 8)
 ## Gap between a bar and the screen's top and side edges (px).
@@ -44,6 +46,7 @@ const CONTROLS: Array[Array] = [
 	[&"restart", "Restart"],
 	[&"controls", "Show controls"],
 	[&"net_debug", "Network debug overlay"],
+	[&"ai_difficulty", "CPU difficulty: default / easy (debug)"],
 ]
 const CONTROLS_FONT_SIZE := 10
 ## Fighter names under the bars: the menu's pixel font at its native size,
@@ -69,6 +72,8 @@ var right_name := ""
 ## Online: the match's input exchange, for the ping and input delay. null
 ## offline (no network line).
 var net: InputSync
+## Offline debug line in the bottom-left corner; hidden while empty.
+var debug_text := ""
 
 var _left_fill: ColorRect
 var _right_fill: ColorRect
@@ -161,9 +166,11 @@ func _update() -> void:
 		_ko_hint.text = ko_hint(online, req, peer_req)
 	if fight != null:
 		_countdown.text = countdown_text(fight.tick, fight.start_tick)
-	_net_status.visible = net != null
+	_net_status.visible = net != null or debug_text != ""
 	if net != null:
 		_net_status.text = net_status_text(net.ping_ms(), net.local.delay if net.local != null else 0)
+	else:
+		_net_status.text = debug_text
 	if _net_debug.visible:
 		_net_debug.text = net_debug_text(fight, net)
 	if _notice.visible:

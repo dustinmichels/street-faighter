@@ -759,11 +759,14 @@ func _state_clip() -> StringName:
 	return &"idle"
 
 
-## Replaces the current model with the character at `path`. Returns false (and
-## keeps the old model) if it can't be loaded or lacks the required skeleton.
+## Replaces the current model with the character at `path`. Returns false if it
+## fails `CharacterValidator` or can't be loaded; the fighter then keeps its old
+## model, or gets `CharacterLoader.DEFAULT_CHARACTER` if it has none yet.
 func set_character(path: String) -> bool:
 	var new_model := CharacterLoader.load_character(path)
 	if new_model == null:
+		if model == null and path != CharacterLoader.DEFAULT_CHARACTER:
+			set_character(CharacterLoader.DEFAULT_CHARACTER)
 		return false
 	if model != null:
 		model.queue_free()

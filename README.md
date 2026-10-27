@@ -63,7 +63,7 @@ These shortcuts act on the first menu only: once a session ends, the instance st
   - Instance 2: `--resolution 960x540 --position 960,40 -- --join=127.0.0.1:7777`
 
   Then Run Project (F5) starts both, side by side, already connected. Add the `--net-…` options to one of them to test a worse network. The setting is stored in `.godot/` (not versioned), so each checkout sets it once. If the editor embeds the running game (Game tab), turn that off (Game tab → "Embed Game on Next Play") so both windows appear.
-- **Terminal:** `godot --path . --resolution 960x540 --position 0,40 -- --host & godot --path . --resolution 960x540 --position 960,40 -- --join=127.0.0.1:7777`
+- **Terminal:** `mise run mp` (alias of `mise run multiplayer`, defined in `mise.toml`) starts a host and a joiner side by side, already connected; Ctrl-C closes both. Without mise: `godot --path . --resolution 960x540 --position 0,40 -- --host & godot --path . --resolution 960x540 --position 960,40 -- --join=127.0.0.1:7777`
 
 Keyboard input goes to the focused window only; click the other window to play its fighter. A gamepad drives both instances at once.
 
@@ -76,19 +76,22 @@ Keyboard input goes to the focused window only; click the other window to play i
 | Punch    | J or Z (kick while airborne, sweep while crouching)                                       | X / □ or A / ✕            |
 | Block    | K or X (hold)                                                                             | RB / R1 or RT / R2 (hold) |
 | Crouch   | S or ↓ (hold)                                                                             | D-pad down or stick down (hold) |
+| Special  | I or C (once ★ is ready)                                                                  | Y / △                     |
 | Controls | Esc                                                                                       | Start                     |
 | Restart  | R (any time)                                                                              | Back / Select             |
 | Network debug overlay | F3                                                                             | —                         |
+| CPU difficulty (debug) | F1 (default / easy)                                                           | —                         |
 
 - Hold block to guard in place against hits from the front. You don't move while guarding, and letting go makes you act again immediately. A blocked hit holds your guard for 0.2 s.
 - Hold crouch to duck in place: punches pass over you, but air kicks still hit. You don't move while crouching, and a held block takes priority. A crouching (or sweeping) fighter can be jumped over to switch sides.
 - Punch while crouching to sweep: a low spinning kick (one full turn, the back leg swinging around along the floor) that knocks the opponent off their feet (10 damage), with a light camera shake when it lands. They stay down about 1.15 s, can't be hit while down, then get back up. Blocking and crouching don't stop a sweep; only jumping does. The jump has to start before the sweep's active frames (6 ticks after the press), and its takeoff already counts.
-- Punches are buffered: a press up to 4 ticks early comes out on the first tick you can act. This covers presses during recovery, hit stun, blockstun and the jump landing. The 5-tick window matches Street Fighter 6.
-- WASD is for the left hand with J (punch) and K (block) for the right. With the arrow keys in the right hand, use Z (punch) and X (block) with the left.
+- Punches are buffered: a press up to 4 ticks early comes out on the first tick you can act. This covers presses during recovery, hit stun, blockstun and the jump landing. The 5-tick window matches Street Fighter 6. The special press is buffered the same way.
+- Special: land 3 hits in a row (punches, air kicks or sweeps that aren't blocked) without getting hit, and a star (★) pulses at the inner end of your health bar. Getting hit before you use it loses it. Press special on the ground to grab (3 active frames, reaching ≈ 0.9 m): the opponent is lifted, flipped over your head and slammed down behind you (20 damage, camera shake), so you switch sides. Blocking and crouching don't stop it; jumping or being in hit stun does. A missed grab still uses up the star. Only players have the special; the computer opponent never gets it.
+- WASD is for the left hand with J (punch), K (block) and I (special) for the right. With the arrow keys in the right hand, use Z (punch), X (block) and C (special) with the left.
 
-Keys are bound by physical position, so on non-QWERTY layouts use the keys where W/A/S/D/J/K/Z/X/R sit on a QWERTY keyboard.
+Keys are bound by physical position, so on non-QWERTY layouts use the keys where W/A/S/D/J/K/I/Z/X/C/R sit on a QWERTY keyboard.
 
-In game, press Esc or click the **Controls** button (bottom-right) to show or hide this list. F3 toggles a network debug overlay under the left health bar: current and confirmed tick, the opponent's tick and your lead, rollbacks, stalled/skipped frames, and packets received/lost with the loss over the last second.
+In game, press Esc or click the **Controls** button (bottom-right) to show or hide this list. F3 toggles a network debug overlay under the left health bar: current and confirmed tick, the opponent's tick and your lead, rollbacks, stalled/skipped frames, and packets received/lost with the loss over the last second. Against the CPU, F1 switches its difficulty between default and easy (`AIInput.EASY_KNOBS`: too slow to block punches, defends and attacks less); it applies at once, carries over restarts, and "CPU difficulty: easy" shows in the bottom-left corner while it's on.
 
 ### Rebuilding generated assets
 

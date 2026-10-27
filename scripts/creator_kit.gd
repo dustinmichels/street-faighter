@@ -10,7 +10,8 @@ extends RefCounted
 ## arrays of strings, and `palette` as a dictionary of `#rrggbb` strings).
 ## Keys used by `PROMPT_TEMPLATE.md`: `name`, `concept`, `archetype`, `build`,
 ## `head`, `headwear`, `top`, `bottom`, `footwear`, `palette` (`main`,
-## `secondary`, `accent`, `base`), `accessories`, `notes`.
+## `secondary`, `accent`, `base`), `accessories`, `notes`. `prompt()` and
+## `write()` pass them through `sanitize()` first.
 
 const SOURCE_DIR := "res://creator_kit"
 ## Filled in by `prompt()`; not copied into the kit.
@@ -30,6 +31,18 @@ const SETTINGS_SECTION := "creator_kit"
 const SETTINGS_DIR_KEY := "dir"
 ## What the player does after `hand_off()`; the UI shows it with the folder.
 const NEXT_STEP := "Open a terminal in this folder, run `claude`, and paste the prompt."
+## Text answers, each one line in the prompt's design brief.
+const TEXT_KEYS := ["name", "concept", "archetype", "build", "head", "headwear", "top", "bottom",
+		"footwear", "notes"]
+const PALETTE_KEYS := ["main", "secondary", "accent", "base"]
+## Longest kept text answer, in characters (`max_length()`): `MAX_LENGTHS`,
+## or `MAX_TEXT` for other keys and each accessory.
+const MAX_LENGTHS := {"name": 32, "concept": 160, "notes": 400}
+const MAX_TEXT := 80
+const MAX_ACCESSORIES := 16
+## User argument that makes the game validate a `.glb` and quit instead of
+## starting (§4): `<game> --headless -- --validate-character <file.glb>`.
+const VALIDATE_ARG := "--validate-character"
 
 
 ## Run after `write()`: copies the kit's `PROMPT.md` to the clipboard and opens
@@ -109,15 +122,75 @@ static func slug(name: String) -> String:
 	return out if not out.is_empty() else "character"
 
 
-## The agent's prompt: `PROMPT_TEMPLATE.md` with each `{{key}}` replaced by
-## the answer (`{{palette.main}}` for nested keys, arrays joined with ", ",
-## `{{slug}}` from the name). Placeholders without an answer get `UNSPECIFIED`.
-static func prompt(answers: Dictionary) -> String:
+## Longest kept answer for a text key (see `MAX_LENGTHS`).
+static func max_length(key: String) -> int:
+	return MAX_LENGTHS.get(key, MAX_TEXT)
+
+
+## The answers as safe template values: only known keys; text on one line
+## (`clean_text()`) and capped at `max_length()`; at most `MAX_ACCESSORIES`
+## non-empty accessories; palette colors that aren't `#rrggbb` dropped.
+## Missing or dropped answers show as `UNSPECIFIED` in the prompt.
+static func sanitize(answers: Dictionary) -> Dictionary:
+	var out := {}
+	for key: String in TEXT_KEYS:
+		if answers.has(key):
+			out[key] = clean_text(str(answers[key]), max_length(key))
+	var palette: Variant = answers.get("palette")
+	if palette is Dictionary:
+		var colors := {}
+		var hex := RegEx.create_from_string("^#?([0-9a-fA-F]{6})$")
+		for key: String in PALETTE_KEYS:
+			var m := hex.search(str(palette.get(key, "")).strip_edges())
+			if m != null:
+				colors[key] = "#" + m.get_string(1).to_lower()
+		out["palette"] = colors
+	var accessories: Variant = answers.get("accessories")
+	if accessories is Array or accessories is PackedStringArray:
+		var items: Array[String] = []
+		for item: Variant in accessories:
+			var text := clean_text(str(item), MAX_TEXT)
+			if not text.is_empty() and items.size() < MAX_ACCESSORIES:
+				items.append(text)
+		out["accessories"] = items
+	return out
+
+
+## One line of player text that can't change the prompt's structure: control,
+## line-separator and invisible format characters become spaces, backticks
+## (Markdown code spans and fences) become `'`, runs of spaces collapse, and
+## the result is trimmed and cut to `limit` characters.
+static func clean_text(text: String, limit: int) -> String:
+	var out := ""
+	for c in text:
+		var code := c.unicode_at(0)
+		if code < 0x20 or (code >= 0x7f and code <= 0x9f) or (code >= 0x200b and code <= 0x200f) \
+				or (code >= 0x2028 and code <= 0x202e) or (code >= 0x2060 and code <= 0x206f) or code == 0xfeff:
+			out += " "
+		elif c == "`":
+			out += "'"
+		else:
+			out += c
+	out = RegEx.create_from_string(" {2,}").sub(out, " ", true).strip_edges()
+	return out.left(limit).strip_edges()
+
+
+## The agent's prompt for a kit in `<dir>/<slug>/`: `PROMPT_TEMPLATE.md` with
+## each `{{key}}` replaced by the answer (`{{palette.main}}` for nested keys,
+## arrays joined with ", ", `{{slug}}` from the name,
+## `{{validator_command}}` from `validator_command()` for the kit's `.glb`),
+## after `sanitize()`. Placeholders without an answer get `UNSPECIFIED`.
+static func prompt(answers: Dictionary, dir: String = saved_dir()) -> String:
 	var template := FileAccess.get_file_as_string(SOURCE_DIR.path_join(PROMPT_TEMPLATE))
 	if template.is_empty():
 		push_error("CreatorKit: can't read %s: %s" % [PROMPT_TEMPLATE, error_string(FileAccess.get_open_error())])
 		return ""
-	var values := {"slug": slug(str(answers.get("name", "")))}
+	answers = sanitize(answers)
+	var character := slug(str(answers.get("name", "")))
+	var values := {
+		"slug": character,
+		"validator_command": validator_command(dir.path_join(character).path_join(character + ".glb")),
+	}
 	_flatten(answers, "", values)
 	var placeholder := RegEx.create_from_string("\\{\\{\\s*([\\w.]+)\\s*\\}\\}")
 	var out := ""
@@ -140,12 +213,33 @@ static func _flatten(value: Variant, key: String, into: Dictionary) -> void:
 		into[key] = str(value)
 
 
+## Shell command (POSIX `sh`; Claude Code uses Git Bash on Windows) that runs
+## this game binary headless on `glb_path` (absolute, since `--path` changes
+## the working directory) and prints the validator's problems or `OK`. Run from
+## the editor, the binary is the editor, so the project is added with `--path`.
+static func validator_command(glb_path: String) -> String:
+	var args := [OS.get_executable_path(), "--headless"]
+	if OS.has_feature("editor"):
+		args += ["--path", ProjectSettings.globalize_path("res://")]
+	args += ["--", VALIDATE_ARG, glb_path]
+	return " ".join(PackedStringArray(args.map(shell_quote)))
+
+
+## `arg` as one POSIX shell word: unchanged if it only has safe characters,
+## else in single quotes (`'` written as `'\''`).
+static func shell_quote(arg: String) -> String:
+	if not arg.is_empty() and RegEx.create_from_string("^[\\w@%+=:,./-]+$").search(arg) != null:
+		return arg
+	return "'%s'" % arg.replace("'", "'\\''")
+
+
 ## Writes the kit into `<dir>/<slug>/`: the kit files, `SKELETON.md`, the
-## filled-in `PROMPT.md`, and `character_request.json` (the raw `answers`, so
-## the questionnaire can be reopened). Kit files and those two are overwritten
-## if the folder exists; the agent's own files there are kept. Returns the
-## kit folder, or "" after pushing an error.
+## filled-in `PROMPT.md`, and `character_request.json` (the `sanitize()`d
+## answers, so the questionnaire can be reopened). Kit files and those two are
+## overwritten if the folder exists; the agent's own files there are kept.
+## Returns the kit folder, or "" after pushing an error.
 static func write(dir: String, answers: Dictionary) -> String:
+	answers = sanitize(answers)
 	var folder := dir.path_join(slug(str(answers.get("name", ""))))
 	var err := DirAccess.make_dir_recursive_absolute(folder)
 	if err != OK:
@@ -162,7 +256,7 @@ static func write(dir: String, answers: Dictionary) -> String:
 			return ""
 		if not _write_file(folder.path_join(file), bytes):
 			return ""
-	var text := prompt(answers)
+	var text := prompt(answers, dir)
 	if text.is_empty():
 		return ""
 	if not _write_file(folder.path_join(PROMPT_NAME), text.to_utf8_buffer()):

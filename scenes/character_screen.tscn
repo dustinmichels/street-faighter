@@ -86,3 +86,78 @@ mouse_filter = 2
 unique_name_in_owner = true
 layout_mode = 2
 script = ExtResource("2_wizard")
+
+[node name="ReviewPage" type="CenterContainer" parent="."]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Items" type="VBoxContainer" parent="ReviewPage"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 5
+
+[node name="Title" type="Label" parent="ReviewPage/Items"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.98, 0.82, 0.2, 1)
+theme_override_font_sizes/font_size = 16
+text = "YOUR PROMPT"
+horizontal_alignment = 1
+
+[node name="Prompt" type="TextEdit" parent="ReviewPage/Items"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(440, 140)
+layout_mode = 2
+focus_mode = 1
+tooltip_text = "The prompt for your AI agent. Up/down scroll it."
+editable = false
+context_menu_enabled = false
+wrap_mode = 1
+
+[node name="Status" type="Label" parent="ReviewPage/Items"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(440, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.58, 0.7, 1)
+horizontal_alignment = 1
+autowrap_mode = 1
+
+[node name="Buttons" type="HBoxContainer" parent="ReviewPage/Items"]
+layout_mode = 2
+theme_override_constants/separation = 12
+alignment = 1
+
+[node name="ReviewBack" type="Button" parent="ReviewPage/Items/Buttons"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "BACK"
+
+[node name="CopyPrompt" type="Button" parent="ReviewPage/Items/Buttons"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Copy the prompt to the clipboard."
+text = "COPY PROMPT"
+
+[node name="SaveKit" type="Button" parent="ReviewPage/Items/Buttons"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Write the creator kit folder, copy the prompt, and open the folder."
+text = "SAVE KIT"
+
+[node name="KitFolder" type="Button" parent="ReviewPage/Items/Buttons"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Choose the folder creator kits are saved in."
+text = "FOLDER…"
+
+[node name="Hint" type="Label" parent="ReviewPage/Items"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.58, 0.7, 1)
+text = "UP/DOWN: SCROLL    ESC: BACK"
+horizontal_alignment = 1

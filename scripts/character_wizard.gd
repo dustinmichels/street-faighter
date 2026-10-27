@@ -174,29 +174,40 @@ static func _pick(option: OptionButton, detail: LineEdit) -> String:
 	item = item.to_lower()
 	return item if text.is_empty() else "%s, %s" % [item, text]
 
+
+## Free-text length that fits `CreatorKit.max_length(key)` after `_pick()`
+## prepends the longest pick of `items` and ", ".
+static func _detail_limit(key: String, items: Array) -> int:
+	var longest := 0
+	for item: String in items:
+		longest = maxi(longest, item.length())
+	return CreatorKit.max_length(key) - longest - 2
+
+
 func _build_page(page: Page, box: Control) -> void:
 	match page:
 		Page.IDENTITY:
-			_name = _field(box, "NAME (REQUIRED)", "BIG TONY")
+			_name = _field(box, "NAME (REQUIRED)", "BIG TONY", CreatorKit.max_length("name"))
 			_name.text_changed.connect(_update_slug)
 			_slug = _label("", HINT_COLOR)
 			box.add_child(_slug)
-			_concept = _field(box, "CONCEPT IN ONE SENTENCE", "a retired sumo wrestler turned subway busker")
+			_concept = _field(box, "CONCEPT IN ONE SENTENCE", "a retired sumo wrestler turned subway busker",
+					CreatorKit.max_length("concept"))
 			_concept.custom_minimum_size.x = 380
 		Page.ARCHETYPE:
 			_archetype = _choice(box, "TYPE", ARCHETYPES)
 			_archetype.item_selected.connect(_update_other)
-			_archetype_other = _field(_row(box, "OTHER"), "", "")
+			_archetype_other = _field(_row(box, "OTHER"), "", "", _detail_limit("archetype", ARCHETYPES))
 		Page.BUILD:
 			_build = _choice(box, "BUILD", BUILDS)
 			box.add_child(_note("The joints are fixed: the build changes how bulky the parts are, not the length of the limbs."))
 		Page.HEAD:
 			_head = _choice(box, "HEAD", HEADS)
-			_headwear = _field(_row(box, "HAIR/HAT"), "", "topknot, red bandana")
+			_headwear = _field(_row(box, "HAIR/HAT"), "", "topknot, red bandana", CreatorKit.max_length("headwear"))
 		Page.OUTFIT:
 			for row: Array in [["top", "TOP", TOPS], ["bottom", "BOTTOM", BOTTOMS], ["footwear", "FOOTWEAR", FOOTWEAR]]:
 				var option := _choice(box, row[1], row[2])
-				var detail := _field(option.get_parent(), "", "details")
+				var detail := _field(option.get_parent(), "", "details", _detail_limit(row[0], row[2]))
 				detail.custom_minimum_size.x = 140
 				_outfit[row[0]] = [option, detail]
 		Page.PALETTE:
@@ -206,6 +217,12 @@ func _build_page(page: Page, box: Control) -> void:
 			box.add_child(presets)
 			for preset: String in PRESETS:
 				_button(preset, presets).pressed.connect(_apply_preset.bind(preset))
+			# Left/right stay in the row: geometrically the wide pickers below
+			# are nearer than the next preset.
+			var buttons := presets.get_children()
+			for i in buttons.size():
+				buttons[i].focus_neighbor_left = buttons[maxi(i - 1, 0)].get_path()
+				buttons[i].focus_neighbor_right = buttons[mini(i + 1, buttons.size() - 1)].get_path()
 			for key: String in PALETTE_KEYS:
 				var row := _row(box, PALETTE_KEYS[key])
 				var picker := ColorPickerButton.new()
@@ -231,7 +248,8 @@ func _build_page(page: Page, box: Control) -> void:
 				_update_accessory(false, button)
 				_accessories.append(button)
 		Page.NOTES:
-			_notes = _field(box, "ANYTHING ELSE THE AGENT SHOULD KNOW?", "a scar over the left eye")
+			_notes = _field(box, "ANYTHING ELSE THE AGENT SHOULD KNOW?", "a scar over the left eye",
+					CreatorKit.max_length("notes"))
 			_notes.custom_minimum_size.x = 380
 			box.add_child(_note("Next: review the prompt for your AI agent and save the creator kit."))
 
@@ -318,10 +336,13 @@ func _row(box: Control, text: String) -> HBoxContainer:
 	return row
 
 
-## A labeled text field; Enter moves on to the next control.
-func _field(box: Control, text: String, placeholder: String) -> LineEdit:
+## A labeled text field taking at most `limit` characters (the
+## `CreatorKit.sanitize()` cap, so nothing typed is cut off later); Enter moves
+## on to the next control.
+func _field(box: Control, text: String, placeholder: String, limit: int) -> LineEdit:
 	var edit := LineEdit.new()
 	edit.placeholder_text = placeholder
+	edit.max_length = limit
 	edit.custom_minimum_size.x = FIELD_WIDTH
 	edit.context_menu_enabled = false
 	edit.text_submitted.connect(func(_t: String) -> void: _focus_next(edit))

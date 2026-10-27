@@ -24,6 +24,10 @@ extends Node
 ## The HUD labels each health bar with its fighter's name (`_fighter_name()`).
 ## Only players get the special: a fighter driven by the computer
 ## (`AIInput`) has `Fighter.specials_enabled` off.
+##
+## Offline, the `ai_difficulty` debug action (F1) cycles the computer
+## opponent's `AIInput.difficulty` (default / easy) mid-match; it carries over
+## restarts, and the HUD names it while it isn't the default.
 
 ## Seconds the reason an online match ended stays up before the menu.
 const END_NOTICE_SECONDS := 3.0
@@ -41,10 +45,20 @@ func _enter_tree() -> void:
 		_wire_online(world)
 	for f in world.fighters:
 		f.specials_enabled = not (f.input is AIInput)
+		if f.input is AIInput:
+			(f.input as AIInput).apply_difficulty()
 	var hud := get_node_or_null("Hud") as Hud
 	if hud != null:
 		hud.left_name = _fighter_name(world, 0)
 		hud.right_name = _fighter_name(world, 1)
+		hud.debug_text = _difficulty_text()
+
+
+## HUD line for the current `AIInput.difficulty`; empty for the default.
+static func _difficulty_text() -> String:
+	if AIInput.difficulty == AIInput.Difficulty.DEFAULT:
+		return ""
+	return "CPU difficulty: %s" % str(AIInput.Difficulty.find_key(AIInput.difficulty)).to_lower()
 
 
 ## Name shown on fighter `index`'s health bar: this player's
@@ -146,6 +160,10 @@ static func desync_report(tick: int, own_state: PackedInt64Array, peer_state: Pa
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed(&"ai_difficulty") and not event.is_echo() and not Session.is_online():
+		get_viewport().set_input_as_handled()
+		_cycle_difficulty()
+		return
 	if not event.is_action_pressed(&"restart") or event.is_echo():
 		return
 	if not Session.is_online():
@@ -154,3 +172,11 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif _world.is_over():
 		get_viewport().set_input_as_handled()
 		Session.request_rematch()
+
+
+func _cycle_difficulty() -> void:
+	AIInput.cycle_difficulty()
+	for f in _world.fighters:
+		if f.input is AIInput:
+			(f.input as AIInput).apply_difficulty()
+	($Hud as Hud).debug_text = _difficulty_text()

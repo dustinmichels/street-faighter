@@ -22,10 +22,29 @@ extends InputSource
 ## from the match's `rng_seed`, so the same match seed and player inputs
 ## replay the same match (tick-based, no wall clock). It is input-side
 ## randomness: only the AI's resulting buttons enter the simulation.
+##
+## `difficulty` (static, so it survives a restart) picks the knobs: `DEFAULT`
+## uses the exported values, `EASY` overrides them with `EASY_KNOBS`. The
+## `ai_difficulty` debug action (F1, `main.gd`) cycles it mid-match.
 
 enum Plan { WAIT, ATTACK, RETREAT, JUMP_IN }
 ## Answer chosen for the current threat.
 enum Defense { NONE, BLOCK, DUCK }
+enum Difficulty { DEFAULT, EASY }
+
+## Knob values `Difficulty.EASY` uses instead of the exported ones: too slow to
+## block punches, rarely defends, attacks less and less often.
+const EASY_KNOBS := {
+	&"reaction_ticks": 8,
+	&"block_chance": 0.15,
+	&"duck_chance": 0.1,
+	&"sweep_chance": 0.1,
+	&"aggression": 0.35,
+	&"punch_cooldown_ticks": 60,
+}
+
+## Difficulty for every computer opponent; applied by `apply_difficulty()`.
+static var difficulty := Difficulty.DEFAULT
 
 ## Names the HUD gives a computer opponent (`random_name()`), at most
 ## `Session.MAX_NAME_LENGTH` characters.
@@ -78,6 +97,24 @@ var _threat_ticks := 0
 var _defense := Defense.NONE
 ## Set once a punch was ducked, until the punish sweep or the chance passes.
 var _ducked := false
+## The exported knob values, saved by the first `apply_difficulty()`.
+var _default_knobs := {}
+
+
+## Cycles `difficulty` to the next level and returns it.
+static func cycle_difficulty() -> Difficulty:
+	difficulty = ((difficulty + 1) % Difficulty.size()) as Difficulty
+	return difficulty
+
+
+## Sets the knobs for the current `difficulty`. Takes effect from the next tick.
+func apply_difficulty() -> void:
+	if _default_knobs.is_empty():
+		for knob: StringName in EASY_KNOBS:
+			_default_knobs[knob] = get(knob)
+	var knobs := EASY_KNOBS if difficulty == Difficulty.EASY else _default_knobs
+	for knob: StringName in knobs:
+		set(knob, knobs[knob])
 
 
 ## A random entry of `NAMES`. Cosmetic only: uses the global RNG, not the
