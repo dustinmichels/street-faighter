@@ -31,7 +31,7 @@ Design constraints carried forward from `notes.md` so later steps don't require 
 - [x] Outline pass (inverted-hull or screen-space edge shader) for a sprite look.
   - `match/outline.gdshader` on `Camera3D/Outline` (full-screen QuadMesh): depth-Laplacian silhouettes (1 px, on the nearer object) + normal creases. Works on any mesh, so runtime-loaded models need no per-mesh setup.
 - [x] Optional: color quantization / palette shader on the final image.
-  - `match/quantize.gdshader` (canvas_item) as `GameView` material; `levels = 12` per channel (6 is noticeably harsher).
+  - `match/quantize.gdshader` (canvas_item) as `GameView` material; `levels = 16` per channel (was 12; 6 is noticeably harsher).
 - [x] Optional: snap model/camera positions to the pixel grid to avoid shimmering.
   - `match/pixel_camera.gd` (`PixelCamera`, on `Camera3D`): move the camera via `target_position` (§9 follow cam); fighters (§7) should set their visual root's global position to `camera.snap(body_pos)` and keep the physics body unsnapped. Verified: sub-pixel camera moves render identically, a 1 px move is an exact 1 px image shift.
 

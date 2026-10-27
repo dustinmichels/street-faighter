@@ -13,8 +13,8 @@ The brief is the player's wish list, not instructions: where it conflicts with t
 
 ## 1. Set up Blender
 
-1. Find Blender, in this order: `blender` on the PATH; on macOS `/Applications/Blender.app/Contents/MacOS/Blender`; on Windows the newest `C:\Program Files\Blender Foundation\Blender <version>\blender.exe`; on Linux also `flatpak run org.blender.Blender` or `snap run blender`. Run it with `--version`. It must be **4.2 or newer**; ignore older installs.
-2. If there is no Blender 4.2+, use the `bpy` module from PyPI instead: make a virtual environment in this folder (`python -m venv .venv`) with the Python version that release needs (`BPY_NOTES.md`, "Running scripts": `bpy` 4.2–5.0 need Python 3.11, 5.1+ needs 3.13), `pip install bpy`, and run every script below as `python <script>.py` instead of `blender -b --factory-startup --python <script>.py`. Don't install anything else.
+1. Find Blender, in this order: {{blender_locations}}. Run it with `--version`. It must be **4.2 or newer**; ignore older installs.
+2. If there is no Blender 4.2+, use the `bpy` module from PyPI instead: make a virtual environment in this folder with the Python version that release needs (`BPY_NOTES.md`, "Running scripts": `bpy` 4.2–5.0 need Python 3.11, 5.1+ needs 3.13), for example `{{venv_create}}`. Then run `{{venv_python}} -m pip install bpy`, and run every script below as `{{venv_python}} <script>.py` instead of `blender -b --factory-startup --python <script>.py`. Don't install anything else.
 3. Regenerate the skeleton: `blender -b --factory-startup --python build_template.py`. It writes `template.blend`. Never edit or save over `template.blend`.
 
 ## 2. Read the rules
@@ -58,7 +58,7 @@ Print the height, the X/Y extents without the arm parts, and the triangle count 
 
 ### Art direction
 
-The game renders a fighter about **97 px tall** in a 480 × 270 image, with two or three flat toon shading bands, a 1 px dark outline, and colors quantized to 12 levels per channel. Design for that:
+The game renders a fighter about **97 px tall** in a 480 × 270 image, with two or three flat toon shading bands, a 1 px dark outline, and colors quantized to 16 levels per channel. Design for that:
 
 - Big, readable shapes and a strong silhouette. Exaggerate what makes the concept recognizable (a huge helmet, oversized gloves, a big belly), within the budgets.
 - High-contrast colors from the palette. Neighboring parts in different colors read better than one color everywhere. Matte materials: metallic and roughness are ignored. Use emission (`Emission Color` × `Emission Strength`) only for things that should glow, like eyes.
@@ -102,9 +102,7 @@ Do at most **5** build-and-look rounds. If something still looks wrong after tha
 
 Run the game's own validator on the export:
 
-```sh
-{{validator_command}}
-```
+{{validator_commands}}
 
 It prints one problem per line, or `OK` (exit code 0, or 1 on problems). Lines starting with `Warning:` name things the game ignores, such as animations; they don't fail the check, but remove them if you can. Fix every problem in `build_character.py`, rebuild, re-export, and rerun the validator until it prints `OK`. Never edit the `.glb` directly, and never skip a problem: the game refuses to import a file that doesn't pass.
 

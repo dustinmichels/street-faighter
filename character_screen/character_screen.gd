@@ -34,6 +34,13 @@ const TITLE := "CHARACTERS"
 const SELECT_TITLE := "CHOOSE YOUR FIGHTER"
 ## Lines scrolled per up/down press on the review and errors pages.
 const SCROLL_LINES := 3
+## Step 2's first line per `OS.get_name()`: how to open the terminal that
+## `CreatorKit.agent_command()` is written for. Other platforms use `Linux`'s.
+const OPEN_TERMINAL := {
+	"macOS": "OPEN THE TERMINAL APP (PRESS CMD+SPACE AND TYPE TERMINAL).",
+	"Windows": "OPEN POWERSHELL (PRESS THE WINDOWS KEY AND TYPE POWERSHELL).",
+	"Linux": "OPEN A TERMINAL.",
+}
 
 ## Character select for singleplayer (see the class doc); set before `open()`.
 var selecting := false
@@ -178,11 +185,9 @@ func open() -> void:
 	_library_title.text = SELECT_TITLE if selecting else TITLE
 	_fight.visible = selecting
 	_open_library(
-		(
-			CharacterLibrary.chosen(CharacterLibrary.PLAYER_CHOICE)
+		(CharacterLibrary.chosen(CharacterLibrary.PLAYER_CHOICE)
 			if selecting
-			else _selected_choice()
-		)
+			else _selected_choice())
 	)
 
 
@@ -292,12 +297,13 @@ func _fill_agent() -> void:
 	var name: String = CreatorKit.AGENTS[id].name.to_upper()
 	FocusArrows.set_text(_agent, "AGENT: %s" % name)
 	_command.text = CreatorKit.agent_command(_kit, id)
+	var open_terminal: String = OPEN_TERMINAL.get(OS.get_name(), OPEN_TERMINAL.Linux)
 	if CreatorKit.AGENTS[id].run.is_empty():
-		_agent_steps.text = "1. OPEN A TERMINAL.\n2. PASTE THIS COMMAND (IT'S ON YOUR CLIPBOARD) AND PRESS ENTER " \
+		_agent_steps.text = "1. %s\n2. PASTE THIS COMMAND (IT'S ON YOUR CLIPBOARD) AND PRESS ENTER " % open_terminal \
 				+ "TO GO TO THE KIT FOLDER. START YOUR AGENT THERE AND TELL IT: \"%s\"" % CreatorKit.AGENT_REQUEST
 		name = "YOUR AGENT"
 	else:
-		_agent_steps.text = "1. OPEN A TERMINAL.\n2. PASTE THIS COMMAND (IT'S ON YOUR CLIPBOARD) AND PRESS ENTER. " \
+		_agent_steps.text = "1. %s\n2. PASTE THIS COMMAND (IT'S ON YOUR CLIPBOARD) AND PRESS ENTER. " % open_terminal \
 				+ "%s STARTS IN THE KIT FOLDER AND READS ITS PROMPT.md." % name
 	_agent_after.text = "3. %s BUILDS THE CHARACTER IN BLENDER, EXPORTS IT, AND CHECKS IT WITH THE GAME'S " % name \
 			+ "VALIDATOR. THAT TAKES A WHILE. WHEN IT'S DONE, PRESS NEXT."

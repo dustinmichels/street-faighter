@@ -38,13 +38,15 @@ const ARCHETYPES := [
 const BUILDS := ["SLIM", "ATHLETIC", "HEAVY", "HUGE"]
 ## Palette keys in `CreatorKit` order, with their swatch labels.
 const PALETTE_KEYS := { "main": "MAIN", "secondary": "2ND", "accent": "ACCENT", "base": "SKIN" }
-## Starting palettes (sRGB); the first one fills a new questionnaire.
+## Palettes to pick from (sRGB); the first one fills a new questionnaire.
 const PRESETS := {
 	"STREET": ["#c02a20", "#2a2f45", "#f2c230", "#d9a07a"],
 	"NEON": ["#19d9ff", "#1a1030", "#ff3fa4", "#c8b6ff"],
 	"STEEL": ["#8a96a8", "#3a3f4a", "#ff7a1a", "#c9ced6"],
 	"JUNGLE": ["#4f7a2a", "#6b4a2a", "#f2e2a0", "#8a5a3a"],
 }
+## The palette choice that unlocks the swatches for editing.
+const CUSTOM := "CUSTOM"
 const HINT_COLOR := Color(0.6, 0.58, 0.7, 1)
 const LABEL_COLOR := Color(0.1, 0.85, 1, 1)
 const ERROR_COLOR := Color(1, 0.55, 0.35, 1)
@@ -65,6 +67,9 @@ var _concept: LineEdit
 var _archetype: OptionButton
 var _build: OptionButton
 var _colors := { } # palette key → ColorPickerButton
+var _palettes := { } # PRESETS key or CUSTOM → its toggle Button
+var _palette := "" # the shown PRESETS key or CUSTOM
+var _custom: Array[Color] = [] # the CUSTOM colors, kept while a preset is shown
 var _notes: LineEdit
 
 
@@ -111,7 +116,8 @@ func reset() -> void:
 		edit.text = ""
 	_archetype.select(0)
 	_build.select(1)
-	_apply_preset(PRESETS.keys()[0])
+	_select_palette(PRESETS.keys()[0])
+	_custom.clear()
 	_update_slug("")
 	_show_page(Page.IDENTITY)
 
@@ -166,12 +172,17 @@ func _build_page(page: Page, box: Control) -> void:
 		Page.LOOK:
 			_archetype = _choice(box, "TYPE", ARCHETYPES)
 			_build = _choice(box, "BUILD", BUILDS)
-			var presets := _row(box, "COLORS")
-			for preset: String in PRESETS:
-				_button(preset, presets).pressed.connect(_apply_preset.bind(preset))
+			var palettes := _row(box, "COLORS")
+			var group := ButtonGroup.new()
+			for palette: String in PRESETS.keys() + [CUSTOM]:
+				var button := _button(palette, palettes)
+				button.toggle_mode = true
+				button.button_group = group
+				button.pressed.connect(_select_palette.bind(palette))
+				_palettes[palette] = button
 			# Left/right stay in the row: geometrically the swatches below can
 			# be nearer than the next preset.
-			var buttons := presets.get_children().filter(
+			var buttons := palettes.get_children().filter(
 				func(node: Node) -> bool:
 					return node is Button,
 			)
@@ -232,11 +243,28 @@ func _update_slug(text: String) -> void:
 	_slug.text = "FILE NAME: %s.glb" % CreatorKit.slug(text) if not text.strip_edges().is_empty() else ""
 
 
-func _apply_preset(preset: String) -> void:
-	var colors: Array = PRESETS[preset]
+## Shows palette `name` (a `PRESETS` key or `CUSTOM`). Only `CUSTOM` makes the
+## swatches editable; it starts from the shown preset and keeps its edits
+## while a preset is shown.
+func _select_palette(name: String) -> void:
+	if _palette == CUSTOM:
+		_custom.assign(
+			_colors.values().map(
+				func(p: ColorPickerButton) -> Color:
+					return p.color,
+			)
+		)
+	_palette = name
+	_palettes[name].set_pressed(true) # unpresses the others; emits only `toggled`
+	var custom := name == CUSTOM
 	var i := 0
-	for key: String in _colors:
-		_colors[key].color = Color.html(colors[i])
+	for picker: ColorPickerButton in _colors.values():
+		if not custom:
+			picker.color = Color.html(PRESETS[name][i])
+		elif not _custom.is_empty():
+			picker.color = _custom[i]
+		picker.disabled = not custom
+		picker.focus_mode = Control.FOCUS_ALL if custom else Control.FOCUS_NONE
 		i += 1
 
 

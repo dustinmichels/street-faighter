@@ -14,7 +14,7 @@ The game never runs Blender or the agent for you, and nothing is uploaded anywhe
   [Antigravity CLI](https://antigravity.google/docs/cli/using),
   [Pi](https://pi.dev), and
   [Oh My Pi](https://omp.sh). Any other agent works too.
-- **A terminal.** On macOS: **Applications → Utilities → Terminal**.
+- **A terminal.** On macOS: **Applications → Utilities → Terminal**. On Windows: **PowerShell** (Start menu). The game writes its command for the one your system opens.
 
 ## 1. Describe your fighter
 
@@ -36,13 +36,19 @@ The kit goes to `~/Documents/street-fAIghter characters/<name>/` (one folder per
 
 **STEP 2 OF 3: RUN YOUR AGENT**:
 
-1. Press **AGENT** until it shows the agent you use. The game copies a command to your clipboard, like:
+1. Press **AGENT** until it shows the agent you use. The game copies a command to your clipboard, like this on macOS and Linux:
 
    ```sh
    cd '/Users/you/Documents/street-fAIghter characters/monsieur_lezard' && claude 'Read PROMPT.md and follow it.'
    ```
 
-2. Open a terminal, paste the command, and press <kbd>Enter</kbd>. Your agent starts inside the kit folder and reads its instructions.
+   and this on Windows, for PowerShell:
+
+   ```powershell
+   cd -LiteralPath 'C:/Users/you/Documents/street-fAIghter characters/monsieur_lezard' -ErrorAction Stop; claude 'Read PROMPT.md and follow it.'
+   ```
+
+2. Open a terminal (the game's STEP 2 page says how on your system), paste the command, and press <kbd>Enter</kbd>. Your agent starts inside the kit folder and reads its instructions.
 
 **COPY COMMAND** copies it again, **COPY PROMPT** copies the instructions themselves (for an agent you've already started), and **OPEN FOLDER** shows the kit in Finder.
 

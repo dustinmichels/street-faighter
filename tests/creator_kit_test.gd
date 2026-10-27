@@ -12,6 +12,7 @@ func _initialize() -> void:
 	_test_slug()
 	_test_prompt()
 	_test_shell_quoting()
+	_test_platform_prompt()
 	_test_sanitize()
 	_test_write()
 	print("FAIL (%d)" % _failures if _failures > 0 else "OK")
@@ -43,9 +44,55 @@ func _test_shell_quoting() -> void:
 		"quote: quotes and $",
 	)
 	_check_eq(
-		CreatorKit.agent_command("/k/big tony", "claude"),
+		CreatorKit.agent_command("/k/big tony", "claude", CreatorKit.Shell.POSIX),
 		"cd '/k/big tony' && claude 'Read PROMPT.md and follow it.'",
 		"agent command: quoted folder and request",
+	)
+	_check_eq(
+		CreatorKit.shell_quote("C:/a/Tony's ‘$x’ --", CreatorKit.Shell.POWERSHELL),
+		"'C:/a/Tony''s ‘‘$x’’ --'",
+		"quote (PowerShell): straight and curly quotes doubled",
+	)
+	_check_eq(
+		CreatorKit.agent_command("C:/k/[big] tony", "gemini", CreatorKit.Shell.POWERSHELL),
+		"cd -LiteralPath 'C:/k/[big] tony' -ErrorAction Stop; gemini -i 'Read PROMPT.md and follow it.'",
+		"agent command (PowerShell): no && (5.1), literal folder",
+	)
+	_check_eq(
+		CreatorKit.agent_command("C:/k/tony", "other", CreatorKit.Shell.POWERSHELL),
+		"cd -LiteralPath 'C:/k/tony' -ErrorAction Stop",
+		"agent command (PowerShell): only cd for another agent",
+	)
+	_check_eq(CreatorKit.terminal_shell("Windows"), CreatorKit.Shell.POWERSHELL, "shell: Windows")
+	_check_eq(CreatorKit.terminal_shell("macOS"), CreatorKit.Shell.POSIX, "shell: macOS")
+	_check_eq(CreatorKit.terminal_shell("Linux"), CreatorKit.Shell.POSIX, "shell: Linux")
+
+
+func _test_platform_prompt() -> void:
+	var glb := "/k/big_tony/big_tony.glb"
+	var windows := CreatorKit.prompt({ "name": "Big Tony" }, "/k", "Windows")
+	_check(
+		windows.contains("```sh\n%s\n```" % CreatorKit.validator_command(glb)),
+		"Windows prompt: bash validator",
+	)
+	_check(
+		windows.contains(
+			"```powershell\n%s\n```"
+			% CreatorKit.validator_command(glb, CreatorKit.Shell.POWERSHELL)
+		),
+		"Windows prompt: PowerShell validator",
+	)
+	_check(windows.contains("`.venv/Scripts/python <script>.py`"), "Windows prompt: venv python")
+	_check(windows.contains("blender.exe"), "Windows prompt: Blender location")
+	var mac := CreatorKit.prompt({ "name": "Big Tony" }, "/k", "macOS")
+	_check(not mac.contains("powershell"), "macOS prompt: no PowerShell")
+	_check(mac.contains("`.venv/bin/python <script>.py`"), "macOS prompt: venv python")
+	_check(mac.contains("/Applications/Blender.app"), "macOS prompt: Blender location")
+	var other := CreatorKit.prompt({ "name": "Big Tony" }, "/k", "FreeBSD")
+	_check(other.contains("flatpak run org.blender.Blender"), "other platform: Linux values")
+	_check(
+		other.contains("```sh\n%s\n```" % CreatorKit.validator_command(glb)),
+		"other platform: sh validator",
 	)
 
 

@@ -14,7 +14,7 @@
 
 [sub_resource type="ShaderMaterial" id="Mat_quantize"]
 shader = ExtResource("3_quantize")
-shader_parameter/levels = 12.0
+shader_parameter/levels = 16.0
 
 [sub_resource type="Environment" id="Env"]
 background_mode = 1

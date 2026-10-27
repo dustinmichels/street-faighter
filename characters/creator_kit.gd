@@ -44,6 +44,34 @@ const AGENTS := {
 	"other": { "name": "Other agent", "run": "" },
 }
 const DEFAULT_AGENT := "claude"
+## Shells the kit writes commands for. Windows' terminal opens PowerShell (5.1,
+## which has no `&&`); macOS, Linux, and Git Bash on Windows run POSIX shells.
+enum Shell {
+	POSIX,
+	POWERSHELL,
+}
+## `prompt()` placeholders that depend on the player's platform:
+## `OS.get_name()` → placeholder → value. Other platforms use `Linux`'s. Paths
+## use `/`, which Git Bash and PowerShell both accept.
+const PLATFORM_VALUES := {
+	"macOS": {
+		"blender_locations": "`blender` on the PATH, then `/Applications/Blender.app/Contents/MacOS/Blender`",
+		"venv_create": "python3.13 -m venv .venv",
+		"venv_python": ".venv/bin/python",
+	},
+	"Windows": {
+		"blender_locations": "`blender` on the PATH, then the newest "
+		+ "`C:/Program Files/Blender Foundation/Blender <version>/blender.exe`",
+		"venv_create": "py -3.13 -m venv .venv",
+		"venv_python": ".venv/Scripts/python",
+	},
+	"Linux": {
+		"blender_locations": "`blender` on the PATH, then `flatpak run org.blender.Blender`, "
+		+ "then `snap run blender`",
+		"venv_create": "python3.13 -m venv .venv",
+		"venv_python": ".venv/bin/python",
+	},
+}
 ## Text answers, each one line in the prompt's design brief.
 const TEXT_KEYS := ["name", "concept", "archetype", "build", "notes"]
 const PALETTE_KEYS := ["main", "secondary", "accent", "base"]
@@ -83,15 +111,31 @@ const ASCII_FOLDS := {
 }
 
 
-## One line to paste into a terminal: enters the kit `folder` and starts
-## `agent_id` (an `AGENTS` key) on `AGENT_REQUEST`; for `other`, only enters the
-## folder. Single-quoted words and `&&` work in POSIX shells and PowerShell 7.
-static func agent_command(folder: String, agent_id: String) -> String:
-	var command := "cd %s" % shell_quote(folder)
+## One line to paste into a `shell` terminal (the player's, by default): enters
+## the kit `folder` and starts `agent_id` (an `AGENTS` key) on `AGENT_REQUEST`;
+## for `other`, only enters the folder. The agent starts only if `cd` worked:
+## `&&` in POSIX shells; in PowerShell, `cd` stops the line on an error.
+static func agent_command(
+	folder: String,
+	agent_id: String,
+	shell: Shell = terminal_shell(),
+) -> String:
 	var run: String = AGENTS.get(agent_id, AGENTS[DEFAULT_AGENT]).run
-	if not run.is_empty():
-		command += " && " + run % shell_quote(AGENT_REQUEST)
-	return command
+	var cd := "cd %s" % shell_quote(folder, shell)
+	var separator := " && "
+	if shell == Shell.POWERSHELL:
+		# -LiteralPath: `[` and `]` in the folder aren't wildcards.
+		cd = "cd -LiteralPath %s -ErrorAction Stop" % shell_quote(folder, shell)
+		separator = "; "
+	if run.is_empty():
+		return cd
+	return cd + separator + run % shell_quote(AGENT_REQUEST, shell)
+
+
+## The shell a player on `platform` (an `OS.get_name()`) pastes
+## `agent_command()` into.
+static func terminal_shell(platform: String = OS.get_name()) -> Shell:
+	return Shell.POWERSHELL if platform == "Windows" else Shell.POSIX
 
 
 ## The agent the player last picked (`set_agent()`), or `DEFAULT_AGENT`.
@@ -244,8 +288,7 @@ static func clean_text(text: String, limit: int) -> String:
 	for c in text:
 		var code := c.unicode_at(0)
 		if (
-				code < 0x20 or (code >= 0x7f and code <= 0x9f)
-				or (code >= 0x200b and code <= 0x200f) \
+			code < 0x20 or (code >= 0x7f and code <= 0x9f) or (code >= 0x200b and code <= 0x200f) \
 					or (code >= 0x2028 and code <= 0x202e)
 			or (code >= 0x2060 and code <= 0x206f) or code == 0xfeff
 		):
@@ -260,10 +303,15 @@ static func clean_text(text: String, limit: int) -> String:
 
 ## The agent's prompt for a kit in `<dir>/<slug>/`: `PROMPT_TEMPLATE.md` with
 ## each `{{key}}` replaced by the answer (`{{palette.main}}` for nested keys,
-## `{{slug}}` from the name, `{{validator_command}}` from `validator_command()`
-## for the kit's `.glb`),
+## `{{slug}}` from the name, `{{validator_commands}}` from
+## `validator_commands()` for the kit's `.glb`, and `PLATFORM_VALUES` for
+## `platform`, an `OS.get_name()`),
 ## after `sanitize()`. Placeholders without an answer get `UNSPECIFIED`.
-static func prompt(answers: Dictionary, dir: String = saved_dir()) -> String:
+static func prompt(
+	answers: Dictionary,
+	dir: String = saved_dir(),
+	platform: String = OS.get_name(),
+) -> String:
 	var template := FileAccess.get_file_as_string(SOURCE_DIR.path_join(PROMPT_TEMPLATE))
 	if template.is_empty():
 		push_error(
@@ -273,10 +321,9 @@ static func prompt(answers: Dictionary, dir: String = saved_dir()) -> String:
 		return ""
 	answers = sanitize(answers)
 	var character := slug(str(answers.get("name", "")))
-	var values := {
-		"slug": character,
-		"validator_command": validator_command(kit_glb(dir.path_join(character))),
-	}
+	var values: Dictionary = PLATFORM_VALUES.get(platform, PLATFORM_VALUES.Linux).duplicate()
+	values.slug = character
+	values.validator_commands = validator_commands(kit_glb(dir.path_join(character)), platform)
 	_flatten(answers, "", values)
 	var placeholder := RegEx.create_from_string("\\{\\{\\s*([\\w.]+)\\s*\\}\\}")
 	var out := ""
@@ -297,21 +344,47 @@ static func _flatten(value: Variant, key: String, into: Dictionary) -> void:
 		into[key] = str(value)
 
 
-## Shell command (POSIX `sh`; Claude Code uses Git Bash on Windows) that runs
-## this game binary headless on `glb_path` (absolute, since `--path` changes
-## the working directory) and prints the validator's problems or `OK`. Run from
-## the editor, the binary is the editor, so the project is added with `--path`.
-static func validator_command(glb_path: String) -> String:
+## Markdown for `prompt()`: `validator_command()` in a code block. On Windows,
+## where an agent's shell is Git Bash (Claude Code) or PowerShell, one block
+## for each.
+static func validator_commands(glb_path: String, platform: String = OS.get_name()) -> String:
+	var posix := "```sh\n%s\n```" % validator_command(glb_path)
+	if terminal_shell(platform) == Shell.POSIX:
+		return posix
+	return "In bash (Git Bash):\n\n%s\n\nIn PowerShell:\n\n```powershell\n%s\n```" % [
+		posix,
+		validator_command(glb_path, Shell.POWERSHELL),
+	]
+
+
+## `shell` command that runs this game binary headless on `glb_path`
+## (absolute, since `--path` changes the working directory) and prints the
+## validator's problems or `OK`. Run from the editor, the binary is the editor,
+## so the project is added with `--path`. PowerShell runs a quoted path only
+## with `&`, and waits for a GUI-subsystem program (the Windows game) only if
+## its output is piped.
+static func validator_command(glb_path: String, shell: Shell = Shell.POSIX) -> String:
 	var args := [OS.get_executable_path(), "--headless"]
 	if OS.has_feature("editor"):
 		args += ["--path", ProjectSettings.globalize_path("res://")]
 	args += ["--", VALIDATE_ARG, glb_path]
-	return " ".join(PackedStringArray(args.map(shell_quote)))
+	var command := " ".join(PackedStringArray(args.map(shell_quote.bind(shell))))
+	if shell == Shell.POWERSHELL:
+		return "& %s | Write-Output" % command
+	return command
 
 
-## `arg` as one POSIX shell word: unchanged if it only has safe characters,
-## else in single quotes (`'` written as `'\''`).
-static func shell_quote(arg: String) -> String:
+## `arg` as one `shell` word. POSIX: unchanged if it only has safe characters,
+## else in single quotes (`'` written as `'\''`). PowerShell: always in single
+## quotes (no `-param`, `--`, `@splat`, or `$var` parsing), with each quote
+## character doubled; PowerShell also ends a string at the curly ones.
+static func shell_quote(arg: String, shell: Shell = Shell.POSIX) -> String:
+	if shell == Shell.POWERSHELL:
+		return "'%s'" % RegEx.create_from_string("(['\u2018\u2019\u201a\u201b])").sub(
+			arg,
+			"$1$1",
+			true,
+		)
 	if not arg.is_empty() and RegEx.create_from_string("^[\\w@%+=:,./-]+$").search(arg) != null:
 		return arg
 	return "'%s'" % arg.replace("'", "'\\''")

@@ -26,7 +26,7 @@ It runs lockstep by default; `--rollback=N` (1–9) tests rollback instead, pred
 
 ## Creator kit
 
-Checks `CreatorKit` (`characters/creator_kit.gd`): slugs can't escape the kit directory, shell quoting, sanitizing answers so they can't inject lines, fences or placeholders into `creator_kit/PROMPT_TEMPLATE.md`, and writing a kit folder (into `user://creator_kit_test`, removed afterwards), including that saving again keeps the agent's own files.
+Checks `CreatorKit` (`characters/creator_kit.gd`): slugs can't escape the kit directory, shell quoting and the agent command for POSIX shells and PowerShell, the per-platform `PROMPT.md` (Blender locations, `venv` commands, the validator command for Git Bash and PowerShell on Windows), sanitizing answers so they can't inject lines, fences or placeholders into `creator_kit/PROMPT_TEMPLATE.md`, and writing a kit folder (into `user://creator_kit_test`, removed afterwards), including that saving again keeps the agent's own files.
 
 ## Character library
 
