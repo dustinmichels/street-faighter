@@ -8,17 +8,19 @@ extends Control
 ##   to `Session.MAX_NAME_LENGTH` characters), kept in `Session.player_name`
 ##   and shown on the HUD next to their health bar.
 ## - `MODE`: "1 PLAYER VS CPU" starts the local match; "2 PLAYERS ONLINE"
-##   opens `ONLINE`.
+##   opens `ONLINE`; "CHARACTERS" opens `CHARACTERS`.
 ## - `ONLINE`: "HOST" waits for an opponent on `Session.DEFAULT_PORT` (or the
 ##   entered port), "JOIN" connects to the address typed next to it (IP or
 ##   IP:port). The `Session` autoload does the networking and loads the match
 ##   once both sides are connected; this only shows its status, and why the
 ##   last session ended when it brings the player back here.
+## - `CHARACTERS`: the custom character screen (`CharacterScreen`), which
+##   handles its own pages and Esc until it closes.
 ## Esc (`ui_cancel`) goes back one screen; on `ONLINE` it acts as "BACK"
 ## (cancelling a pending host or join). The focused button is framed by
-## "> <" arrows; hovering a button focuses it.
+## "> <" arrows; hovering a button focuses it (`FocusArrows`).
 
-enum Screen { TITLE, NAME, MODE, ONLINE }
+enum Screen { TITLE, NAME, MODE, ONLINE, CHARACTERS }
 
 const MATCH_SCENE := "res://scenes/main.tscn"
 ## "PRESS START" blink period (s), half on and half off.
@@ -30,6 +32,9 @@ const BLINK_SECONDS := 0.9
 @onready var _start: Control = %Start
 @onready var _singleplayer: Button = %Singleplayer
 @onready var _multiplayer: Button = %Multiplayer
+@onready var _characters_button: Button = %CharactersButton
+@onready var _center: Control = %Center
+@onready var _characters: CharacterScreen = %Characters
 @onready var _online: Control = %Online
 @onready var _host_port: LineEdit = %HostPort
 @onready var _host: Button = %Host
@@ -41,8 +46,6 @@ const BLINK_SECONDS := 0.9
 @onready var _version: Label = %Version
 
 var _screen := Screen.TITLE
-## Each button's text without the focus arrows (`_set_button_text()`).
-var _button_texts := {}
 var _blink_time := 0.0
 
 
@@ -60,12 +63,14 @@ func _exit_tree() -> void:
 
 func _ready() -> void:
 	_version.text = "VER %s" % Session.game_version()
-	for button: Button in [_singleplayer, _multiplayer, _host, _join, _back]:
-		_add_focus_arrows(button)
+	for button: Button in [_singleplayer, _multiplayer, _characters_button, _host, _join, _back]:
+		FocusArrows.add(button)
 	_name_edit.text_changed.connect(_on_name_changed)
 	_name_edit.text_submitted.connect(_on_name_submitted)
 	_singleplayer.pressed.connect(_on_singleplayer_pressed)
 	_multiplayer.pressed.connect(_show.bind(Screen.ONLINE))
+	_characters_button.pressed.connect(_show.bind(Screen.CHARACTERS))
+	_characters.closed.connect(_on_characters_closed)
 	_host.pressed.connect(_on_host_pressed)
 	_host_port.text_submitted.connect(_on_host_pressed.unbind(1))
 	_join.pressed.connect(_on_join_pressed)
@@ -90,7 +95,8 @@ func _process(delta: float) -> void:
 
 
 ## Runs before the focused control sees the event, so Esc works even while
-## typing in a field, and "PRESS START" takes any key.
+## typing in a field, and "PRESS START" takes any key. While a popup (pick
+## list, color picker) is open, Esc is left to it to close it.
 func _input(event: InputEvent) -> void:
 	if _screen == Screen.TITLE:
 		if _is_start_press(event):
@@ -98,6 +104,8 @@ func _input(event: InputEvent) -> void:
 			_show(Screen.NAME)
 		return
 	if not event.is_action_pressed(&"ui_cancel") or event.is_echo():
+		return
+	if not get_viewport().get_embedded_subwindows().is_empty():
 		return
 	get_viewport().set_input_as_handled()
 	match _screen:
@@ -107,6 +115,8 @@ func _input(event: InputEvent) -> void:
 			_show(Screen.NAME)
 		Screen.ONLINE:
 			_on_back_pressed()
+		Screen.CHARACTERS:
+			_characters.go_back()
 
 
 static func _is_start_press(event: InputEvent) -> bool:
@@ -121,6 +131,8 @@ func _show(screen: Screen) -> void:
 	_name_entry.visible = screen == Screen.NAME
 	_start.visible = screen == Screen.MODE
 	_online.visible = screen == Screen.ONLINE
+	_center.visible = screen != Screen.CHARACTERS
+	_characters.visible = screen == Screen.CHARACTERS
 	_player_tag.visible = screen == Screen.MODE or screen == Screen.ONLINE
 	_player_tag.text = "1UP\n%s" % Session.player_name
 	_set_busy(false)
@@ -140,6 +152,13 @@ func _show(screen: Screen) -> void:
 			_singleplayer.grab_focus()
 		Screen.ONLINE:
 			_host.grab_focus()
+		Screen.CHARACTERS:
+			_characters.open()
+
+
+func _on_characters_closed() -> void:
+	_show(Screen.MODE)
+	_characters_button.grab_focus()
 
 
 ## Keeps the name upper case as it's typed, like an arcade high-score entry.
@@ -198,33 +217,12 @@ func _set_busy(busy: bool) -> void:
 	_host_port.editable = not busy
 	_join.disabled = busy
 	_address.editable = not busy
-	_set_button_text(_back, "CANCEL" if busy else "BACK")
+	FocusArrows.set_text(_back, "CANCEL" if busy else "BACK")
 	if busy:
 		_back.grab_focus()
 
 func _set_status(text: String) -> void:
 	_status.text = text
-
-
-## Frames `button`'s text with "> <" while it has focus, and focuses it on
-## hover so mouse and keyboard share one cursor.
-func _add_focus_arrows(button: Button) -> void:
-	_button_texts[button] = button.text
-	button.focus_entered.connect(_update_button_text.bind(button))
-	button.focus_exited.connect(_update_button_text.bind(button))
-	button.mouse_entered.connect(func() -> void:
-		if not button.disabled:
-			button.grab_focus())
-
-
-func _set_button_text(button: Button, text: String) -> void:
-	_button_texts[button] = text
-	_update_button_text(button)
-
-
-func _update_button_text(button: Button) -> void:
-	var text: String = _button_texts[button]
-	button.text = "> %s <" % text if button.has_focus() else text
 
 
 ## Whether `_check_cli_args()` already ran: the shortcuts apply to the first

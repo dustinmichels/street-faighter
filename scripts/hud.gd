@@ -4,7 +4,9 @@ extends Control
 ## view (and outside its quantize shader). Health bars sit in the top corners;
 ## each fills from its outer edge, so lost health shows up next to the center.
 ## Under each bar, aligned to its outer edge, its fighter's name
-## (`left_name` / `right_name`, set by `main.gd`) in the arcade font.
+## (`left_name` / `right_name`, set by `main.gd`) in the arcade font, and at
+## the bar's inner end a pulsing star while that fighter's special is ready
+## (`Fighter.special_ready()`).
 ## Once either fighter is knocked down, a centered "K.O." and a hint appear:
 ## offline the restart (`main.gd`), online the rematch status (`ko_hint()`).
 ## A "Controls" button in the bottom-right corner, or the `controls` action
@@ -38,6 +40,7 @@ const CONTROLS: Array[Array] = [
 	[&"punch", "Punch / air kick"],
 	[&"block", "Block (hold)"],
 	[&"crouch", "Crouch (hold, ducks punches; + punch: sweep)"],
+	[&"special", "Special throw (after 3 hits in a row)"],
 	[&"restart", "Restart"],
 	[&"controls", "Show controls"],
 	[&"net_debug", "Network debug overlay"],
@@ -49,6 +52,10 @@ const NAME_FONT: Font = preload("res://assets/fonts/PressStart2P-Regular.ttf")
 const NAME_FONT_SIZE := 8
 const NAME_GAP := 3
 const NAME_COLOR := Color.WHITE
+## Special-ready star: outer radius (px), color, pulse rate (Hz).
+const STAR_RADIUS := 6.0
+const STAR_COLOR := Color(1.0, 0.92, 0.3)
+const STAR_PULSE_HZ := 2.0
 
 ## Shown on the left bar.
 @export var left_fighter: Fighter
@@ -67,6 +74,8 @@ var _left_fill: ColorRect
 var _right_fill: ColorRect
 var _left_name: Label
 var _right_name: Label
+var _left_star: Control
+var _right_star: Control
 ## "K.O." plus `_ko_hint`, hidden until a knockdown.
 var _ko: VBoxContainer
 var _ko_hint: Label
@@ -90,6 +99,8 @@ func _ready() -> void:
 	_right_fill = _make_bar(true)
 	_left_name = _make_name(false)
 	_right_name = _make_name(true)
+	_left_star = _make_star(false)
+	_right_star = _make_star(true)
 	_ko = _make_ko()
 	_countdown = _make_label("", 48, COUNTDOWN_COLOR)
 	_countdown.mouse_filter = MOUSE_FILTER_IGNORE
@@ -136,6 +147,11 @@ func _update() -> void:
 	_set_fill(_right_fill, right_fighter, true)
 	_left_name.text = left_name
 	_right_name.text = right_name
+	_left_star.visible = left_fighter != null and left_fighter.special_ready()
+	_right_star.visible = right_fighter != null and right_fighter.special_ready()
+	var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 1000.0 * TAU * STAR_PULSE_HZ)
+	for star: Control in [_left_star, _right_star]:
+		star.modulate.a = lerpf(0.6, 1.0, pulse)
 	_ko.visible = _is_down(left_fighter) or _is_down(right_fighter)
 	if _ko.visible:
 		var session := get_node_or_null("/root/Session")
@@ -328,6 +344,43 @@ func _make_name(right: bool) -> Label:
 		label.offset_right = BAR_MARGIN.x + BAR_SIZE.x
 	add_child(label)
 	return label
+
+
+## Adds the special-ready star (hidden) on the name row at the inner end of
+## the left (or right) bar.
+func _make_star(right: bool) -> Control:
+	var star := Control.new()
+	star.mouse_filter = MOUSE_FILTER_IGNORE
+	var side := STAR_RADIUS * 2.0
+	# The inner end of the bar, measured from the screen edge it hangs off.
+	var inner_edge := BAR_MARGIN.x + BAR_SIZE.x
+	star.offset_top = _name_top() - 2.0
+	star.offset_bottom = star.offset_top + side
+	if right:
+		star.anchor_left = 1.0
+		star.anchor_right = 1.0
+		star.offset_left = -inner_edge
+		star.offset_right = -inner_edge + side
+	else:
+		star.offset_left = inner_edge - side
+		star.offset_right = inner_edge
+	star.draw.connect(_draw_star.bind(star))
+	star.visible = false
+	add_child(star)
+	return star
+
+
+## Draws a five-pointed star filling `star`, outlined like the labels.
+static func _draw_star(star: Control) -> void:
+	var center := star.size / 2.0
+	var points := PackedVector2Array()
+	for i in 10:
+		var r := STAR_RADIUS if i % 2 == 0 else STAR_RADIUS * 0.45
+		var angle := -PI / 2.0 + i * PI / 5.0
+		points.append(center + Vector2(cos(angle), sin(angle)) * r)
+	star.draw_colored_polygon(points, STAR_COLOR)
+	points.append(points[0])
+	star.draw_polyline(points, BORDER_COLOR, 1.0)
 
 
 ## Adds a bordered bar in the top-left (or top-right) corner and returns its fill.

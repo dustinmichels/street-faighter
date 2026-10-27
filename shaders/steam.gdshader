@@ -2,8 +2,7 @@
 // disc whose alpha is cut into a few hard steps so it reads as pixel art. Particle
 // COLOR (color ramp) tints and fades it. Drawn after the outline pass (higher
 // render_priority than Camera3D/Outline), which would otherwise paint over it, so
-// steam itself gets no outline. Dims with the backdrop (`backdrop_dim`, see
-// toon.gdshader).
+// steam itself gets no outline.
 shader_type spatial;
 render_mode unshaded, cull_disabled, depth_draw_never, fog_disabled;
 
@@ -12,10 +11,6 @@ uniform vec4 tint : source_color = vec4(0.78, 0.8, 0.86, 1.0);
 uniform float opacity : hint_range(0.0, 1.0) = 0.5;
 // Number of alpha levels from edge to core.
 uniform int alpha_steps : hint_range(1, 6) = 3;
-
-global uniform float backdrop_dim;
-// Brightness left at full dim (as toon.gdshader's DIM_BRIGHTNESS).
-const float DIM_BRIGHTNESS = 0.35;
 
 varying float seed;
 
@@ -40,6 +35,6 @@ void fragment() {
 	float edge = 0.78 + 0.12 * sin(a * 3.0 + seed) + 0.08 * sin(a * 5.0 - seed * 1.3);
 	float core = clamp((1.0 - length(p) / edge) * 2.0, 0.0, 1.0);
 	float steps = float(alpha_steps);
-	ALBEDO = tint.rgb * COLOR.rgb * mix(1.0, DIM_BRIGHTNESS, backdrop_dim);
+	ALBEDO = tint.rgb * COLOR.rgb;
 	ALPHA = ceil(core * steps) / steps * opacity * COLOR.a;
 }

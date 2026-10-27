@@ -12,7 +12,7 @@ extends Node3D
 ## node itself (`position`, `visual`, the animation) only displays the state,
 ## via `sync_visual()`.
 
-enum State { IDLE, WALK, JUMP, PUNCH, HIT, KNOCKED_DOWN, BLOCK, CROUCH, SWEEP, SWEPT }
+enum State { IDLE, WALK, JUMP, PUNCH, HIT, KNOCKED_DOWN, BLOCK, CROUCH, SWEEP, SWEPT, GRAB, THROW, THROWN }
 ## Parts of the `jump` state, each with its own clip (`JUMP_CLIPS`). `KICK`
 ## replaces `AIR` once the attack button is pressed mid-air and lasts until
 ## touchdown (the clip ends back in the tuck and holds it).
@@ -113,6 +113,42 @@ const HURTBOX_TOP := 15000
 ## (head top in the `crouch` clip ≈ 1.15 m), under the punch hitbox's bottom
 ## edge (1.18 m), so punches pass over; the air kick and the sweep still hit.
 const CROUCH_HURTBOX_TOP := 8000
+## Landed hits in a row, without taking one, that make the special ready.
+const SPECIAL_HITS := 3
+## Health the special throw takes off when the victim hits the floor.
+const THROW_DAMAGE := 20
+## Farthest the opponent's body center may be in front of the grabber's for
+## the grab to catch it (0.9 m: past arm's reach of a standing pair, 0.6 m).
+const GRAB_RANGE := 9000
+## The grab clip's active window (`grab` markers) and whiff length.
+static var GRAB_ACTIVE_START := ticks(ANIMATIONS.get_animation(&"grab").get_marker_time(&"active_start"))
+static var GRAB_ACTIVE_END := ticks(ANIMATIONS.get_animation(&"grab").get_marker_time(&"active_end"))
+static var GRAB_LENGTH := ticks(ANIMATIONS.get_animation(&"grab").length)
+## Thrower's whole throw, the tick the victim lands (`throw` clip, marker
+## `slam`) and the victim's whole `thrown` state (slam, lie, get up).
+static var THROW_LENGTH := ticks(ANIMATIONS.get_animation(&"throw").length)
+static var THROW_SLAM := ticks(ANIMATIONS.get_animation(&"throw").get_marker_time(&"slam"))
+static var THROWN_LENGTH := ticks(ANIMATIONS.get_animation(&"thrown").length)
+## The victim's body (feet) relative to the thrower's during the throw:
+## `[tick, forward, up]`, forward along the thrower's facing, linearly
+## interpolated in between. From arm's reach in front, up over the
+## thrower's head, down 1.3 m behind it on `THROW_SLAM` (the last key), where
+## it stays. Keyed with the `thrown` clip (`animations/build_base.gd`): the
+## height holds the flipping body's hips (rest ≈ 0.95 m above the feet) clear
+## over the thrower.
+const THROW_PATH: Array[Vector3i] = [
+	Vector3i(0, 6000, 0),
+	Vector3i(8, 3000, 8000),
+	Vector3i(16, -1000, 11500),
+	Vector3i(22, -10000, 2500),
+	Vector3i(26, -13000, 0),
+]
+## How far `knockdown`'s held `LYING` pose puts the hips behind the body
+## origin (0.8 m); a throw that knocks out moves the body forward that much
+## so the hips stay where `thrown` left them.
+const KNOCKDOWN_HIPS_BACK := 8000
+## `knockdown` clip length: a knockout by throw starts there (already flat).
+static var KNOCKDOWN_LENGTH := ticks(ANIMATIONS.get_animation(&"knockdown").length)
 
 ## Character `.glb` to load on ready (see `docs/skeleton.md`).
 @export_file("*.glb") var character_path: String
@@ -126,6 +162,10 @@ const CROUCH_HURTBOX_TOP := 8000
 			input.bind(self)
 ## The other fighter, for input sources that look at the match (the AI).
 @export var opponent: Fighter
+## Whether this fighter may use the special at all: players yes, the
+## computer opponent no (`main.gd` turns it off for `AIInput`). Fixed for
+## the match, the same on both peers.
+@export var specials_enabled := true
 
 # --- Simulation state: everything `step()` reads or writes, nothing else. ---
 
@@ -150,6 +190,11 @@ var move_dir := 0
 var prev_buttons := 0
 ## Ticks the last attack press stays buffered (0 = none), see `INPUT_BUFFER`.
 var attack_buffer := 0
+## Same for the special press.
+var special_buffer := 0
+## Hits landed in a row without taking one, up to `SPECIAL_HITS`; the special
+## is ready at `SPECIAL_HITS` (`special_ready()`) and using it starts over.
+var hit_streak := 0
 ## Blockstun ticks left while `state == State.BLOCK` (0 = guarding by choice).
 var block_stun := 0
 ## Remaining health, 0..`MAX_HEALTH`.
@@ -187,13 +232,14 @@ func _ready() -> void:
 ## hits involve both fighters and are resolved by the `Match` afterwards.
 ##
 ## Hold the block button to guard in place, hold crouch to duck under punches,
-## hold jump to keep jumping; attack presses are buffered.
+## hold jump to keep jumping; attack and special presses are buffered.
 func step(buttons: int, opponent_x: int) -> void:
 	state_ticks += 1
 	var pressed := buttons & ~prev_buttons
 	prev_buttons = buttons
 	var dir := int((buttons & InputSource.RIGHT) != 0) - int((buttons & InputSource.LEFT) != 0)
 	attack_buffer = INPUT_BUFFER if (pressed & InputSource.PUNCH) != 0 else maxi(attack_buffer - 1, 0)
+	special_buffer = INPUT_BUFFER if (pressed & InputSource.SPECIAL) != 0 else maxi(special_buffer - 1, 0)
 	var jump_held := (buttons & InputSource.JUMP) != 0
 	var block_held := (buttons & InputSource.BLOCK) != 0
 	var crouch_held := (buttons & InputSource.CROUCH) != 0
@@ -225,6 +271,25 @@ func step(buttons: int, opponent_x: int) -> void:
 			# Down, ignoring input and hits, until back on its feet.
 			vel_x = 0
 			if state_ticks >= SWEPT_LENGTH:
+				change_state(State.IDLE)
+		State.GRAB:
+			# Rooted like the punch; a catch turns it into `THROW` (`Match`).
+			vel_x = 0
+			if state_ticks >= GRAB_LENGTH:
+				move_dir = 0
+				change_state(State.IDLE)
+		State.THROW:
+			# Rooted while the `Match` carries the victim (`carry()`).
+			vel_x = 0
+			if state_ticks >= THROW_LENGTH:
+				move_dir = 0
+				change_state(State.IDLE)
+		State.THROWN:
+			# Carried by the thrower until the slam, then down like `SWEPT`.
+			vel_x = 0
+			vel_y = 0
+			if state_ticks >= THROWN_LENGTH:
+				move_dir = 0
 				change_state(State.IDLE)
 		State.HIT:
 			vel_x = _toward_zero(vel_x, KNOCKBACK_FRICTION)
@@ -276,17 +341,17 @@ static func _toward_zero(v: int, amount: int) -> int:
 func snapshot() -> PackedInt64Array:
 	return PackedInt64Array([
 		pos_x, pos_y, vel_x, vel_y, state, state_ticks, jump_phase, facing,
-		move_dir, prev_buttons, attack_buffer, block_stun, health,
+		move_dir, prev_buttons, attack_buffer, special_buffer, hit_streak, block_stun, health,
 		int(attack_landed), wall_limit,
 	])
 
 
 ## Number of values in a `snapshot()`.
-const SNAPSHOT_SIZE := 15
+const SNAPSHOT_SIZE := 17
 ## Names of the `snapshot()` values, in order (desync logs).
 const SNAPSHOT_FIELDS: PackedStringArray = [
 	"pos_x", "pos_y", "vel_x", "vel_y", "state", "state_ticks", "jump_phase", "facing",
-	"move_dir", "prev_buttons", "attack_buffer", "block_stun", "health",
+	"move_dir", "prev_buttons", "attack_buffer", "special_buffer", "hit_streak", "block_stun", "health",
 	"attack_landed", "wall_limit",
 ]
 
@@ -306,18 +371,28 @@ func restore(values: PackedInt64Array, offset := 0) -> void:
 	move_dir = values[offset + 8]
 	prev_buttons = values[offset + 9]
 	attack_buffer = values[offset + 10]
-	block_stun = values[offset + 11]
-	health = values[offset + 12]
-	attack_landed = values[offset + 13] != 0
-	wall_limit = values[offset + 14]
+	special_buffer = values[offset + 11]
+	hit_streak = values[offset + 12]
+	block_stun = values[offset + 13]
+	health = values[offset + 14]
+	attack_landed = values[offset + 15] != 0
+	wall_limit = values[offset + 16]
 
 
-## Neutral (idle, walk, crouch, guard outside blockstun): a held block button
-## guards in place, else a held crouch button crouches in place (sweeping on
-## a buffered punch), else a buffered punch, then a held jump, else walk or
-## stand.
+## Neutral (idle, walk, crouch, guard outside blockstun): a buffered special
+## press grabs when the special is ready (`special_ready()`, else it does
+## nothing), else a held block button guards in place, else a held crouch
+## button crouches in place (sweeping on a buffered punch), else a buffered
+## punch, then a held jump, else walk or stand.
 func _neutral(dir: int, jump_held: bool, block_held: bool, crouch_held: bool, on_floor: bool) -> void:
-	if block_held and on_floor:
+	if special_buffer > 0 and on_floor and special_ready():
+		special_buffer = 0
+		attack_buffer = 0
+		hit_streak = 0
+		vel_x = 0
+		move_dir = 0
+		change_state(State.GRAB)
+	elif block_held and on_floor:
 		if state != State.BLOCK:
 			vel_x = 0
 			block_stun = 0
@@ -422,15 +497,117 @@ func attack_connects(target: Fighter) -> bool:
 	return target.hurtbox_overlaps(hitbox_center(), HITBOX_HALF)
 
 
+## True while crouching or sweeping: the hurtbox is low (`CROUCH_HURTBOX_TOP`)
+## and an airborne opponent passes over the body instead of being pushed
+## (`Match._push_apart`), so it can be jumped over.
+func is_low() -> bool:
+	return state == State.CROUCH or state == State.SWEEP
+
+
 ## True if the square of half side `half` around `center` overlaps the
 ## hurtbox: the distance from the square to the hurtbox segment is below
 ## `BODY_RADIUS`. The segment is shorter while crouching or sweeping.
 func hurtbox_overlaps(center: Vector2i, half: int) -> bool:
-	var low := state == State.CROUCH or state == State.SWEEP
-	var top := CROUCH_HURTBOX_TOP if low else HURTBOX_TOP
+	var top := CROUCH_HURTBOX_TOP if is_low() else HURTBOX_TOP
 	var dx := maxi(maxi(center.x - half - pos_x, pos_x - center.x - half), 0)
 	var dy := maxi(maxi(center.y - half - (pos_y + top), pos_y + HURTBOX_BOTTOM - center.y - half), 0)
 	return dx * dx + dy * dy < BODY_RADIUS * BODY_RADIUS
+
+
+## Whether the special is ready: `SPECIAL_HITS` hits landed in a row
+## (`hit_streak`), and this fighter may use specials at all.
+func special_ready() -> bool:
+	return specials_enabled and hit_streak >= SPECIAL_HITS
+
+
+## Counts a hit this fighter landed (not blocked) toward the special.
+func count_hit() -> void:
+	hit_streak = mini(hit_streak + 1, SPECIAL_HITS)
+
+
+## True if this fighter's grab is on its active frames and can catch
+## `target`: on the floor, its body center at most `GRAB_RANGE` in front, and
+## not reeling, down or already thrown. Guarding and crouching don't help.
+func grab_connects(target: Fighter) -> bool:
+	if state != State.GRAB or state_ticks < GRAB_ACTIVE_START or state_ticks >= GRAB_ACTIVE_END:
+		return false
+	match target.state:
+		State.HIT, State.KNOCKED_DOWN, State.SWEPT, State.THROWN:
+			return false
+	if target.pos_y != 0:
+		return false
+	var ahead := (target.pos_x - pos_x) * facing
+	return ahead >= 0 and ahead <= GRAB_RANGE
+
+
+## The grab caught `target`: this fighter starts the throw (`THROW`) and the
+## target is thrown (`THROWN`), both from tick 0, and the target is put on
+## the start of `THROW_PATH`. If the landing spot behind would be past the
+## wall, this fighter first steps forward so the victim lands at the wall
+## and the two still switch sides.
+func start_throw(target: Fighter) -> void:
+	var land := pos_x + facing * THROW_PATH[-1].y
+	var overflow := absi(land) - wall_limit
+	if overflow > 0:
+		shove(facing * overflow)
+	change_state(State.THROW)
+	target.move_dir = 0
+	target.attack_buffer = 0
+	target.special_buffer = 0
+	target.block_stun = 0
+	target.change_state(State.THROWN)
+	carry(target)
+
+
+## During the throw, up to the slam: puts the thrown `target` where
+## `THROW_PATH` has it on this tick, and on `THROW_SLAM` slams it into the
+## floor (`slammed()`). Called by the `Match` each tick after both fighters
+## stepped.
+func carry(target: Fighter) -> void:
+	if state != State.THROW or target.state != State.THROWN or state_ticks > THROW_SLAM:
+		return
+	var offset := throw_offset(state_ticks)
+	target.pos_x = clampi(pos_x + facing * offset.x, -target.wall_limit, target.wall_limit)
+	target.pos_y = offset.y
+	target.vel_x = 0
+	target.vel_y = 0
+	if state_ticks == THROW_SLAM:
+		target.slammed(THROW_DAMAGE)
+
+
+## `THROW_PATH` at throw tick `t` (forward, up), interpolated in integers.
+static func throw_offset(t: int) -> Vector2i:
+	var a := THROW_PATH[0]
+	for b in THROW_PATH:
+		if t <= b.x:
+			if b.x == a.x:
+				return Vector2i(b.y, b.z)
+			var k := t - a.x
+			var n := b.x - a.x
+			return Vector2i(a.y + (b.y - a.y) * k / n, a.z + (b.z - a.z) * k / n)
+		a = b
+	return Vector2i(a.y, a.z)
+
+
+## Hit the floor at the end of a throw: loses `damage` health. At 0 it is
+## knocked out, already lying flat (the end of `knockdown`), moved so the
+## hips stay put (`KNOCKDOWN_HIPS_BACK`).
+func slammed(damage: int) -> void:
+	_lose_health(damage)
+	if health == 0:
+		shove(facing * KNOCKDOWN_HIPS_BACK)
+		knock_down()
+		state_ticks = KNOCKDOWN_LENGTH
+
+
+## Ticks since this fighter hit the floor from a sweep or a throw (camera
+## shake), or -1 if it didn't.
+func floor_impact_ticks() -> int:
+	if state == State.SWEPT:
+		return state_ticks
+	if state == State.THROWN and state_ticks >= THROW_SLAM:
+		return state_ticks - THROW_SLAM
+	return -1
 
 
 ## Jump: crouch, launch, fall under gravity, then a landing crouch back into
@@ -480,25 +657,34 @@ func change_state(new_state: State) -> void:
 ## side it faces) takes no damage: it stays in the guard for `BLOCK_STUN` and
 ## slides back at `BLOCK_PUSH_SPEED`. With `knocks_over` (the sweep) the guard
 ## doesn't help and the fighter falls in place (`SWEPT`) instead of reeling.
-## Ignored while down (knocked out or swept).
-func take_hit(damage: int, push_dir: int, attacker_x: int, knocks_over: bool) -> void:
-	if state == State.KNOCKED_DOWN or state == State.SWEPT:
-		return
+## Ignored while down (knocked out or swept) or thrown. Returns true if the
+## hit took health (not blocked or ignored).
+func take_hit(damage: int, push_dir: int, attacker_x: int, knocks_over: bool) -> bool:
+	if state == State.KNOCKED_DOWN or state == State.SWEPT or state == State.THROWN:
+		return false
 	var side := signi(attacker_x - pos_x)
 	if state == State.BLOCK and not knocks_over and (side == facing or side == 0):
 		block_stun = BLOCK_STUN
 		vel_x = push_dir * BLOCK_PUSH_SPEED
-		return
-	health = maxi(health - damage, 0)
+		return false
+	_lose_health(damage)
 	if health == 0:
 		knock_down()
-		return
+		return true
 	if knocks_over:
 		vel_x = 0
 		change_state(State.SWEPT)
-		return
+		return true
 	vel_x = push_dir * KNOCKBACK_SPEED
 	change_state(State.HIT)
+	return true
+
+
+## Takes `damage` off health (down to 0); being hurt ends the hit streak, so
+## a ready special is lost too.
+func _lose_health(damage: int) -> void:
+	health = maxi(health - damage, 0)
+	hit_streak = 0
 
 
 ## Knocks the fighter down for good: it stays down (no get-up), ignores input
@@ -564,6 +750,12 @@ func _state_clip() -> StringName:
 			return &"sweep"
 		State.SWEPT:
 			return &"swept"
+		State.GRAB:
+			return &"grab"
+		State.THROW:
+			return &"throw"
+		State.THROWN:
+			return &"thrown"
 	return &"idle"
 
 

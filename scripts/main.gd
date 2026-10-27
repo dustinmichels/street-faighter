@@ -22,7 +22,8 @@ extends Node
 ## (`FollowCamera.intro_finished`) is over.
 ##
 ## The HUD labels each health bar with its fighter's name (`_fighter_name()`).
-## The camera spins only for this machine's player's sweeps (`_local_index()`).
+## Only players get the special: a fighter driven by the computer
+## (`AIInput`) has `Fighter.specials_enabled` off.
 
 ## Seconds the reason an online match ended stays up before the menu.
 const END_NOTICE_SECONDS := 3.0
@@ -38,25 +39,12 @@ func _enter_tree() -> void:
 	var world: Match = $GameView/GameViewport/World
 	if Session.is_online():
 		_wire_online(world)
+	for f in world.fighters:
+		f.specials_enabled = not (f.input is AIInput)
 	var hud := get_node_or_null("Hud") as Hud
 	if hud != null:
 		hud.left_name = _fighter_name(world, 0)
 		hud.right_name = _fighter_name(world, 1)
-	var camera: FollowCamera = world.get_node("Camera3D")
-	var local := _local_index(world)
-	camera.player = world.fighters[local] if local >= 0 else null
-
-
-## Index of the fighter this machine's player controls: online
-## `Session.local_index`, offline the first one not driven by the computer
-## (`AIInput`); -1 if the computer drives both.
-static func _local_index(world: Match) -> int:
-	if Session.is_online():
-		return Session.local_index
-	for i in world.fighters.size():
-		if not world.fighters[i].input is AIInput:
-			return i
-	return -1
 
 
 ## Name shown on fighter `index`'s health bar: this player's

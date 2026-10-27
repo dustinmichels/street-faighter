@@ -31,7 +31,7 @@ enum Mode { LOCAL, HOST, CLIENT }
 const DEFAULT_PORT := 7777
 ## Bump whenever the network messages or the simulation change in a way older
 ## builds can't follow; peers with different values refuse each other.
-const PROTOCOL_VERSION := 6
+const PROTOCOL_VERSION := 7
 ## First handshake value, so a packet from something that isn't this game is
 ## rejected as such.
 const MAGIC := "street-faighter"

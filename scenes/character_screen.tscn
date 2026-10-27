@@ -1,0 +1,88 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/character_screen.gd" id="1_screen"]
+[ext_resource type="Script" path="res://scripts/character_wizard.gd" id="2_wizard"]
+
+[node name="CharacterScreen" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("1_screen")
+
+[node name="LibraryPage" type="CenterContainer" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Items" type="VBoxContainer" parent="LibraryPage"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 6
+
+[node name="Title" type="Label" parent="LibraryPage/Items"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.98, 0.82, 0.2, 1)
+theme_override_font_sizes/font_size = 16
+text = "CHARACTERS"
+horizontal_alignment = 1
+
+[node name="Library" type="ItemList" parent="LibraryPage/Items"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(260, 96)
+layout_mode = 2
+size_flags_horizontal = 4
+
+[node name="Create" type="Button" parent="LibraryPage/Items"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(224, 0)
+layout_mode = 2
+size_flags_horizontal = 4
+tooltip_text = "Answer a few questions to get a creator kit and a prompt for your AI agent."
+text = "CREATE NEW"
+
+[node name="Import" type="Button" parent="LibraryPage/Items"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(224, 0)
+layout_mode = 2
+size_flags_horizontal = 4
+tooltip_text = "Not available yet: importing a .glb comes with the character library."
+disabled = true
+text = "IMPORT…"
+
+[node name="Close" type="Button" parent="LibraryPage/Items"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(224, 0)
+layout_mode = 2
+size_flags_horizontal = 4
+text = "BACK"
+
+[node name="Hint" type="Label" parent="LibraryPage/Items"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.58, 0.7, 1)
+text = "ESC: BACK"
+horizontal_alignment = 1
+
+[node name="WizardPage" type="CenterContainer" parent="."]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Wizard" type="VBoxContainer" parent="WizardPage"]
+unique_name_in_owner = true
+layout_mode = 2
+script = ExtResource("2_wizard")

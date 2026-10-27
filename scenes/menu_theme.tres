@@ -1,4 +1,4 @@
-[gd_resource type="Theme" load_steps=6 format=3]
+[gd_resource type="Theme" load_steps=7 format=3]
 
 [ext_resource type="FontFile" path="res://assets/fonts/PressStart2P-Regular.ttf" id="1_font"]
 
@@ -44,6 +44,13 @@ border_width_right = 1
 border_width_bottom = 1
 border_color = Color(0.1, 0.85, 1, 1)
 
+[sub_resource type="StyleBoxFlat" id="Style_popup_hover"]
+content_margin_left = 4.0
+content_margin_top = 2.0
+content_margin_right = 4.0
+content_margin_bottom = 2.0
+bg_color = Color(0.1, 0.85, 1, 0.25)
+
 [resource]
 default_font = ExtResource("1_font")
 default_font_size = 8
@@ -61,6 +68,10 @@ Button/styles/hover = SubResource("Style_button")
 Button/styles/hover_pressed = SubResource("Style_button")
 Button/styles/normal = SubResource("Style_button")
 Button/styles/pressed = SubResource("Style_button")
+ColorPickerButton/styles/focus = SubResource("Style_edit_focus")
+ColorPickerButton/styles/hover = SubResource("Style_edit")
+ColorPickerButton/styles/normal = SubResource("Style_edit")
+ColorPickerButton/styles/pressed = SubResource("Style_edit")
 Label/colors/font_color = Color(0.92, 0.92, 0.95, 1)
 Label/colors/font_outline_color = Color(0.08, 0.02, 0.12, 1)
 Label/colors/font_shadow_color = Color(0, 0, 0, 0.6)
@@ -76,5 +87,15 @@ LineEdit/constants/caret_width = 2
 LineEdit/styles/focus = SubResource("Style_edit_focus")
 LineEdit/styles/normal = SubResource("Style_edit")
 LineEdit/styles/read_only = SubResource("Style_edit")
+OptionButton/styles/focus = SubResource("Style_edit_focus")
+OptionButton/styles/hover = SubResource("Style_edit")
+OptionButton/styles/hover_pressed = SubResource("Style_edit")
+OptionButton/styles/normal = SubResource("Style_edit")
+OptionButton/styles/pressed = SubResource("Style_edit")
+PopupMenu/colors/font_color = Color(0.92, 0.92, 0.95, 1)
+PopupMenu/colors/font_hover_color = Color(0.98, 0.82, 0.2, 1)
+PopupMenu/styles/hover = SubResource("Style_popup_hover")
+PopupMenu/styles/panel = SubResource("Style_tooltip")
+PopupPanel/styles/panel = SubResource("Style_tooltip")
 TooltipLabel/colors/font_color = Color(0.92, 0.92, 0.95, 1)
 TooltipPanel/styles/panel = SubResource("Style_tooltip")

@@ -158,9 +158,11 @@ func _inputs(t: int) -> PackedInt32Array:
 
 
 ## Advances the match by one tick with each fighter's input bitmask. Both
-## fighters move from where they stood at the start of the tick, then overlap
-## and the screen-edge limit are resolved, then hits from both sides are
-## detected before any is applied, so simultaneous attacks trade.
+## fighters move from where they stood at the start of the tick, a throw in
+## progress carries its victim, then overlap and the screen-edge limit are
+## resolved, then hits from both sides are detected before any is applied,
+## so simultaneous attacks trade. Grabs are checked after the hits: a grab
+## that was hit out of, or two grabs at once, catch nobody.
 func step(inputs: PackedInt32Array) -> void:
 	if tick < start_tick:
 		inputs = PackedInt32Array([0, 0])
@@ -172,16 +174,26 @@ func step(inputs: PackedInt32Array) -> void:
 	var bx := b.pos_x
 	a.step(inputs[0], bx)
 	b.step(inputs[1], ax)
+	a.carry(b)
+	b.carry(a)
 	_push_apart(a, b)
 	_stay_in_range(a, b, ax, bx)
 	var a_hits := a.attack_connects(b)
 	var b_hits := b.attack_connects(a)
 	if a_hits:
 		a.attack_landed = true
-		b.take_hit(a.attack_damage(), a.facing, a.pos_x, a.attack_knocks_over())
+		if b.take_hit(a.attack_damage(), a.facing, a.pos_x, a.attack_knocks_over()):
+			a.count_hit()
 	if b_hits:
 		b.attack_landed = true
-		a.take_hit(b.attack_damage(), b.facing, b.pos_x, b.attack_knocks_over())
+		if a.take_hit(b.attack_damage(), b.facing, b.pos_x, b.attack_knocks_over()):
+			b.count_hit()
+	var a_grabs := a.grab_connects(b)
+	var b_grabs := b.grab_connects(a)
+	if a_grabs and not b_grabs:
+		a.start_throw(b)
+	elif b_grabs and not a_grabs:
+		b.start_throw(a)
 	tick += 1
 	checksum = state_checksum()
 
@@ -298,7 +310,15 @@ static func _hash(values: PackedInt64Array) -> int:
 ## Bodies never collide, so overlap along X is resolved here: each fighter
 ## takes half, moving away from the other; if one is blocked by a wall, the
 ## other takes the rest. Walking into a fighter thus shoves it at half speed.
+## An airborne fighter passes over a low one (crouching or sweeping), so a
+## jump can cross it; any overlap left on landing pushes each toward the side
+## it ended up on. A thrown fighter passes over (and lands clear of) the
+## thrower, so nobody is pushed during a throw.
 func _push_apart(a: Fighter, b: Fighter) -> void:
+	if (a.pos_y > 0 and b.is_low()) or (b.pos_y > 0 and a.is_low()):
+		return
+	if a.state == Fighter.State.THROWN or b.state == Fighter.State.THROWN:
+		return
 	var dx := b.pos_x - a.pos_x
 	var overlap := Fighter.PUSH_DISTANCE - absi(dx)
 	if overlap <= 0:

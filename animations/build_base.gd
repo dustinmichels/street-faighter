@@ -571,6 +571,218 @@ static func knockdown() -> Array:
 	]
 
 
+## Grab timing at 60 fps: 4 startup, 3 active, 20 recovery frames (whiff);
+## markers `active_start`/`active_end` like the punch. A grab that connects
+## leaves the clip for `throw` on the spot.
+const GRAB_ACTIVE_START := 4.0 / 60.0
+const GRAB_ACTIVE_END := 7.0 / 60.0
+const GRAB_LENGTH := 27.0 / 60.0
+
+## Both arms reaching straight out at chest height, torso leaning in.
+static var GRAB := _pose(STANCE, {
+	HIPS_POS: Vector3(0, -0.1, 0.05),
+	"spine": Vector3(12, 0, 0),
+	"chest": Vector3(6, 0, 0),
+	"neck": Vector3(-10, 0, 0),
+	"head": Vector3(-8, 0, 0),
+	"upper_arm.L": Vector3(-15, 0, -75),
+	"forearm.L": Vector3(0, 0, -20),
+	"upper_arm.R": _m(Vector3(-15, 0, -75)),
+	"forearm.R": _m(Vector3(0, 0, -20)),
+	"thigh.L": Vector3(-36, 0, -4),
+	"shin.L": Vector3(40, 0, 0),
+	"thigh.R": _m(Vector3(22, 0, -4)),
+	"shin.R": Vector3(10, 0, 0),
+})
+
+
+## Grab (special): lunge both hands forward, hold them out (active), pull back.
+static func grab() -> Array:
+	var windup := _add(STANCE, {
+		"spine": Vector3(-4, 0, 0),
+		"upper_arm.L": Vector3(0, 0, 15),
+		"upper_arm.R": _m(Vector3(0, 0, 15)),
+	})
+	return [
+		[0.0, STANCE],
+		[2.0 / 60.0, windup],
+		[GRAB_ACTIVE_START, GRAB],
+		[GRAB_ACTIVE_END, GRAB],
+		[GRAB_LENGTH, STANCE],
+	]
+
+
+## Throw timing, shared by `throw` (thrower) and `thrown` (victim), counted
+## from the tick the grab connects: lift by 8, overhead at 16, coming down
+## at 22, slammed on `THROW_SLAM`. `Fighter.THROW_PATH` carries the victim's
+## body along the same keys; its heights assume the victim's hips stay at
+## their rest offset until `THROW_SLAM - 4` (keep both in step).
+const THROW_SLAM := 26.0 / 60.0
+## Thrower's recovery ends here; the victim lies, then gets up until
+## `THROWN_LENGTH`.
+const THROW_LENGTH := 44.0 / 60.0
+const THROWN_LENGTH := 84.0 / 60.0
+
+
+## Over-the-head throw (thrower): from the grab, squat and heave the victim up
+## to the chest, straighten with both arms overhead, then arch back and swing
+## the arms down behind for the slam, and settle back into the stance.
+static func throw() -> Array:
+	var heave := _pose(STANCE, {
+		HIPS_POS: Vector3(0, -0.2, 0.02),
+		"spine": Vector3(5, 0, 0),
+		"chest": Vector3(0, 0, 0),
+		"neck": Vector3(-6, 0, 0),
+		"head": Vector3(-10, 0, 0),
+		"upper_arm.L": Vector3(20, 0, -70),
+		"forearm.L": Vector3(0, 0, -50),
+		"upper_arm.R": _m(Vector3(20, 0, -70)),
+		"forearm.R": _m(Vector3(0, 0, -50)),
+		"thigh.L": Vector3(-50, 0, -8),
+		"shin.L": Vector3(75, 0, 0),
+		"foot.L": Vector3(-25, 0, 0),
+		"thigh.R": _m(Vector3(-15, 0, -8)),
+		"shin.R": Vector3(60, 0, 0),
+		"foot.R": Vector3(-45, 0, 0),
+	})
+	var overhead := _pose(STANCE, {
+		HIPS_POS: Vector3(0, -0.02, 0),
+		"spine": Vector3(-12, 0, 0),
+		"chest": Vector3(-8, 0, 0),
+		"neck": Vector3(-10, 0, 0),
+		"head": Vector3(-15, 0, 0),
+		"upper_arm.L": Vector3(70, 0, -15),
+		"forearm.L": Vector3(0, 0, -15),
+		"upper_arm.R": _m(Vector3(70, 0, -15)),
+		"forearm.R": _m(Vector3(0, 0, -15)),
+		"thigh.L": Vector3(-20, 0, -4),
+		"shin.L": Vector3(20, 0, 0),
+		"foot.L": Vector3(-5, 0, 0),
+		"thigh.R": _m(Vector3(10, 0, -4)),
+		"shin.R": Vector3(10, 0, 0),
+		"foot.R": Vector3(-20, 0, 0),
+	})
+	var arch := _pose(overhead, {
+		HIPS_POS: Vector3(0, -0.12, 0.08),
+		"spine": Vector3(-25, 0, 0),
+		"chest": Vector3(-15, 0, 0),
+		"neck": Vector3(-10, 0, 0),
+		"head": Vector3(-10, 0, 0),
+		"upper_arm.L": Vector3(85, 0, 20),
+		"forearm.L": Vector3(0, 0, -5),
+		"upper_arm.R": _m(Vector3(85, 0, 20)),
+		"forearm.R": _m(Vector3(0, 0, -5)),
+		"thigh.L": Vector3(-35, 0, -6),
+		"shin.L": Vector3(55, 0, 0),
+		"foot.L": Vector3(-20, 0, 0),
+		"thigh.R": _m(Vector3(-5, 0, -6)),
+		"shin.R": Vector3(45, 0, 0),
+		"foot.R": Vector3(-40, 0, 0),
+	})
+	# The slam: folded forward over the arms, which end down behind.
+	var slam := _pose(arch, {
+		HIPS_POS: Vector3(0, -0.22, 0.1),
+		"spine": Vector3(10, 0, 0),
+		"chest": Vector3(5, 0, 0),
+		"neck": Vector3(-15, 0, 0),
+		"head": Vector3(-5, 0, 0),
+		"upper_arm.L": Vector3(-60, 0, 40),
+		"forearm.L": Vector3(0, 0, -10),
+		"upper_arm.R": _m(Vector3(-60, 0, 40)),
+		"forearm.R": _m(Vector3(0, 0, -10)),
+		"thigh.L": Vector3(-55, 0, -8),
+		"shin.L": Vector3(80, 0, 0),
+		"foot.L": Vector3(-25, 0, 0),
+		"thigh.R": _m(Vector3(-15, 0, -8)),
+		"shin.R": Vector3(70, 0, 0),
+		"foot.R": Vector3(-50, 0, 0),
+	})
+	return [
+		[0.0, GRAB],
+		[8.0 / 60.0, heave],
+		[16.0 / 60.0, overhead],
+		[22.0 / 60.0, arch],
+		[THROW_SLAM, slam],
+		[THROW_SLAM + 6.0 / 60.0, slam],
+		[THROW_LENGTH, STANCE],
+	]
+
+
+## Flat on the back with the hips straight under the body origin (no slide
+## back like `LYING`): where the thrown victim lands.
+static var THROWN_LYING := _pose(LYING, {HIPS_POS: Vector3(0, -0.83, 0)})
+
+
+## Thrown (victim): grabbed and lifted, flipped forward head first over the
+## thrower (one ¾ turn of the whole body around the hips, keys < 180° apart
+## so it turns the long way round), slammed flat on the back on
+## `THROW_SLAM`, bounces, lies still, sits up and rises through `DUCK` back
+## to the stance. Linear keys, so the flip doesn't overshoot.
+static func thrown() -> Array:
+	var grabbed := _pose(STANCE, {
+		HIPS_POS: Vector3(0, 0.02, -0.03),
+		"hips": Vector3(-8, 0, 0),
+		"spine": Vector3(-8, 0, 0),
+		"neck": Vector3(-12, 0, 0),
+		"head": Vector3(-15, 0, 0),
+		"upper_arm.L": Vector3(-40, 0, 20),
+		"forearm.L": Vector3(0, 0, -50),
+		"upper_arm.R": _m(Vector3(-40, 0, 20)),
+		"forearm.R": _m(Vector3(0, 0, -50)),
+		"thigh.L": Vector3(-10, 0, -4),
+		"shin.L": Vector3(15, 0, 0),
+		"foot.L": Vector3(20, 0, 0),
+		"thigh.R": _m(Vector3(-5, 0, -4)),
+		"shin.R": Vector3(20, 0, 0),
+		"foot.R": Vector3(20, 0, 0),
+	})
+	# Airborne and limp: arms thrown out, legs loosely bent.
+	var flung := _pose(grabbed, {
+		"spine": Vector3(-5, 0, 0),
+		"upper_arm.L": Vector3(10, 0, 30),
+		"forearm.L": Vector3(0, 0, -30),
+		"upper_arm.R": _m(Vector3(10, 0, 30)),
+		"forearm.R": _m(Vector3(0, 0, -30)),
+		"thigh.L": Vector3(-30, 0, -6),
+		"shin.L": Vector3(40, 0, 0),
+		"thigh.R": _m(Vector3(-20, 0, -6)),
+		"shin.R": Vector3(50, 0, 0),
+	})
+	var bounce := _add(THROWN_LYING, {
+		HIPS_POS: Vector3(0, 0.05, 0),
+		"spine": Vector3(8, 0, 0),
+		"neck": Vector3(10, 0, 0),
+		"thigh.L": Vector3(-15, 0, 0),
+		"thigh.R": Vector3(-12, 0, 0),
+	})
+	var sit := _pose(STANCE, {
+		HIPS_POS: Vector3(0, -0.83, 0),
+		"spine": Vector3(15, 0, 0),
+		"chest": Vector3(5, 0, 0),
+		"neck": Vector3(0, 0, 0),
+		"head": Vector3(0, 0, 0),
+		"thigh.L": Vector3(-85, 0, -4),
+		"shin.L": Vector3(25, 0, 0),
+		"foot.L": Vector3(0, 0, 0),
+		"thigh.R": _m(Vector3(-85, 0, -6)),
+		"shin.R": Vector3(25, 0, 0),
+		"foot.R": Vector3(0, 0, 0),
+	})
+	return [
+		[0.0, grabbed],
+		[8.0 / 60.0, _pose(flung, {"hips": Vector3(60, 0, 0)})],
+		[16.0 / 60.0, _pose(flung, {"hips": Vector3(160, 0, 0)})],
+		[22.0 / 60.0, _pose(flung, {"hips": Vector3(230, 0, 0)})],
+		[THROW_SLAM, THROWN_LYING],
+		[THROW_SLAM + 4.0 / 60.0, bounce],
+		[THROW_SLAM + 8.0 / 60.0, THROWN_LYING],
+		[52.0 / 60.0, THROWN_LYING],
+		[64.0 / 60.0, sit],
+		[74.0 / 60.0, _pose(DUCK, {HIPS_POS: Vector3(0, -0.4, 0)})],
+		[THROWN_LENGTH, STANCE],
+	]
+
+
 ## Name → [length (s), loop, cubic, keys, markers]. Keys are [time, pose]
 ## pairs; markers (optional) map a name to a time.
 static func clips() -> Dictionary:
@@ -578,6 +790,10 @@ static func clips() -> Dictionary:
 		&"air_kick": [AIR_KICK_LENGTH, false, false, air_kick(),
 			{&"active_start": AIR_KICK_ACTIVE_START, &"active_end": AIR_KICK_ACTIVE_END}],
 		&"block": [BLOCK_LENGTH, false, false, block()],
+		&"grab": [GRAB_LENGTH, false, false, grab(),
+			{&"active_start": GRAB_ACTIVE_START, &"active_end": GRAB_ACTIVE_END}],
+		&"throw": [THROW_LENGTH, false, true, throw(), {&"slam": THROW_SLAM}],
+		&"thrown": [THROWN_LENGTH, false, false, thrown(), {&"slam": THROW_SLAM}],
 		&"crouch": [DUCK_LENGTH, false, false, crouch()],
 		&"sweep": [SWEEP_LENGTH, false, false, sweep(),
 			{&"active_start": SWEEP_ACTIVE_START, &"active_end": SWEEP_ACTIVE_END}],

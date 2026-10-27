@@ -1,9 +1,10 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://scripts/menu.gd" id="1_menu"]
 [ext_resource type="Theme" path="res://scenes/menu_theme.tres" id="2_theme"]
 [ext_resource type="Shader" path="res://shaders/arcade_background.gdshader" id="3_bg"]
 [ext_resource type="Shader" path="res://shaders/scanlines.gdshader" id="4_scan"]
+[ext_resource type="PackedScene" path="res://scenes/character_screen.tscn" id="5_chars"]
 
 [sub_resource type="ShaderMaterial" id="Mat_bg"]
 shader = ExtResource("3_bg")
@@ -33,6 +34,7 @@ mouse_filter = 2
 color = Color(0, 0, 0, 1)
 
 [node name="Center" type="CenterContainer" parent="."]
+unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -150,6 +152,14 @@ layout_mode = 2
 size_flags_horizontal = 4
 text = "2 PLAYERS  ONLINE"
 
+[node name="CharactersButton" type="Button" parent="Center/Items/Start"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(224, 0)
+layout_mode = 2
+size_flags_horizontal = 4
+tooltip_text = "Your character library, and a questionnaire to design your own fighter."
+text = "CHARACTERS"
+
 [node name="Hint" type="Label" parent="Center/Items/Start"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.6, 0.58, 0.7, 1)
@@ -252,6 +262,11 @@ grow_vertical = 0
 theme_override_colors/font_color = Color(0.6, 0.58, 0.7, 1)
 text = "FREE PLAY"
 horizontal_alignment = 2
+
+[node name="Characters" parent="." instance=ExtResource("5_chars")]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
 
 [node name="Scanlines" type="ColorRect" parent="."]
 material = SubResource("Mat_scan")
