@@ -16,10 +16,12 @@ extends PixelCamera
 ## following. The orbit pivots on the point at the fighters' depth (z = 0)
 ## that the resting view is centered on. The stage walls are hidden meanwhile.
 ##
-## When a sweep knocks a fighter over (`Fighter.State.SWEPT`) or a throw
-## slams one into the floor, the view shakes lightly for `SHAKE_TICKS`,
-## timed by `Fighter.floor_impact_ticks()` (display only, so rollbacks agree
-## with the simulation).
+## When a sweep knocks a fighter over (`Fighter.sweep_impact_ticks()`) the
+## view shakes lightly for `SHAKE_TICKS`; when the special throw slams one
+## into the floor (`Fighter.slam_impact_ticks()`, timed by the thrower so a
+## KO slam shakes too) it shakes harder (`throw_shake_pixels`,
+## `THROW_SHAKE_TICKS`). Display only, timed by simulation ticks, so
+## rollbacks agree with the simulation.
 
 ## Emitted once the intro has settled into the resting view (right away,
 ## during `_ready()`, when `intro_duration` is 0).
@@ -44,8 +46,14 @@ signal intro_finished
 ## Shake when a sweep lands: starting offset in screen pixels, fading out
 ## over `SHAKE_TICKS`.
 @export_range(0.0, 8.0, 0.5) var shake_pixels := 2.0
-## Ticks the shake lasts after a sweep or throw lands (0.2 s).
+## Ticks the shake lasts after a sweep lands (0.2 s).
 const SHAKE_TICKS := 12
+## Shake when the special throw slams the opponent down: starting offset in
+## screen pixels, fading out over `THROW_SHAKE_TICKS`.
+@export_range(0.0, 16.0, 0.5) var throw_shake_pixels := 6.0
+## Ticks the shake lasts after a throw slam (0.3 s): the rest of the
+## thrower's `throw` state after the slam (`THROW_LENGTH - THROW_SLAM`).
+const THROW_SHAKE_TICKS := 18
 
 ## Seconds of intro played; negative once it is over.
 var _intro_time := -1.0
@@ -109,23 +117,33 @@ func _physics_process(_delta: float) -> void:
 		_shake()
 
 
-## While a fighter has just hit the floor (the first `SHAKE_TICKS` of
-## `Fighter.floor_impact_ticks()`), offsets the view from its followed
-## position along the screen's axes: up to `shake_pixels`, shrinking
-## linearly, changing direction every tick. Snapped like any position, so it
-## moves in whole pixels. The next `_follow()` puts the view back.
+## While a fighter has just been swept (first `SHAKE_TICKS` of
+## `Fighter.sweep_impact_ticks()`) or has just slammed its throw victim down
+## (first `THROW_SHAKE_TICKS` of `Fighter.slam_impact_ticks()`), offsets the
+## view from its followed position along the screen's axes: up to
+## `shake_pixels` (`throw_shake_pixels` for a slam), shrinking linearly,
+## changing direction every tick. The strongest shake wins. Snapped like any
+## position, so it moves in whole pixels. The next `_follow()` puts the view
+## back.
 func _shake() -> void:
-	var ticks := SHAKE_TICKS
+	var amount := 0.0
+	var ticks := 0
 	for f in fighters:
-		var impact := f.floor_impact_ticks()
-		if impact >= 0:
-			ticks = mini(ticks, impact)
-	if ticks >= SHAKE_TICKS:
+		for impact: Vector3 in [
+			Vector3(f.sweep_impact_ticks(), SHAKE_TICKS, shake_pixels),
+			Vector3(f.slam_impact_ticks(), THROW_SHAKE_TICKS, throw_shake_pixels),
+		]:
+			if impact.x < 0.0 or impact.x >= impact.y:
+				continue
+			var a := impact.z * (1.0 - impact.x / impact.y)
+			if a > amount:
+				amount = a
+				ticks = int(impact.x)
+	if amount <= 0.0:
 		return
-	var amount := shake_pixels * pixel_size() * (1.0 - float(ticks) / SHAKE_TICKS)
 	var b := global_basis.orthonormalized()
 	var offset := b.x * sin(ticks * 2.4) + b.y * cos(ticks * 3.1) * 0.5
-	global_position = snap(target_position + offset * amount)
+	global_position = snap(target_position + offset * amount * pixel_size())
 
 
 ## Whether the intro is still playing.

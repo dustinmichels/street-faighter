@@ -31,7 +31,7 @@ enum Mode { LOCAL, HOST, CLIENT }
 const DEFAULT_PORT := 7777
 ## Bump whenever the network messages or the simulation change in a way older
 ## builds can't follow; peers with different values refuse each other.
-const PROTOCOL_VERSION := 7
+const PROTOCOL_VERSION := 8
 ## First handshake value, so a packet from something that isn't this game is
 ## rejected as such.
 const MAGIC := "street-faighter"
@@ -39,17 +39,15 @@ const MAGIC := "street-faighter"
 const AUTH_TIMEOUT := 5.0
 const MATCH_SCENE := "res://scenes/main.tscn"
 const MENU_SCENE := "res://scenes/menu.tscn"
-## The host's match choices (`_new_match_config()`): the stage scenery and
-## each fighter's character (the tint), by fighter index.
+## The host's stage choice (`_new_match_config()`).
 const STAGE := "res://stages/street/street.glb"
-const CHARACTERS: Array[String] = [
-	"res://characters/default/default.glb",
-	"res://characters/default/default_blue.glb",
-]
 ## Length of the pre-fight countdown (`Match.start_tick`): 3 s at 60 Hz. It
 ## counts simulation ticks, so in lockstep both peers reach "FIGHT!" on the
 ## same tick, however their wall clocks differ.
 const COUNTDOWN_TICKS := 180
+## Seconds a match waits for a character download before showing the default
+## model instead (`_load_when_characters_ready()`).
+const CHARACTER_TIMEOUT := 10.0
 ## Player names (`clean_name()`): at most this many characters, and the one
 ## used when none was entered.
 const MAX_NAME_LENGTH := 10
@@ -86,6 +84,9 @@ var _peer_loaded := false
 ## loaded match and the peer's, compared before `begin()`.
 var _loaded_config := {}
 var _peer_config := {}
+## Character announcements and downloads (a child, so its RPCs share the
+## session's connection).
+var characters := CharacterSync.new()
 ## The loaded match scene, waiting for both sides (`main.gd`).
 var _match: Node
 ## A `fail()` is pending.
@@ -103,6 +104,9 @@ func _ready() -> void:
 	mp.connected_to_server.connect(_on_connected_to_server)
 	mp.connection_failed.connect(_on_connection_failed)
 	mp.server_disconnected.connect(_on_server_disconnected)
+	characters.name = "CharacterSync"
+	characters.peer_announced.connect(_on_peer_announced)
+	add_child(characters)
 
 
 func is_online() -> bool:
@@ -281,19 +285,37 @@ func _peer_loaded_rpc(config: Dictionary) -> void:
 	_begin_if_ready()
 
 
-## Host: a new match config (random seed, the default stage and tints, a
-## `COUNTDOWN_TICKS` countdown).
+## Host: a new match config: a random seed, the default stage, each fighter's
+## character (the announced `CharacterLibrary.descriptor()`s, by fighter
+## index: this player's, then the peer's) and a `COUNTDOWN_TICKS` countdown.
 func _new_match_config() -> Dictionary:
 	return {
 		"stage": STAGE,
-		"characters": CHARACTERS.duplicate(),
+		"characters": [
+			characters.own_character,
+			characters.peer_character,
+		],
 		"seed": randi() & 0x7FFFFFFF,
 		"max_rollback": 0,
 		"start_tick": COUNTDOWN_TICKS,
 	}
 
 
-## Host: both peers load the match scene, set up from `config`.
+## The model fighter `index` shows in the current match: its
+## `match_config` character (`CharacterLibrary.descriptor_model()`), or the
+## default model if this machine doesn't have it, or if it is the opponent's
+## and `CharacterLibrary.opponents_default()` is on.
+func character_model(index: int) -> String:
+	var characters: Variant = match_config.get("characters")
+	if not characters is Array or index >= characters.size() \
+			or (index != local_index and CharacterLibrary.opponents_default()):
+		return CharacterLoader.DEFAULT_CHARACTER
+	var model := CharacterLibrary.descriptor_model(characters[index])
+	return model if not model.is_empty() else CharacterLoader.DEFAULT_CHARACTER
+
+
+## Host: both peers load the match scene, set up from `config`, once their
+## characters are ready (`_load_when_characters_ready()`).
 @rpc("authority", "call_local", "reliable")
 func _start_match(config: Dictionary) -> void:
 	match_config = config
@@ -305,7 +327,34 @@ func _start_match(config: Dictionary) -> void:
 	_loaded_config = {}
 	_peer_config = {}
 	_match = null
+	_load_when_characters_ready(match_number)
+
+
+## Loads match `number`'s scene once every `match_config` character is
+## ready here (`CharacterSync.status()` isn't "receiving"), or after
+## `CHARACTER_TIMEOUT` seconds. A character still missing then, or rejected,
+## is shown as the default model (`character_model()`). Each side waits on
+## its own; `match_loaded()` already holds `begin()` until both have loaded,
+## and the models are visual only, so the sides needn't agree on them.
+func _load_when_characters_ready(number: int) -> void:
+	var deadline := Time.get_ticks_msec() + int(CHARACTER_TIMEOUT * 1000.0)
+	if _characters_receiving():
+		status_changed.emit("Receiving %s's character..." % peer_name)
+	while _characters_receiving() and Time.get_ticks_msec() < deadline:
+		await get_tree().process_frame
+		if match_number != number:  # Session closed or another match started.
+			return
 	get_tree().change_scene_to_file(MATCH_SCENE)
+
+
+func _characters_receiving() -> bool:
+	var list: Variant = match_config.get("characters")
+	if not list is Array:
+		return false
+	for desc: Variant in list:
+		if characters.status(desc) == "receiving":
+			return true
+	return false
 
 
 # --- Handshake ---
@@ -369,16 +418,30 @@ func _on_peer_authentication_failed(_id: int) -> void:
 
 # --- Connection events ---
 
+## After the handshake both sides announce their character (this player's
+## saved choice, `CharacterLibrary.PLAYER_CHOICE`); the host starts the first
+## match once the client's announcement arrived (`_on_peer_announced()`).
 func _on_peer_connected(id: int) -> void:
 	if mode == Mode.HOST:
 		peer_id = id
 		status_changed.emit("%s joined, starting..." % peer_name)
-		_start_match.rpc(_new_match_config())
+		_announce_character()
 
 
 func _on_connected_to_server() -> void:
 	peer_id = 1
 	status_changed.emit("Connected, waiting for the host...")
+	_announce_character()
+
+
+func _announce_character() -> void:
+	characters.peer_id = peer_id
+	characters.announce(CharacterLibrary.descriptor(CharacterLibrary.chosen(CharacterLibrary.PLAYER_CHOICE)))
+
+
+func _on_peer_announced() -> void:
+	if mode == Mode.HOST and match_number == 0:
+		_start_match.rpc(_new_match_config())
 
 
 func _on_peer_disconnected(id: int) -> void:
@@ -444,3 +507,4 @@ func _reset() -> void:
 	peer_rematch_requested = false
 	_loaded_config = {}
 	_peer_config = {}
+	characters.reset()

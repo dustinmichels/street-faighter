@@ -209,6 +209,9 @@ var wall_limit := 1 << 40
 
 ## Loaded character scene root (child of `visual`), or null if loading failed.
 var model: Node3D
+## The `.glb` `model` was loaded from (differs from `character_path` after a
+## fallback), or "".
+var model_path := ""
 ## The model's skeleton; animations target its bones by name.
 var skeleton: Skeleton3D
 ## Plays `ANIMATIONS` (default library, so clips are `&"idle"`, `&"punch"`, ...)
@@ -600,12 +603,18 @@ func slammed(damage: int) -> void:
 		state_ticks = KNOCKDOWN_LENGTH
 
 
-## Ticks since this fighter hit the floor from a sweep or a throw (camera
-## shake), or -1 if it didn't.
-func floor_impact_ticks() -> int:
-	if state == State.SWEPT:
-		return state_ticks
-	if state == State.THROWN and state_ticks >= THROW_SLAM:
+## Ticks since this fighter was swept off its feet (camera shake), or -1 if
+## it isn't down from a sweep.
+func sweep_impact_ticks() -> int:
+	return state_ticks if state == State.SWEPT else -1
+
+
+## Ticks since this fighter's throw slammed the victim into the floor (camera
+## shake), or -1 if it isn't past a slam. Timed by the thrower, which stays
+## in `THROW` until `THROW_LENGTH` even when the slam knocks the victim out
+## (`slammed()` takes it out of `THROWN` then).
+func slam_impact_ticks() -> int:
+	if state == State.THROW and state_ticks >= THROW_SLAM:
 		return state_ticks - THROW_SLAM
 	return -1
 
@@ -771,6 +780,7 @@ func set_character(path: String) -> bool:
 	if model != null:
 		model.queue_free()
 	model = new_model
+	model_path = path
 	skeleton = CharacterLoader.find_skeleton(model)
 	# Tracks are `Skeleton3D:<bone>`, resolved from the player's parent.
 	anim = AnimationPlayer.new()

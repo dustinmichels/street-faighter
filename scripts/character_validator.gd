@@ -50,6 +50,9 @@ var warnings := PackedStringArray()
 ## The generated scene of a valid file (raw `GLTFDocument` output, before
 ## `CharacterLoader`'s material pass), or null. The caller owns it.
 var scene: Node3D
+## The contents of a valid file, exactly as checked (the library stores
+## these, not a second read of the path), or empty.
+var file_bytes := PackedByteArray()
 
 # Bone name -> {"parent": String, "rest": Transform3D}, plus the skeleton's
 # transform relative to the scene root, from `REFERENCE` (loaded once).
@@ -64,22 +67,24 @@ func validate(path: String) -> PackedStringArray:
 	errors = PackedStringArray()
 	warnings = PackedStringArray()
 	scene = null
-	var bytes := _read_file(path)
-	if bytes.is_empty():
+	file_bytes = PackedByteArray()
+	var data := _read_file(path)
+	if data.is_empty():
 		return errors
-	var json := _parse_glb(bytes)
+	var json := _parse_glb(data)
 	if json.is_empty():
 		return errors
-	_check_safety(json, bytes)
+	_check_safety(json, data)
 	if not errors.is_empty():
 		return errors  # never hand unsafe data to GLTFDocument
-	_check_content(json, bytes)
-	var root := _decode(bytes, path)
+	_check_content(json, data)
+	var root := _decode(data, path)
 	if root == null:
 		return errors
 	_check_scene(root)
 	if errors.is_empty():
 		scene = root
+		file_bytes = data
 	else:
 		root.free()
 	return errors

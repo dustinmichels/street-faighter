@@ -208,6 +208,15 @@ layout_mode = 2
 tooltip_text = "Connect to a host (port 7777 unless given). You play the blue fighter."
 text = "JOIN"
 
+[node name="OpponentsDefault" type="Button" parent="Center/Items/Online"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(260, 0)
+layout_mode = 2
+size_flags_horizontal = 4
+tooltip_text = "Show opponents as the default character: their custom characters are neither downloaded nor shown."
+toggle_mode = true
+text = "OPPONENTS: AS CHOSEN"
+
 [node name="Back" type="Button" parent="Center/Items/Online"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(260, 0)

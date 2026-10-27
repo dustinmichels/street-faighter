@@ -114,7 +114,7 @@ opponent = NodePath("../Fighter2")
 
 [node name="Fighter2" parent="GameView/GameViewport/World" node_paths=PackedStringArray("opponent") instance=ExtResource("5_fighter")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.5, 0, 0)
-character_path = "res://characters/default/default_blue.glb"
+character_path = "res://characters/default/default.glb"
 input = SubResource("Input_ai")
 opponent = NodePath("../Fighter1")
 

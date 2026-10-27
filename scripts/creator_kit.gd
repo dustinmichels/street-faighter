@@ -29,6 +29,8 @@ const UNSPECIFIED := "(not specified)"
 const SETTINGS_PATH := "user://settings.cfg"
 const SETTINGS_SECTION := "creator_kit"
 const SETTINGS_DIR_KEY := "dir"
+## The kit folder `write()` last produced (`last_kit_dir()`).
+const SETTINGS_LAST_KIT_KEY := "last_kit"
 ## What the player does after `hand_off()`; the UI shows it with the folder.
 const NEXT_STEP := "Open a terminal in this folder, run `claude`, and paste the prompt."
 ## Text answers, each one line in the prompt's design brief.
@@ -99,10 +101,26 @@ static func choose_dir(parent: Node, on_chosen: Callable) -> FileDialog:
 	return dialog
 
 
+## The kit folder `write()` last produced, where the agent exports its `.glb`
+## (the "Import…" dialog starts there), or `saved_dir()` if there is none or
+## it was removed.
+static func last_kit_dir() -> String:
+	var config := ConfigFile.new()
+	if config.load(SETTINGS_PATH) == OK:
+		var dir: String = config.get_value(SETTINGS_SECTION, SETTINGS_LAST_KIT_KEY, "")
+		if not dir.is_empty() and DirAccess.dir_exists_absolute(dir):
+			return dir
+	return saved_dir()
+
+
 static func _save_dir(dir: String) -> void:
+	_save_setting(SETTINGS_DIR_KEY, dir)
+
+
+static func _save_setting(key: String, value: Variant) -> void:
 	var config := ConfigFile.new()
 	config.load(SETTINGS_PATH)  # missing file: start empty
-	config.set_value(SETTINGS_SECTION, SETTINGS_DIR_KEY, dir)
+	config.set_value(SETTINGS_SECTION, key, value)
 	var err := config.save(SETTINGS_PATH)
 	if err != OK:
 		push_error("CreatorKit: can't save '%s': %s" % [SETTINGS_PATH, error_string(err)])
@@ -263,6 +281,7 @@ static func write(dir: String, answers: Dictionary) -> String:
 		return ""
 	if not _write_file(folder.path_join(REQUEST_NAME), (JSON.stringify(answers, "\t", false) + "\n").to_utf8_buffer()):
 		return ""
+	_save_setting(SETTINGS_LAST_KIT_KEY, folder)
 	return folder
 
 

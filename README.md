@@ -12,7 +12,7 @@ Requires [Godot](https://godotengine.org/download) 4.7 (standard build, not .NET
 - Command line, from this folder: `godot --path .`
 
 The game opens on an arcade-style start screen: press any key (or click / a gamepad button) at **PRESS START**, type your name (up to 10 characters; Enter confirms, Esc goes back), then choose **1 PLAYER VS CPU** to fight the AI or **2 PLAYERS ONLINE** to host or join an online peer-to-peer match. During a match each fighter's name sits under its health bar: yours, and the computer opponent's random one (`AIInput.NAMES`) or the online opponent's.
-In singleplayer you control the red fighter on the left against a computer-controlled blue fighter (`scripts/ai_input.gd`): it walks in and jabs or sweeps, jumps in with air kicks, backs off, and sometimes blocks or ducks your punches, answering a ducked punch with a sweep. Knock it out with 10 hits before it does the same to you. Its difficulty knobs (`reaction_ticks`, `block_chance`, `duck_chance`, `sweep_chance`, `aggression`, `punch_cooldown_ticks`) are on `Fighter2`'s `input` resource in `scenes/main.tscn`.
+In singleplayer you control the fighter on the left (the character picked on **CHOOSE YOUR FIGHTER**) against a computer-controlled fighter with the default model (`scripts/ai_input.gd`); when both use the same character, the computer's colors are hue-shifted (red turns blue) so you can tell them apart. It walks in and jabs or sweeps, jumps in with air kicks, backs off, and sometimes blocks or ducks your punches, answering a ducked punch with a sweep. Knock it out with 10 hits before it does the same to you. Its difficulty knobs (`reaction_ticks`, `block_chance`, `duck_chance`, `sweep_chance`, `aggression`, `punch_cooldown_ticks`) are on `Fighter2`'s `input` resource in `scenes/main.tscn`.
 
 ### Online Multiplayer & Hosting
 
@@ -86,12 +86,18 @@ Keyboard input goes to the focused window only; click the other window to play i
 - Hold crouch to duck in place: punches pass over you, but air kicks still hit. You don't move while crouching, and a held block takes priority. A crouching (or sweeping) fighter can be jumped over to switch sides.
 - Punch while crouching to sweep: a low spinning kick (one full turn, the back leg swinging around along the floor) that knocks the opponent off their feet (10 damage), with a light camera shake when it lands. They stay down about 1.15 s, can't be hit while down, then get back up. Blocking and crouching don't stop a sweep; only jumping does. The jump has to start before the sweep's active frames (6 ticks after the press), and its takeoff already counts.
 - Punches are buffered: a press up to 4 ticks early comes out on the first tick you can act. This covers presses during recovery, hit stun, blockstun and the jump landing. The 5-tick window matches Street Fighter 6. The special press is buffered the same way.
-- Special: land 3 hits in a row (punches, air kicks or sweeps that aren't blocked) without getting hit, and a star (★) pulses at the inner end of your health bar. Getting hit before you use it loses it. Press special on the ground to grab (3 active frames, reaching ≈ 0.9 m): the opponent is lifted, flipped over your head and slammed down behind you (20 damage, camera shake), so you switch sides. Blocking and crouching don't stop it; jumping or being in hit stun does. A missed grab still uses up the star. Only players have the special; the computer opponent never gets it.
+- Special: land 3 hits in a row (punches, air kicks or sweeps that aren't blocked) without getting hit, and a star (★) pulses at the inner end of your health bar. Getting hit before you use it loses it. Press special on the ground to grab (3 active frames, reaching ≈ 0.9 m): the opponent is lifted, flipped over your head and slammed down behind you (20 damage, with a heavy camera shake, much stronger and longer than the sweep's), so you switch sides. Blocking and crouching don't stop it; jumping or being in hit stun does. A missed grab still uses up the star. Only players have the special; the computer opponent never gets it.
 - WASD is for the left hand with J (punch), K (block) and I (special) for the right. With the arrow keys in the right hand, use Z (punch), X (block) and C (special) with the left.
 
 Keys are bound by physical position, so on non-QWERTY layouts use the keys where W/A/S/D/J/K/I/Z/X/C/R sit on a QWERTY keyboard.
 
 In game, press Esc or click the **Controls** button (bottom-right) to show or hide this list. F3 toggles a network debug overlay under the left health bar: current and confirmed tick, the opponent's tick and your lead, rollbacks, stalled/skipped frames, and packets received/lost with the loss over the last second. Against the CPU, F1 switches its difficulty between default and easy (`AIInput.EASY_KNOBS`: too slow to block punches, defends and attacks less); it applies at once, carries over restarts, and "CPU difficulty: easy" shows in the bottom-left corner while it's on.
+
+### Custom characters
+
+Menu → **CHARACTERS** → **CREATE NEW** asks a few questions about your fighter and saves a creator kit (by default in `~/Documents/street-fAIghter characters/<name>/`), copies its prompt to the clipboard, and opens the folder. Open a terminal there, run `claude`, and paste the prompt: the agent builds the character in Blender (4.2+) on the game's skeleton, exports a `.glb`, and checks it with the game's validator. Then use **IMPORT…** (or drop the `.glb` onto the window) to add it to your library, and pick it on **CHOOSE YOUR FIGHTER**. Online, your opponent's game downloads it automatically. Custom characters are cosmetic: the hitboxes and moves are the same for everyone.
+
+To check a `.glb` by hand: `godot --headless --path . -- --validate-character /absolute/path/to/character.glb` (prints every problem, or `OK`). Pipeline, kit layout, and validator limits: [`docs/custom-characters.md`](docs/custom-characters.md). The skeleton: [`docs/skeleton.md`](docs/skeleton.md).
 
 ### Rebuilding generated assets
 
@@ -129,6 +135,30 @@ godot --headless --path . -s tests/creator_kit_test.gd
 ```
 
 Checks `CreatorKit` (`scripts/creator_kit.gd`): character name → folder slug, filling `creator_kit/PROMPT_TEMPLATE.md`, and writing a kit folder (into `user://creator_kit_test`, removed afterwards), including that saving again keeps the agent's own files.
+
+### Character validator test
+
+```sh
+godot --headless --path . -s tests/character_validator_test.gd
+```
+
+Checks `CharacterValidator` (`scripts/character_validator.gd`) and the `--validate-character` command line: `default.glb` and `tests/fixtures/valid.glb` pass, and each broken fixture in `tests/fixtures/` (missing, renamed, or extra bone, a part named like a bone, a moved joint, too many triangles, a transparent material, a rotated or scaled Armature, an oversized texture) fails with exactly its expected errors, in-process and through the CLI (exit code 1). The fixtures are committed; rebuild them after changing the skeleton with `blender -b --factory-startup --python tests/fixtures/build_bad_characters.py`, then update the expected messages in the test.
+
+### Skeleton drift test
+
+```sh
+godot --headless --path . -s tests/skeleton_drift_test.gd
+```
+
+Needs Blender (`blender` on PATH, or `BLENDER=/path/to/blender`). Builds the template with `creator_kit/build_template.py` via `tests/dump_skeleton.py`, dumps the rig Blender actually made (bone names, parents, head/tail, connected, roll, local axes), and checks that it matches the `docs/skeleton.md` tables (copied into every kit as `SKELETON.md`), the rest pose of `characters/default/default.glb` (the validator's reference), and `CharacterLoader.REQUIRED_BONES`. Exit code 1 lists every mismatch.
+
+### Character sync test
+
+```sh
+godot --headless --path . -s tests/character_sync_test.gd
+```
+
+Checks online custom characters with two processes (this one hosts and starts a client copy) over ENet on `127.0.0.1` (UDP port 27812, `-- --port=N`), each with its own library under `user://character_sync_test/`. The client's custom character is transferred, validated, cached under `remote/` and shown on the host; a rematch and a second session reuse the cache without a new transfer; a character whose bytes don't match its SHA-256 is rejected and the host shows the default. Both sides must report the same checksum at tick 200 in every match (exit code 1 otherwise).
 
 ## First Step
 

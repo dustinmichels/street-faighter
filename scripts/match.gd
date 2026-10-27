@@ -11,6 +11,8 @@ extends Node3D
 ## identical (`docs/netcode.md`).
 ## Sits on the `World` node: it is ready after the fighters and processes
 ## before its children (the camera reads this tick's positions).
+## In a mirror match (both fighters show the same model), fighter 2 gets
+## `CharacterLoader.MIRROR_TINT`. Display only.
 
 ## The two fighters, in input order: `inputs[0]` drives `fighters[0]`.
 @export var fighters: Array[Fighter] = []
@@ -78,6 +80,13 @@ func _ready() -> void:
 	_checksums.resize(HISTORY)
 	_used_inputs.resize(HISTORY)
 	_sync_visuals()
+	_tint_mirror()
+
+
+func _tint_mirror() -> void:
+	var second := fighters[1]
+	if second.model != null and second.model_path == fighters[0].model_path:
+		CharacterLoader.set_tint(second.model, CharacterLoader.MIRROR_TINT)
 
 
 func _physics_process(_delta: float) -> void:
@@ -199,16 +208,13 @@ func step(inputs: PackedInt32Array) -> void:
 
 
 ## Sets up the match from an online match config (`Session.match_config`)
-## before it is ready: stage `scenery_path` (`"stage"`), the fighters'
-## `character_path`s (`"characters"`, the tints), `rng_seed`, `max_rollback`
-## and `start_tick`. Missing keys keep the scene's values.
+## before it is ready: stage `scenery_path` (`"stage"`), `rng_seed`,
+## `max_rollback` and `start_tick`. Missing keys keep the scene's values.
+## Characters are visual only, so `main.gd` sets them apart.
 func apply_config(config: Dictionary) -> void:
 	assert(not is_node_ready(), "apply the config before the match is ready")
 	if config.has("stage"):
 		stage.scenery_path = config["stage"]
-	if config.has("characters"):
-		for i in fighters.size():
-			fighters[i].character_path = config["characters"][i]
 	rng_seed = config.get("seed", rng_seed)
 	max_rollback = config.get("max_rollback", max_rollback)
 	start_tick = config.get("start_tick", start_tick)
@@ -217,18 +223,17 @@ func apply_config(config: Dictionary) -> void:
 ## Everything both peers must agree on before the first tick, as this match
 ## is actually set up (once ready): the applied config plus the values taken
 ## from the scene files (stage width, start positions, tick rate). Peers
-## compare it (`Session`), so a mismatch is found before it desyncs.
+## compare it (`Session`), so a mismatch is found before it desyncs. The
+## characters aren't in it: models are visual only, and each side may show
+## another one (a fallback, a hidden opponent).
 func effective_config() -> Dictionary:
 	# Untyped, so they compare equal to the peer's after the trip over RPC.
-	var characters := []
 	var start_x := []
 	for f in fighters:
-		characters.append(f.character_path)
 		start_x.append(f.pos_x)
 	return {
 		"stage": stage.scenery_path,
 		"half_width": stage.half_width,
-		"characters": characters,
 		"start_x": start_x,
 		"seed": rng_seed,
 		"max_rollback": max_rollback,

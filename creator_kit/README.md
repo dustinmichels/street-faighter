@@ -23,7 +23,7 @@ To change the design later, edit `build_character.py` (or ask the agent to), rer
 | File                          | What it is                                                                                   |
 | ----------------------------- | -------------------------------------------------------------------------------------------- |
 | `PROMPT.md`                   | The instructions for the agent, with your design brief filled in.                            |
-| `SKELETON.md`                 | The skeleton every character uses: bone names, rest pose, axes, and model conventions.       |
+| [`SKELETON.md`](SKELETON.md)  | The skeleton every character uses: bone names, rest pose, axes, and model conventions. A copy of the game's `docs/skeleton.md`, the one skeleton reference. |
 | `BPY_NOTES.md`                | Correct Blender Python calls for this task, and the ones that don't exist.                   |
 | `build_template.py`           | Builds `template.blend` (the bare skeleton) next to itself.                                  |
 | `example_build_character.py`  | A complete, working example: a box fighter, built and exported.                              |

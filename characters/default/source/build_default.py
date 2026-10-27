@@ -1,6 +1,7 @@
 """Regenerate the placeholder fighter: one box per bone on the template skeleton.
 
-Writes default.blend (next to this script) and one ../<variant>.glb per VARIANTS entry.
+Writes default.blend (next to this script) and ../default.glb. Fighter 2 in a mirror
+match is told apart by a runtime tint (`CharacterLoader.MIRROR_TINT`), not a variant.
 Run from the repo root:
     blender -b --factory-startup --python characters/default/source/build_default.py
 """
@@ -22,11 +23,6 @@ COLORS = {
     "shoes": "#181410",
 }
 
-# Color variants so two fighters are distinguishable: glb name -> COLORS overrides.
-VARIANTS = {
-    "default": {},
-    "default_blue": {"shirt": "#2a5cc8", "pants": "#d8d0bc"},
-}
 
 # bone: material, boxes as (min, max) corners in Blender world space (meters, -Y = front).
 # .L only; .R is mirrored at -X. Joints stay on the skeleton from docs/skeleton.md.
@@ -118,19 +114,15 @@ for bone_name, (mat, boxes) in parts():
 out = os.path.join(HERE, "default.blend")
 bpy.ops.wm.save_as_mainfile(filepath=out, compress=True)
 print(f"wrote {out} ({len(arm_obj.children)} parts)")
-
-for variant, overrides in VARIANTS.items():
-    for k, c in {**COLORS, **overrides}.items():
-        set_color(mats[k], c)
-    glb = os.path.normpath(os.path.join(HERE, "..", f"{variant}.glb"))
-    bpy.ops.export_scene.gltf(
-        filepath=glb,
-        export_format="GLB",
-        export_yup=True,
-        export_apply=True,
-        export_animations=False,
-        export_morph=False,
-        export_lights=False,
-        export_cameras=False,
-    )
-    print(f"wrote {glb}")
+glb = os.path.normpath(os.path.join(HERE, "..", "default.glb"))
+bpy.ops.export_scene.gltf(
+    filepath=glb,
+    export_format="GLB",
+    export_yup=True,
+    export_apply=True,
+    export_animations=False,
+    export_morph=False,
+    export_lights=False,
+    export_cameras=False,
+)
+print(f"wrote {glb}")

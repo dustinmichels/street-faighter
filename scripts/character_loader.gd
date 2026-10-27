@@ -9,6 +9,9 @@ const TOON_SHADER := preload("res://shaders/toon.gdshader")
 ## Built-in character, also the reference skeleton and rest pose for
 ## `CharacterValidator` and the fallback when a character can't be loaded.
 const DEFAULT_CHARACTER := "res://characters/default/default.glb"
+## Hue rotation (turns, `toon.gdshader` `tint_hue`) for fighter 2 in a mirror
+## match, so both fighters are told apart: red turns blue.
+const MIRROR_TINT := 0.6
 
 ## Bones every character must have (`docs/skeleton.md`). Animations target these names.
 const REQUIRED_BONES: PackedStringArray = [
@@ -40,6 +43,20 @@ static func find_skeleton(root: Node) -> Skeleton3D:
 		return root
 	var found := root.find_children("*", "Skeleton3D", true, false)
 	return found[0] as Skeleton3D if not found.is_empty() else null
+
+
+## Sets the toon shader's `tint_hue` (turns, 0 = none) on every material of a
+## `load_character()`/`load_glb()` model. Each load converts its own
+## materials, so this only changes `root`.
+static func set_tint(root: Node, hue: float) -> void:
+	for node in root.find_children("*", "MeshInstance3D", true, false):
+		var mesh := (node as MeshInstance3D).mesh
+		if mesh == null:
+			continue
+		for i in mesh.get_surface_count():
+			var mat := mesh.surface_get_material(i) as ShaderMaterial
+			if mat != null:
+				mat.set_shader_parameter("tint_hue", hue)
 
 
 ## Loads the `.glb` at `path` (res://, user://, or absolute) and returns its

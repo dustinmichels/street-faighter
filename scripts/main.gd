@@ -5,7 +5,7 @@ extends Node
 ##
 ## Online (`Session.is_online()`), it rewires the scene before anything in it
 ## is ready: the `Match` is set up from the host's `Session.match_config`
-## (stage, tints, seed, start tick), this machine's fighter
+## (stage, characters, seed, start tick), this machine's fighter
 ## (`Session.local_index`) gets a `LocalInput` (keyboard), the other a
 ## `NetworkInput`, and an `InputSync` under the `Match` exchanges them with
 ## `Session.peer_id`. The match stays frozen until `Session` calls `begin()`,
@@ -25,6 +25,13 @@ extends Node
 ## Only players get the special: a fighter driven by the computer
 ## (`AIInput`) has `Fighter.specials_enabled` off.
 ##
+## Offline, the player's fighter uses their saved character
+## (`CharacterLibrary.PLAYER_CHOICE`, picked on the menu's character select);
+## the computer keeps the scene's default model. A character that can't be
+## used at match start (its library entry is gone, or `Fighter.set_character`
+## fell back because it no longer validates) shows the default model, and
+## the HUD and console say so (`_warn_character_fallbacks()`).
+##
 ## Offline, the `ai_difficulty` debug action (F1) cycles the computer
 ## opponent's `AIInput.difficulty` (default / easy) mid-match; it carries over
 ## restarts, and the HUD names it while it isn't the default.
@@ -37,12 +44,22 @@ const DESYNC_LINGER_SECONDS := 0.5
 
 @onready var _world: Match = $GameView/GameViewport/World
 var _sync: InputSync
+## Offline: the player's saved choice is no longer in the library, so their
+## fighter got the default model.
+var _missing_choice := false
 
 
 func _enter_tree() -> void:
 	var world: Match = $GameView/GameViewport/World
 	if Session.is_online():
 		_wire_online(world)
+	else:
+		var choice := CharacterLibrary.chosen(CharacterLibrary.PLAYER_CHOICE)
+		_missing_choice = not CharacterLibrary.BUILTIN.has(choice) and not CharacterLibrary.has(choice)
+		var player_model := CharacterLibrary.model_path(choice)
+		for f in world.fighters:
+			if not f.input is AIInput:
+				f.character_path = player_model
 	for f in world.fighters:
 		f.specials_enabled = not (f.input is AIInput)
 		if f.input is AIInput:
@@ -74,6 +91,8 @@ func _wire_online(world: Match) -> void:
 	# Children exist but aren't ready yet, so the `Match` starts the new
 	# inputs in its `_ready()`.
 	world.apply_config(Session.match_config)
+	for i in world.fighters.size():
+		world.fighters[i].character_path = Session.character_model(i)
 	var local := LocalInput.new()
 	var remote := NetworkInput.new()
 	world.fighters[Session.local_index].input = local
@@ -91,7 +110,32 @@ func _wire_online(world: Match) -> void:
 	($Hud as Hud).net = _sync
 
 
+## Tells the player (HUD warning and console) about every fighter showing
+## the default model instead of its character: a missing library entry
+## (`_missing_choice`) or a model that failed to load (`Fighter.model_path`
+## differs from `character_path`; the loader already logged why).
+func _warn_character_fallbacks() -> void:
+	var hud := get_node_or_null("Hud") as Hud
+	var lines := PackedStringArray()
+	for i in _world.fighters.size():
+		var f := _world.fighters[i]
+		var who := "Player %d" % (i + 1)
+		if hud != null:
+			var shown := hud.left_name if i == 0 else hud.right_name
+			if not shown.is_empty():
+				who = shown
+		if f.model_path != f.character_path:
+			lines.append("%s's character couldn't be loaded, using the default" % who)
+		elif _missing_choice and not f.input is AIInput:
+			lines.append("%s's character is no longer in the library, using the default" % who)
+	for line in lines:
+		push_warning(line)
+	if hud != null and not lines.is_empty():
+		hud.show_warning("\n".join(lines))
+
+
 func _ready() -> void:
+	_warn_character_fallbacks()
 	if not Session.is_online():
 		# Nobody moves while the camera swings in. Online, the countdown
 		# (`Session.COUNTDOWN_TICKS`) already covers the intro.

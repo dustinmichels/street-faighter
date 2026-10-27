@@ -7,13 +7,16 @@ extends Control
 ## - `NAME`: the player types a name (`Session.clean_name()`: upper case, up
 ##   to `Session.MAX_NAME_LENGTH` characters), kept in `Session.player_name`
 ##   and shown on the HUD next to their health bar.
-## - `MODE`: "1 PLAYER VS CPU" starts the local match; "2 PLAYERS ONLINE"
-##   opens `ONLINE`; "CHARACTERS" opens `CHARACTERS`.
+## - `MODE`: "1 PLAYER VS CPU" opens `CHARACTERS` as the character select
+##   (`CharacterScreen.selecting`), whose "FIGHT!" starts the local match;
+##   "2 PLAYERS ONLINE" opens `ONLINE`; "CHARACTERS" opens `CHARACTERS`.
 ## - `ONLINE`: "HOST" waits for an opponent on `Session.DEFAULT_PORT` (or the
 ##   entered port), "JOIN" connects to the address typed next to it (IP or
 ##   IP:port). The `Session` autoload does the networking and loads the match
 ##   once both sides are connected; this only shows its status, and why the
-##   last session ended when it brings the player back here.
+##   last session ended when it brings the player back here. "OPPONENTS:"
+##   toggles "Show opponents as default character"
+##   (`CharacterLibrary.opponents_default()`).
 ## - `CHARACTERS`: the custom character screen (`CharacterScreen`), which
 ##   handles its own pages and Esc until it closes.
 ## Esc (`ui_cancel`) goes back one screen; on `ONLINE` it acts as "BACK"
@@ -41,6 +44,7 @@ const BLINK_SECONDS := 0.9
 @onready var _address: LineEdit = %Address
 @onready var _join: Button = %Join
 @onready var _back: Button = %Back
+@onready var _opponents_default: Button = %OpponentsDefault
 @onready var _status: Label = %Status
 @onready var _player_tag: Label = %PlayerTag
 @onready var _version: Label = %Version
@@ -63,14 +67,19 @@ func _exit_tree() -> void:
 
 func _ready() -> void:
 	_version.text = "VER %s" % Session.game_version()
-	for button: Button in [_singleplayer, _multiplayer, _characters_button, _host, _join, _back]:
+	for button: Button in [_singleplayer, _multiplayer, _characters_button, _host, _join,
+			_opponents_default, _back]:
 		FocusArrows.add(button)
+	_opponents_default.set_pressed_no_signal(CharacterLibrary.opponents_default())
+	_show_opponents_default()
+	_opponents_default.toggled.connect(_on_opponents_default_toggled)
 	_name_edit.text_changed.connect(_on_name_changed)
 	_name_edit.text_submitted.connect(_on_name_submitted)
-	_singleplayer.pressed.connect(_on_singleplayer_pressed)
+	_singleplayer.pressed.connect(_open_characters.bind(true))
 	_multiplayer.pressed.connect(_show.bind(Screen.ONLINE))
-	_characters_button.pressed.connect(_show.bind(Screen.CHARACTERS))
+	_characters_button.pressed.connect(_open_characters.bind(false))
 	_characters.closed.connect(_on_characters_closed)
+	_characters.fight.connect(_start_singleplayer)
 	_host.pressed.connect(_on_host_pressed)
 	_host_port.text_submitted.connect(_on_host_pressed.unbind(1))
 	_join.pressed.connect(_on_join_pressed)
@@ -156,9 +165,14 @@ func _show(screen: Screen) -> void:
 			_characters.open()
 
 
+func _open_characters(selecting: bool) -> void:
+	_characters.selecting = selecting
+	_show(Screen.CHARACTERS)
+
+
 func _on_characters_closed() -> void:
 	_show(Screen.MODE)
-	_characters_button.grab_focus()
+	(_singleplayer if _characters.selecting else _characters_button).grab_focus()
 
 
 ## Keeps the name upper case as it's typed, like an arcade high-score entry.
@@ -175,7 +189,7 @@ func _on_name_submitted(text: String) -> void:
 	_show(Screen.MODE)
 
 
-func _on_singleplayer_pressed() -> void:
+func _start_singleplayer() -> void:
 	get_tree().change_scene_to_file(MATCH_SCENE)
 
 
@@ -193,6 +207,16 @@ func _on_host_pressed() -> void:
 func _on_join_pressed() -> void:
 	if Session.join(_address.text):
 		_set_busy(true)
+
+
+func _on_opponents_default_toggled(on: bool) -> void:
+	CharacterLibrary.set_opponents_default(on)
+	_show_opponents_default()
+
+
+func _show_opponents_default() -> void:
+	FocusArrows.set_text(_opponents_default,
+			"OPPONENTS: DEFAULT" if _opponents_default.button_pressed else "OPPONENTS: AS CHOSEN")
 
 
 ## Back from the online panel; while hosting or connecting it cancels instead.
@@ -217,6 +241,7 @@ func _set_busy(busy: bool) -> void:
 	_host_port.editable = not busy
 	_join.disabled = busy
 	_address.editable = not busy
+	_opponents_default.disabled = busy
 	FocusArrows.set_text(_back, "CANCEL" if busy else "BACK")
 	if busy:
 		_back.grab_focus()

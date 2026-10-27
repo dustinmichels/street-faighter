@@ -51,8 +51,8 @@ Every bone has roll 0. As in Blender, each bone's local +Y points from its head 
 | `hips`, `spine`, `chest`, `neck`, `head`    | +X (left)      | −Y (forward)       |
 | `thigh.*`, `shin.*`                         | +X (left)      | +Y (backward)      |
 | `foot.*`                                    | +X (left)      | mostly down        |
-| `upper_arm.L`, `forearm.L`, `hand.L`        | +Y (backward)  | +Z (up)            |
-| `upper_arm.R`, `forearm.R`, `hand.R`        | −Y (forward)   | +Z (up)            |
+| `upper_arm.L`, `forearm.L`, `hand.L`        | −Y (forward)   | +Z (up)            |
+| `upper_arm.R`, `forearm.R`, `hand.R`        | +Y (backward)  | +Z (up)            |
 
 For animators, this means:
 

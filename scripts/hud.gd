@@ -20,7 +20,9 @@ extends Control
 ## `net_debug` action (F3) toggles a debug overlay under the left name:
 ## ticks, rollbacks, stalls and packet loss (`net_debug_text()`). Offline,
 ## `debug_text` (set by `main.gd`, e.g. a non-default CPU difficulty) shows in
-## the bottom-left corner instead.
+## the bottom-left corner instead. `show_warning()` puts a short message
+## (e.g. a character that fell back to the default) under the name row for
+## `WARNING_SECONDS`.
 
 const BAR_SIZE := Vector2(200, 8)
 ## Gap between a bar and the screen's top and side edges (px).
@@ -34,6 +36,11 @@ const COUNTDOWN_COLOR := Color.WHITE
 const NOTICE_COLOR := Color(1.0, 0.55, 0.35)
 ## How long "FIGHT!" stays up after the countdown (ticks).
 const FIGHT_TICKS := 45
+## How long a `show_warning()` message stays up (seconds, wall clock).
+const WARNING_SECONDS := 6.0
+const WARNING_FONT_SIZE := 10
+## Top of the warning line, below the names and special stars.
+const WARNING_TOP := 40
 ## Actions listed in the controls panel, in display order, with their labels.
 const CONTROLS: Array[Array] = [
 	[&"move_left", "Move left"],
@@ -96,6 +103,8 @@ var _notice: Label
 var _net_status: Label
 ## Debug overlay under the left name, hidden until `net_debug` toggles it.
 var _net_debug: Label
+## Message from `show_warning()`, hidden while empty.
+var _warning: Label
 
 
 func _ready() -> void:
@@ -131,6 +140,15 @@ func _ready() -> void:
 	_net_debug.position = Vector2(BAR_MARGIN.x, _name_top() + NAME_FONT_SIZE + 4)
 	_net_debug.visible = false
 	add_child(_net_debug)
+	_warning = _make_label("", WARNING_FONT_SIZE, NOTICE_COLOR)
+	_warning.mouse_filter = MOUSE_FILTER_IGNORE
+	_warning.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_warning.visible = false
+	add_child(_warning)
+	_warning.set_anchors_and_offsets_preset(PRESET_TOP_WIDE)
+	_warning.offset_left = BAR_MARGIN.x
+	_warning.offset_right = -BAR_MARGIN.x
+	_warning.offset_top = WARNING_TOP
 	_update()
 
 
@@ -183,6 +201,16 @@ func show_notice(text: String) -> void:
 	_notice.text = text
 	_notice.visible = true
 	_update()
+
+
+## Shows `text` under the name row for `WARNING_SECONDS`, replacing any
+## earlier warning. The fight stays visible.
+func show_warning(text: String) -> void:
+	_warning.text = text
+	_warning.visible = not text.is_empty()
+	get_tree().create_timer(WARNING_SECONDS).timeout.connect(func() -> void:
+		if _warning.text == text:
+			_warning.visible = false)
 
 
 ## The debug overlay's lines for `world` and, online, its `sync`: this

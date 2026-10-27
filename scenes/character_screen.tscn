@@ -2,6 +2,7 @@
 
 [ext_resource type="Script" path="res://scripts/character_screen.gd" id="1_screen"]
 [ext_resource type="Script" path="res://scripts/character_wizard.gd" id="2_wizard"]
+[ext_resource type="Script" path="res://scripts/character_preview.gd" id="3_preview"]
 
 [node name="CharacterScreen" type="Control"]
 layout_mode = 3
@@ -26,44 +27,96 @@ mouse_filter = 2
 [node name="Items" type="VBoxContainer" parent="LibraryPage"]
 layout_mode = 2
 mouse_filter = 2
-theme_override_constants/separation = 6
+theme_override_constants/separation = 5
 
-[node name="Title" type="Label" parent="LibraryPage/Items"]
+[node name="LibraryTitle" type="Label" parent="LibraryPage/Items"]
+unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.98, 0.82, 0.2, 1)
 theme_override_font_sizes/font_size = 16
 text = "CHARACTERS"
 horizontal_alignment = 1
 
-[node name="Library" type="ItemList" parent="LibraryPage/Items"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(260, 96)
+[node name="Body" type="HBoxContainer" parent="LibraryPage/Items"]
 layout_mode = 2
 size_flags_horizontal = 4
+mouse_filter = 2
+theme_override_constants/separation = 12
 
-[node name="Create" type="Button" parent="LibraryPage/Items"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(224, 0)
+[node name="List" type="VBoxContainer" parent="LibraryPage/Items/Body"]
 layout_mode = 2
-size_flags_horizontal = 4
+mouse_filter = 2
+theme_override_constants/separation = 5
+
+[node name="Library" type="ItemList" parent="LibraryPage/Items/Body/List"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(200, 96)
+layout_mode = 2
+
+[node name="Fight" type="Button" parent="LibraryPage/Items/Body/List"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+tooltip_text = "Fight the computer with the selected character."
+text = "FIGHT!"
+
+[node name="Create" type="Button" parent="LibraryPage/Items/Body/List"]
+unique_name_in_owner = true
+layout_mode = 2
 tooltip_text = "Answer a few questions to get a creator kit and a prompt for your AI agent."
 text = "CREATE NEW"
 
-[node name="Import" type="Button" parent="LibraryPage/Items"]
+[node name="Import" type="Button" parent="LibraryPage/Items/Body/List"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(224, 0)
 layout_mode = 2
-size_flags_horizontal = 4
-tooltip_text = "Not available yet: importing a .glb comes with the character library."
-disabled = true
+tooltip_text = "Import a character .glb exported by your AI agent. You can also drop a .glb onto the window."
 text = "IMPORT…"
 
-[node name="Close" type="Button" parent="LibraryPage/Items"]
+[node name="Close" type="Button" parent="LibraryPage/Items/Body/List"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(224, 0)
+layout_mode = 2
+text = "BACK"
+
+[node name="Entry" type="VBoxContainer" parent="LibraryPage/Items/Body"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 5
+
+[node name="Preview" type="SubViewportContainer" parent="LibraryPage/Items/Body/Entry"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(120, 104)
+layout_mode = 2
+script = ExtResource("3_preview")
+
+[node name="Punch" type="Button" parent="LibraryPage/Items/Body/Entry"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Play the punch, to check that every part follows its bone."
+text = "PUNCH"
+
+[node name="Reimport" type="Button" parent="LibraryPage/Items/Body/Entry"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Import the selected character again from the file it came from."
+disabled = true
+text = "RE-IMPORT"
+
+[node name="Delete" type="Button" parent="LibraryPage/Items/Body/Entry"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Remove the selected character from the library (its source file is kept)."
+disabled = true
+text = "DELETE"
+
+[node name="LibraryStatus" type="Label" parent="LibraryPage/Items"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(332, 0)
 layout_mode = 2
 size_flags_horizontal = 4
-text = "BACK"
+theme_override_colors/font_color = Color(0.6, 0.58, 0.7, 1)
+text = "IMPORT A .GLB, OR DROP ONE HERE"
+horizontal_alignment = 1
+autowrap_mode = 1
 
 [node name="Hint" type="Label" parent="LibraryPage/Items"]
 layout_mode = 2
@@ -157,6 +210,73 @@ tooltip_text = "Choose the folder creator kits are saved in."
 text = "FOLDER…"
 
 [node name="Hint" type="Label" parent="ReviewPage/Items"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.58, 0.7, 1)
+text = "UP/DOWN: SCROLL    ESC: BACK"
+horizontal_alignment = 1
+
+[node name="ErrorsPage" type="CenterContainer" parent="."]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Items" type="VBoxContainer" parent="ErrorsPage"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 5
+
+[node name="ErrorsTitle" type="Label" parent="ErrorsPage/Items"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(440, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.98, 0.82, 0.2, 1)
+theme_override_font_sizes/font_size = 16
+text = "IMPORT FAILED"
+horizontal_alignment = 1
+text_overrun_behavior = 3
+
+[node name="Errors" type="TextEdit" parent="ErrorsPage/Items"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(440, 116)
+layout_mode = 2
+focus_mode = 1
+tooltip_text = "What the validator found. Up/down scroll it."
+editable = false
+context_menu_enabled = false
+wrap_mode = 1
+
+[node name="ErrorsStatus" type="Label" parent="ErrorsPage/Items"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(440, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.58, 0.7, 1)
+text = "PASTE THESE TO YOUR AGENT, THEN IMPORT AGAIN."
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="Buttons" type="HBoxContainer" parent="ErrorsPage/Items"]
+layout_mode = 2
+theme_override_constants/separation = 12
+alignment = 1
+
+[node name="ErrorsBack" type="Button" parent="ErrorsPage/Items/Buttons"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "BACK"
+
+[node name="CopyErrors" type="Button" parent="ErrorsPage/Items/Buttons"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Copy the errors to the clipboard, to paste back to your AI agent."
+text = "COPY ERRORS"
+
+[node name="ErrorsHint" type="Label" parent="ErrorsPage/Items"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.6, 0.58, 0.7, 1)
 text = "UP/DOWN: SCROLL    ESC: BACK"
