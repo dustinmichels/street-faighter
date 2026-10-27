@@ -6,11 +6,11 @@ extends PixelCamera
 ## fighters (it comes after them in the tree), so it sees this tick's positions.
 ##
 ## On ready it first plays an intro: it starts swung `intro_yaw` around the
-## fighters and tilted `intro_pitch` further down, zoomed out by
-## `intro_zoom`, and eases back into the side view over `intro_duration`
-## seconds (wall-clock, display only), then emits `intro_finished` and starts
+## fighters and tilted `intro_pitch` further down, zoomed by `intro_zoom`,
+## and eases back into the side view over `intro_duration` seconds
+## (wall-clock, display only), then emits `intro_finished` and starts
 ## following. The orbit pivots on the point at the fighters' depth (z = 0)
-## that the side view is centered on.
+## that the side view is centered on. The stage walls are hidden meanwhile.
 
 ## Emitted once the intro has settled into the side view (right away, during
 ## `_ready()`, when `intro_duration` is 0).
@@ -24,11 +24,11 @@ signal intro_finished
 @export_range(0.0, 10.0, 0.1) var intro_duration := 2.5
 ## Where the intro starts: degrees around the vertical axis (positive swings
 ## the camera to the right of the stage)...
-@export_range(-180.0, 180.0) var intro_yaw := 30.0
+@export_range(-180.0, 180.0) var intro_yaw := 45.0
 ## ...degrees tilted further down than the side view...
-@export_range(-60.0, 70.0) var intro_pitch := 50.0
+@export_range(-60.0, 70.0) var intro_pitch := 15.0
 ## ...and `size` multiplier.
-@export_range(0.1, 4.0) var intro_zoom := 1.6
+@export_range(0.1, 4.0) var intro_zoom := 1.0
 
 ## Seconds of intro played; negative once it is over.
 var _intro_time := -1.0
@@ -50,6 +50,7 @@ func _ready() -> void:
 	var forward := -_rest_basis.z
 	_pivot = global_position + forward * (-global_position.z / forward.z)
 	_intro_time = 0.0
+	_set_walls_visible(false)
 	_pose_intro(0.0)
 
 
@@ -63,6 +64,7 @@ func _process(delta: float) -> void:
 	_intro_time = -1.0
 	global_basis = _rest_basis
 	size = _rest_size
+	_set_walls_visible(true)
 	_follow()
 	# Their visuals were last snapped to the intro's start pose.
 	for f in fighters:
@@ -88,6 +90,15 @@ func _pose_intro(t: float) -> void:
 			* Basis(_rest_basis.x, deg_to_rad(-intro_pitch * left))
 	global_transform = Transform3D(swing * _rest_basis, _pivot + swing * (target_position - _pivot))
 	size = _rest_size * lerpf(1.0, intro_zoom, left)
+
+
+## The stage walls would stand between the swung camera and the fighters, and
+## the side view doesn't show them while the fighters are at their start
+## (centered), so the intro hides them.
+func _set_walls_visible(on: bool) -> void:
+	if stage != null:
+		stage.wall_left.visible = on
+		stage.wall_right.visible = on
 
 
 ## Half the visible width along X (m): orthographic `size` is the height.

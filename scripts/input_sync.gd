@@ -118,7 +118,8 @@ func _measure_rtt() -> int:
 ## was at match tick `tick` with tick advantage `peer_advantage`.
 @rpc("any_peer", "call_remote", "unreliable_ordered", 1)
 func _receive_inputs(match_number: int, ack: int, first: int, inputs: PackedByteArray, tick: int, peer_advantage: float) -> void:
-	if multiplayer.get_remote_sender_id() != peer_id or match_number != match_id:
+	var mp := multiplayer
+	if mp == null or mp.get_remote_sender_id() != peer_id or match_number != match_id:
 		return
 	_peer_has = clampi(ack, _peer_has, local.end_tick())
 	remote.receive(first, inputs)

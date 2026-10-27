@@ -84,7 +84,11 @@ func _update() -> void:
 	_set_fill(_right_fill, right_fighter, true)
 	_ko.visible = _is_down(left_fighter) or _is_down(right_fighter)
 	if _ko.visible:
-		_ko_hint.text = ko_hint(Session.is_online(), Session.rematch_requested, Session.peer_rematch_requested)
+		var session := get_node_or_null("/root/Session")
+		var online: bool = session != null and bool(session.is_online())
+		var req: bool = session != null and bool(session.rematch_requested)
+		var peer_req: bool = session != null and bool(session.peer_rematch_requested)
+		_ko_hint.text = ko_hint(online, req, peer_req)
 	if fight != null:
 		_countdown.text = countdown_text(fight.tick, fight.start_tick)
 
@@ -181,8 +185,10 @@ static func _keys_for(action: StringName) -> String:
 			continue
 		var code := key.keycode
 		if key.physical_keycode != KEY_NONE:
-			code = DisplayServer.keyboard_get_keycode_from_physical(key.physical_keycode)
-		names.append(OS.get_keycode_string(code))
+			if DisplayServer.get_name() != "headless":
+				code = DisplayServer.keyboard_get_keycode_from_physical(key.physical_keycode)
+			else:
+				code = key.physical_keycode
 	return " / ".join(names)
 
 
