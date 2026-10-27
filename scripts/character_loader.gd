@@ -69,11 +69,15 @@ static func _bone_names(skeleton: Skeleton3D) -> PackedStringArray:
 
 ## Loads the `.glb` at `path` (res://, user://, or absolute) and returns its
 ## generated scene root, or null after pushing an error. Mesh materials are
-## replaced with the toon shader, keeping the original albedo color/texture.
+## replaced with the toon shader, keeping the original albedo color/texture
+## and emission color. Also used for stage scenery (`Stage`).
 ## The caller owns the returned node (add it to the tree or free it).
 static func load_glb(path: String) -> Node3D:
 	var doc := GLTFDocument.new()
 	var state := GLTFState.new()
+	# Keep embedded textures in memory; the default extracts them as PNG files
+	# next to the .glb (into the project when run from the editor).
+	state.handle_binary_image = GLTFState.HANDLE_BINARY_EMBED_AS_UNCOMPRESSED
 	var err := doc.append_from_file(path, state)
 	if err != OK:
 		push_error("CharacterLoader: can't read '%s': %s" % [path, error_string(err)])
@@ -83,8 +87,26 @@ static func load_glb(path: String) -> Node3D:
 		push_error("CharacterLoader: '%s' produced no scene" % path)
 		return null
 	root.name = path.get_file().get_basename().validate_node_name()
+	_bake_importer_meshes(root)
 	_apply_toon_materials(root)
 	return root
+
+
+## In the editor (tool scripts such as `Stage`), `generate_scene()` leaves
+## `ImporterMeshInstance3D`s, which don't render; swap them for real
+## `MeshInstance3D`s. A no-op in the running game.
+static func _bake_importer_meshes(root: Node) -> void:
+	for node in root.find_children("*", "ImporterMeshInstance3D", true, false):
+		var src := node as ImporterMeshInstance3D
+		var mi := MeshInstance3D.new()
+		mi.name = src.name
+		mi.transform = src.transform
+		if src.mesh != null:
+			mi.mesh = src.mesh.get_mesh()
+		mi.skin = src.skin
+		mi.skeleton = src.skeleton_path
+		src.replace_by(mi, true)
+		src.free()
 
 
 static func _apply_toon_materials(root: Node) -> void:
@@ -108,4 +130,6 @@ static func _toon_from(src: Material) -> ShaderMaterial:
 		mat.set_shader_parameter("albedo", base.albedo_color)
 		if base.albedo_texture != null:
 			mat.set_shader_parameter("albedo_texture", base.albedo_texture)
+		if base.emission_enabled:
+			mat.set_shader_parameter("emission", base.emission * base.emission_energy_multiplier)
 	return mat

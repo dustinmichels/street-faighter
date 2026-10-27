@@ -46,7 +46,12 @@ horizontal_alignment = 1
 custom_minimum_size = Vector2(0, 12)
 layout_mode = 2
 
-[node name="Singleplayer" type="Button" parent="Center/Items"]
+[node name="Start" type="VBoxContainer" parent="Center/Items"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Singleplayer" type="Button" parent="Center/Items/Start"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(160, 0)
 layout_mode = 2
@@ -54,18 +59,62 @@ size_flags_horizontal = 4
 theme_override_font_sizes/font_size = 12
 text = "Singleplayer"
 
-[node name="Multiplayer" type="Button" parent="Center/Items"]
+[node name="Multiplayer" type="Button" parent="Center/Items/Start"]
+unique_name_in_owner = true
 custom_minimum_size = Vector2(160, 0)
 layout_mode = 2
 size_flags_horizontal = 4
-tooltip_text = "Online play is not implemented yet."
 theme_override_font_sizes/font_size = 12
-disabled = true
 text = "Multiplayer (online)"
 
-[node name="ComingSoon" type="Label" parent="Center/Items"]
+[node name="Online" type="VBoxContainer" parent="Center/Items"]
+unique_name_in_owner = true
+visible = false
 layout_mode = 2
-theme_override_colors/font_color = Color(1, 1, 1, 0.7)
+theme_override_constants/separation = 8
+
+[node name="Host" type="Button" parent="Center/Items/Online"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+size_flags_horizontal = 4
+tooltip_text = "Wait for an opponent on UDP port 7777. You play the red fighter."
+theme_override_font_sizes/font_size = 12
+text = "Host"
+
+[node name="JoinRow" type="HBoxContainer" parent="Center/Items/Online"]
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_constants/separation = 4
+
+[node name="Address" type="LineEdit" parent="Center/Items/Online/JoinRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+placeholder_text = "Host IP or IP:port"
+
+[node name="Join" type="Button" parent="Center/Items/Online/JoinRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(60, 0)
+layout_mode = 2
+tooltip_text = "Connect to a host (port 7777 unless given). You play the blue fighter."
+theme_override_font_sizes/font_size = 12
+text = "Join"
+
+[node name="Back" type="Button" parent="Center/Items/Online"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_font_sizes/font_size = 12
+text = "Back"
+
+[node name="Status" type="Label" parent="Center/Items"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(300, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 0.85)
 theme_override_font_sizes/font_size = 8
-text = "Online multiplayer coming soon"
 horizontal_alignment = 1
+autowrap_mode = 3

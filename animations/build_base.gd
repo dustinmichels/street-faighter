@@ -265,6 +265,35 @@ static func air_kick() -> Array:
 	]
 
 
+## Time to raise the guard (4 frames at 60 fps); the clip holds it afterwards.
+const BLOCK_LENGTH := 4.0 / 60.0
+
+## Guard: a lower stance, torso hunched forward, both forearms raised in
+## front of the face and chest.
+static var BLOCK := _pose(STANCE, {
+	HIPS_POS: Vector3(0, -0.16, -0.03),
+	"spine": Vector3(18, 0, 0),
+	"chest": Vector3(10, 0, 0),
+	"neck": Vector3(-14, 0, 0),
+	"head": Vector3(-10, 0, 0),
+	"upper_arm.L": Vector3(-50, 0, -70),
+	"forearm.L": Vector3(0, 0, -120),
+	"upper_arm.R": _m(Vector3(-50, 0, -65)),
+	"forearm.R": _m(Vector3(0, 0, -125)),
+	"thigh.L": Vector3(-38, 0, -4),
+	"shin.L": Vector3(52, 0, 0),
+	"foot.L": Vector3(-14, 0, 0),
+	"thigh.R": _m(Vector3(8, 0, -4)),
+	"shin.R": Vector3(28, 0, 0),
+	"foot.R": Vector3(-34, 0, 0),
+})
+
+
+## Block: snap from the stance into the guard, then hold it while blocking.
+static func block() -> Array:
+	return [[0.0, STANCE], [BLOCK_LENGTH, BLOCK]]
+
+
 ## Flat on the back on the floor, feet toward where the fighter stood (the
 ## hips end 0.8 m behind their start), arms out at the sides.
 static var LYING := _pose(STANCE, {
@@ -387,6 +416,7 @@ static func clips() -> Dictionary:
 	return {
 		&"air_kick": [AIR_KICK_LENGTH, false, false, air_kick(),
 			{&"active_start": AIR_KICK_ACTIVE_START, &"active_end": AIR_KICK_ACTIVE_END}],
+		&"block": [BLOCK_LENGTH, false, false, block()],
 		&"idle": [1.0, true, true, idle()],
 		&"jump_start": [0.15, false, true, jump_start()],
 		&"jump_air": [0.25, false, true, jump_air()],

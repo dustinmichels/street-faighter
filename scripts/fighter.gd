@@ -1,29 +1,37 @@
 class_name Fighter
-extends CharacterBody3D
+extends Node3D
 ## A fighter. Its character model is loaded at runtime from `character_path`
 ## and placed under `$Visual`, the node that is moved/mirrored for display.
-## The body is a capsule (layer 2, colliding only with the world on layer 1, so
-## fighters pass through each other; `_push_apart()` keeps them apart) that only
-## moves along world X: Z velocity and position are forced to zero every tick.
+##
+## Gameplay is a deterministic simulation for netcode (`docs/netcode.md`): all
+## of it lives in the plain variables below (fixed-point integers, see
+## `SCALE`), advanced only by `step()`, which the `Match` calls once per tick
+## for both fighters in a fixed order. No Godot physics is involved: movement
+## is custom kinematics along world X/Y bounded by the floor (y = 0) and the
+## stage walls, and hits are game-defined shapes tested by the `Match`. The
+## node itself (`position`, `visual`, the animation) only displays the state,
+## via `sync_visual()`.
 
-enum State { IDLE, WALK, JUMP, PUNCH, HIT, KNOCKED_DOWN }
+enum State { IDLE, WALK, JUMP, PUNCH, HIT, KNOCKED_DOWN, BLOCK }
 ## Parts of the `jump` state, each with its own clip (`JUMP_CLIPS`). `KICK`
 ## replaces `AIR` once the attack button is pressed mid-air and lasts until
 ## touchdown (the clip ends back in the tuck and holds it).
 enum JumpPhase { TAKEOFF, AIR, LANDING, KICK }
 
-## Gameplay rate: every rule below advances once per physics tick, by `TICK`
-## (never the frame delta), and times are counted in whole ticks so the
-## simulation is deterministic for netcode. Must equal the project's
-## `physics/common/physics_ticks_per_second`.
+## Gameplay rate: `step()` runs once per physics tick and times are counted in
+## whole ticks. Must equal the project's `physics/common/physics_ticks_per_second`.
 const TICK_RATE := 60
 const TICK := 1.0 / TICK_RATE
+## Fixed-point units per metre for positions; speeds are units per tick and
+## accelerations units per tick². Integer math gives the same results on
+## every platform, so peers never drift apart.
+const SCALE := 10000
 
 ## Shared clips (`animations/build_base.gd`), played on every character.
 const ANIMATIONS := preload("res://animations/base.res")
 
-## How long a `hit` reaction locks the fighter before returning to idle.
-const HIT_STUN := 0.3
+## How long a `hit` reaction locks the fighter before returning to idle (0.3 s).
+const HIT_STUN := 18
 ## End of the recoil key in the `knockdown` clip; `hit` plays only that part.
 const HIT_RECOIL_END := 0.1
 ## Health a fighter starts with.
@@ -32,51 +40,108 @@ const MAX_HEALTH := 100
 const PUNCH_DAMAGE := 10
 ## Health one landed air kick takes off.
 const AIR_KICK_DAMAGE := 10
-## Push speed (m/s) a hit gives the victim, away from the attacker.
-const KNOCKBACK_SPEED := 3.0
-## Deceleration (m/s²) of that push: it stops after 0.2 s, ≈ 0.3 m.
-const KNOCKBACK_FRICTION := 15.0
-## Closest two fighters' body centers may get along X: twice the body
-## capsule's radius (0.3, `fighter.tscn`).
-const PUSH_DISTANCE := 0.6
-## Farthest two fighters' body centers may get along X, so both stay on
+## Push speed a hit gives the victim, away from the attacker (3 m/s).
+const KNOCKBACK_SPEED := 500
+## Deceleration of that push (≈ 15 m/s²): it stops after 12 ticks, ≈ 0.3 m.
+const KNOCKBACK_FRICTION := 42
+## Push speed a blocked hit gives the blocker (1.5 m/s); the same friction
+## stops it after 6 ticks, ≈ 0.06 m.
+const BLOCK_PUSH_SPEED := 250
+## Blockstun after a blocked hit (0.2 s): the guard holds even if the block
+## button is released.
+const BLOCK_STUN := 12
+## How long an attack press stays buffered: 5 ticks, i.e. up to 4 ticks early
+## (Street Fighter 6's buffer), so a press during recovery, stun or the
+## landing comes out on the first tick it can.
+const INPUT_BUFFER := 5
+## Body radius (0.3 m): how close a body center gets to a wall.
+const BODY_RADIUS := 3000
+## Closest two fighters' body centers may get along X: twice `BODY_RADIUS`.
+const PUSH_DISTANCE := 6000
+## Farthest two fighters' body centers may get along X (7 m), so both stay on
 ## screen: the follow camera (`FollowCamera`) shows 8.89 m, which leaves
 ## ≈ 0.95 m past each body for limbs and the knockdown slide.
-const MAX_SEPARATION := 7.0
-## Ground walking speed (m/s), the same forward and backward.
-const WALK_SPEED := 2.0
-## Downward acceleration (m/s²) whenever the body is off the floor.
-const GRAVITY := 25.0
-## Upward launch speed (m/s): peak ≈ 1.3 m, ≈ 0.64 s in the air.
-const JUMP_VELOCITY := 8.0
-## Grounded crouch before launch; matches the `jump_start` clip.
-const JUMP_TAKEOFF := 0.15
-## Grounded recovery after touchdown; matches the `jump_land` clip.
-const JUMP_LANDING := 0.2
+const MAX_SEPARATION := 70000
+## Ground walking speed (≈ 2 m/s), the same forward and backward.
+const WALK_SPEED := 333
+## Downward acceleration (≈ 25 m/s²) whenever the body is off the floor.
+const GRAVITY := 69
+## Upward launch speed (≈ 8 m/s): peak ≈ 1.3 m, ≈ 0.64 s in the air.
+const JUMP_VELOCITY := 1333
+## Grounded crouch before launch (0.15 s); matches the `jump_start` clip.
+const JUMP_TAKEOFF := 9
+## Grounded recovery after touchdown (0.2 s); matches the `jump_land` clip.
+const JUMP_LANDING := 12
 const JUMP_CLIPS: Array[StringName] = [&"jump_start", &"jump_air", &"jump_land", &"air_kick"]
-## Full punch duration (startup + active + recovery), taken from the clip.
-static var PUNCH_LENGTH := ANIMATIONS.get_animation(&"punch").length
-## The punch clip's active window (markers `active_start`/`active_end`); the
-## hitbox is live from the start up to, not including, the end.
-static var PUNCH_ACTIVE_START := ANIMATIONS.get_animation(&"punch").get_marker_time(&"active_start")
-static var PUNCH_ACTIVE_END := ANIMATIONS.get_animation(&"punch").get_marker_time(&"active_end")
+## Full punch duration in ticks (startup + active + recovery), from the clip.
+static var PUNCH_LENGTH := ticks(ANIMATIONS.get_animation(&"punch").length)
+## The punch clip's active window in ticks (markers `active_start`/`active_end`);
+## the hitbox is live from the start up to, not including, the end.
+static var PUNCH_ACTIVE_START := ticks(ANIMATIONS.get_animation(&"punch").get_marker_time(&"active_start"))
+static var PUNCH_ACTIVE_END := ticks(ANIMATIONS.get_animation(&"punch").get_marker_time(&"active_end"))
 ## The air kick clip's active window, counted from the start of `KICK`.
-static var AIR_KICK_ACTIVE_START := ANIMATIONS.get_animation(&"air_kick").get_marker_time(&"active_start")
-static var AIR_KICK_ACTIVE_END := ANIMATIONS.get_animation(&"air_kick").get_marker_time(&"active_end")
-## Hitbox center (body space, facing +X) per attack: the extended fist
+static var AIR_KICK_ACTIVE_START := ticks(ANIMATIONS.get_animation(&"air_kick").get_marker_time(&"active_start"))
+static var AIR_KICK_ACTIVE_END := ticks(ANIMATIONS.get_animation(&"air_kick").get_marker_time(&"active_end"))
+## Hitbox center relative to the feet (facing +X) per attack: the extended fist
 ## (≈ 0.57–0.73 m forward, 1.33 m up) and the extended kicking foot (ankle
 ## 0.75 m forward, 0.52 m up; heel/sole just past it).
-const PUNCH_HITBOX := Vector3(0.62, 1.33, 0.0)
-const AIR_KICK_HITBOX := Vector3(0.8, 0.55, 0.0)
+const PUNCH_HITBOX := Vector2i(6200, 13300)
+const AIR_KICK_HITBOX := Vector2i(8000, 5500)
+## Half the side of the square hitbox (0.3 m box).
+const HITBOX_HALF := 1500
+## Hurtbox: the body capsule (r = 0.3 m, 1.8 m tall), seen from the side as a
+## vertical segment from `HURTBOX_BOTTOM` to `HURTBOX_TOP` above the feet,
+## widened by `BODY_RADIUS`. Fixed, never taken from the mesh.
+const HURTBOX_BOTTOM := 3000
+const HURTBOX_TOP := 15000
 
 ## Character `.glb` to load on ready (see `docs/skeleton.md`).
 @export_file("*.glb") var character_path: String
-## Controls, sampled once per physics tick. Swap in another `InputSource`
-## (network, AI) to drive the fighter without touching this script.
-@export var input: InputSource = IdleInput.new()
-## The fighter to face. Turning happens only in idle/walk, so a fighter that
-## crosses over mid-jump or mid-punch turns around once it is back to neutral.
+## Controls, sampled once per tick by the `Match`. Swap in another
+## `InputSource` (network, AI) to drive the fighter without touching this
+## script; assigning one calls its `bind(self)`.
+@export var input: InputSource = IdleInput.new():
+	set(value):
+		input = value
+		if input != null:
+			input.bind(self)
+## The other fighter, for input sources that look at the match (the AI).
 @export var opponent: Fighter
+
+# --- Simulation state: everything `step()` reads or writes, nothing else. ---
+
+## Body center (feet) along X and height above the floor, in `SCALE` units.
+var pos_x := 0
+var pos_y := 0
+## Velocity in units per tick.
+var vel_x := 0
+var vel_y := 0
+## Current state; change it only via `change_state()`.
+var state := State.IDLE
+## Ticks spent in the current state (and jump phase).
+var state_ticks := 0
+## Part of the jump while `state == State.JUMP`.
+var jump_phase := JumpPhase.TAKEOFF
+## +1 when the fighter faces +X, -1 when it faces -X.
+var facing := 1
+## Held direction (-1, 0 or +1) in idle/walk/block; while jumping, the locked
+## jump direction.
+var move_dir := 0
+## Buttons held last tick, to turn the input bitmask into fresh presses.
+var prev_buttons := 0
+## Ticks the last attack press stays buffered (0 = none), see `INPUT_BUFFER`.
+var attack_buffer := 0
+## Blockstun ticks left while `state == State.BLOCK` (0 = guarding by choice).
+var block_stun := 0
+## Remaining health, 0..`MAX_HEALTH`.
+var health := MAX_HEALTH
+## Set once the current punch or air kick connects, so it hits at most once.
+var attack_landed := false
+## Farthest a body center may get from the stage center along X (walls);
+## set by the `Match` before the first tick.
+var wall_limit := 1 << 40
+
+# --- Display only. ---
 
 ## Loaded character scene root (child of `visual`), or null if loading failed.
 var model: Node3D
@@ -86,174 +151,170 @@ var skeleton: Skeleton3D
 ## on `skeleton`. Recreated with each model.
 var anim: AnimationPlayer
 
-## Current state; change it only via `change_state()`.
-var state := State.IDLE
-## Physics ticks spent in the current state (and jump phase).
-var state_ticks := 0
-## Part of the jump while `state == State.JUMP`.
-var jump_phase := JumpPhase.TAKEOFF
-## +1 when the fighter faces +X, -1 when it faces -X.
-var facing := 1.0
-## Walk direction along X (-1, 0 or +1); while jumping, the locked jump direction.
-var move_dir := 0.0
-## Buttons held last tick, to turn `input.poll()` into fresh presses.
-var prev_buttons := 0
-## Remaining health, 0..`MAX_HEALTH`.
-var health := MAX_HEALTH
-## Set once the current punch or air kick connects, so it hits at most once.
-var attack_landed := false
-
 @onready var visual: Node3D = $Visual
-## Where this fighter can be hit: a fixed capsule matching the body (layer 3,
-## `hurtboxes`), never taken from the mesh. Only queried, never monitoring.
-@onready var hurtbox: Area3D = $Hurtbox
-## The current attack's reach: a fixed box placed at `PUNCH_HITBOX` or
-## `AIR_KICK_HITBOX` when the attack starts, mirrored with `facing`. Its shape
-## is enabled only on active frames; hits come from `hitbox_targets()`, a
-## direct space query, so they land on the same tick.
-@onready var hitbox: Area3D = $Hitbox
-@onready var hitbox_shape: CollisionShape3D = $Hitbox/Collision
 
 
 func _ready() -> void:
 	assert(Engine.physics_ticks_per_second == TICK_RATE, "physics tick rate must be %d Hz" % TICK_RATE)
+	pos_x = roundi(position.x * SCALE)
+	pos_y = roundi(position.y * SCALE)
 	if not character_path.is_empty():
 		set_character(character_path)
-	_update_facing()
-	_apply_facing()
 
 
-func _physics_process(_delta: float) -> void:
+## Advances this fighter by one tick: `buttons` is this tick's input bitmask
+## and `opponent_x` the opponent's `pos_x` at the start of the tick (so the
+## order in which the two fighters step doesn't matter). Pushing apart and
+## hits involve both fighters and are resolved by the `Match` afterwards.
+##
+## Hold the block button to guard in place, hold jump to keep jumping; attack
+## presses are buffered.
+func step(buttons: int, opponent_x: int) -> void:
 	state_ticks += 1
-	var buttons := input.poll() if input != null else 0
 	var pressed := buttons & ~prev_buttons
 	prev_buttons = buttons
-	var dir := float(int((buttons & InputSource.RIGHT) != 0) - int((buttons & InputSource.LEFT) != 0))
-	var jump_pressed := (pressed & InputSource.JUMP) != 0
-	var punch_pressed := (pressed & InputSource.PUNCH) != 0
-	if not is_on_floor():
-		velocity.y -= GRAVITY * TICK
+	var dir := int((buttons & InputSource.RIGHT) != 0) - int((buttons & InputSource.LEFT) != 0)
+	attack_buffer = INPUT_BUFFER if (pressed & InputSource.PUNCH) != 0 else maxi(attack_buffer - 1, 0)
+	var jump_held := (buttons & InputSource.JUMP) != 0
+	var block_held := (buttons & InputSource.BLOCK) != 0
+	var on_floor := pos_y == 0
+	if not on_floor:
+		vel_y -= GRAVITY
 	match state:
 		State.IDLE, State.WALK:
-			_update_facing()
-			if punch_pressed and is_on_floor():
-				velocity.x = 0.0
-				_start_attack(PUNCH_HITBOX)
-				change_state(State.PUNCH)
-			elif jump_pressed and is_on_floor():
-				move_dir = dir
-				jump_phase = JumpPhase.TAKEOFF
-				change_state(State.JUMP)
-				velocity.x = 0.0
-			else:
-				_ground_move(dir)
+			face(opponent_x)
+			_neutral(dir, jump_held, block_held, on_floor)
 		State.JUMP:
-			_jump(punch_pressed)
+			_jump(dir, on_floor)
 		State.PUNCH:
 			# Rooted and deaf to input until the clip ends; only a hit cuts it short.
-			velocity.x = 0.0
-			if state_ticks >= ticks(PUNCH_LENGTH):
-				move_dir = 0.0
+			vel_x = 0
+			if state_ticks >= PUNCH_LENGTH:
+				move_dir = 0
 				change_state(State.IDLE)
 		State.HIT:
-			velocity.x = move_toward(velocity.x, 0.0, KNOCKBACK_FRICTION * TICK)
+			vel_x = _toward_zero(vel_x, KNOCKBACK_FRICTION)
 		State.KNOCKED_DOWN:
-			velocity.x = 0.0
-	if state == State.HIT and state_ticks >= ticks(HIT_STUN):
+			vel_x = 0
+		State.BLOCK:
+			# Rooted during blockstun; afterwards the guard lasts while the
+			# button is held. Keeps turning to face the opponent.
+			face(opponent_x)
+			vel_x = _toward_zero(vel_x, KNOCKBACK_FRICTION)
+			if block_stun > 0:
+				block_stun -= 1
+			else:
+				_neutral(dir, jump_held, block_held, on_floor)
+	if state == State.HIT and state_ticks >= HIT_STUN:
 		change_state(State.IDLE)
-	velocity.z = 0.0
-	move_and_slide()
-	position.z = 0.0
-	if opponent != null:
-		_push_apart(opponent)
-		_stay_in_range(opponent)
-	hitbox_shape.disabled = not is_hitbox_active()
-	if not hitbox_shape.disabled and not attack_landed:
-		var damage := PUNCH_DAMAGE if state == State.PUNCH else AIR_KICK_DAMAGE
-		for target in hitbox_targets():
-			target.take_hit(damage, facing)
-			attack_landed = true
-	_snap_visual()
+	_move()
 
 
-## Puts `visual` on the pixel grid at the body's position (§2 pixel snapping).
-func _snap_visual() -> void:
-	var camera := get_viewport().get_camera_3d() as PixelCamera
-	if camera != null:
-		visual.global_position = camera.snap(global_position)
+## Applies velocity: the walls stop (and zero) horizontal motion, the floor
+## stops a fall.
+func _move() -> void:
+	pos_x += vel_x
+	if absi(pos_x) > wall_limit:
+		pos_x = signi(pos_x) * wall_limit
+		vel_x = 0
+	pos_y += vel_y
+	if pos_y <= 0:
+		pos_y = 0
+		vel_y = maxi(vel_y, 0)
 
 
-## Bodies don't collide with each other (mask is world only), so overlap along
-## X is resolved here instead: each fighter takes half, moving away from the
-## other; if one is blocked (by a wall), the other takes the rest. Runs after
-## each fighter's own move, so walking into a fighter shoves it at half speed.
-func _push_apart(other: Fighter) -> void:
-	var dx := other.global_position.x - global_position.x
-	var overlap := PUSH_DISTANCE - absf(dx)
-	if overlap <= 0.0:
-		return
-	# Exactly on top of each other: step back from where we're facing.
-	var dir := signf(dx) if not is_zero_approx(dx) else facing
-	var pushed := other._shove(dir * overlap * 0.5)
-	pushed += _shove(-dir * (overlap - pushed))
-	other._shove(dir * (overlap - pushed))
-	other._snap_visual()
+## Moves the body `dx` along X, stopping at the walls. Returns the distance
+## actually travelled.
+func shove(dx: int) -> int:
+	var start := pos_x
+	pos_x = clampi(pos_x + dx, -wall_limit, wall_limit)
+	return absi(pos_x - start)
 
 
-## Screen-edge limit: a fighter that ends its move more than `MAX_SEPARATION`
-## from `other` steps back toward it. Only the mover is held (each fighter
-## checks after its own move), so nobody is dragged along by the other.
-func _stay_in_range(other: Fighter) -> void:
-	var dx := other.global_position.x - global_position.x
-	var excess := absf(dx) - MAX_SEPARATION
-	if excess > 0.0:
-		_shove(signf(dx) * excess)
+static func _toward_zero(v: int, amount: int) -> int:
+	return v - signi(v) * mini(absi(v), amount)
 
 
-## Moves the body `dx` along X, stopping at world geometry. Returns the
-## distance actually travelled.
-func _shove(dx: float) -> float:
-	if is_zero_approx(dx):
-		return 0.0
-	var start := global_position.x
-	move_and_collide(Vector3(dx, 0.0, 0.0))
-	position.z = 0.0
-	return absf(global_position.x - start)
+## The simulation state as integers, in a fixed order: every variable
+## `step()` reads or writes (the "Simulation state" variables). Equal snapshots mean equal
+## fighters; the `Match` hashes them into its per-tick checksum and keeps
+## recent ones for rollback (`restore()`).
+func snapshot() -> PackedInt64Array:
+	return PackedInt64Array([
+		pos_x, pos_y, vel_x, vel_y, state, state_ticks, jump_phase, facing,
+		move_dir, prev_buttons, attack_buffer, block_stun, health,
+		int(attack_landed), wall_limit,
+	])
 
 
-## Idle/walk: walk at `WALK_SPEED` toward `dir`, or stand when it is 0.
-func _ground_move(dir: float) -> void:
-	velocity.x = dir * WALK_SPEED
-	if dir == move_dir and (state == State.WALK) == (dir != 0.0):
+## Number of values in a `snapshot()`.
+const SNAPSHOT_SIZE := 15
+
+
+## Sets the simulation state from `values[offset ..]`, a `snapshot()` (the
+## same order), so the fighter is exactly as when it was taken. The display
+## isn't touched; `sync_visual()` shows the restored state.
+func restore(values: PackedInt64Array, offset := 0) -> void:
+	pos_x = values[offset]
+	pos_y = values[offset + 1]
+	vel_x = values[offset + 2]
+	vel_y = values[offset + 3]
+	state = values[offset + 4] as State
+	state_ticks = values[offset + 5]
+	jump_phase = values[offset + 6] as JumpPhase
+	facing = values[offset + 7]
+	move_dir = values[offset + 8]
+	prev_buttons = values[offset + 9]
+	attack_buffer = values[offset + 10]
+	block_stun = values[offset + 11]
+	health = values[offset + 12]
+	attack_landed = values[offset + 13] != 0
+	wall_limit = values[offset + 14]
+
+
+## Neutral (idle, walk, guard outside blockstun): a held block button guards
+## in place, else a buffered punch, then a held jump, else walk or stand.
+func _neutral(dir: int, jump_held: bool, block_held: bool, on_floor: bool) -> void:
+	if block_held and on_floor:
+		if state != State.BLOCK:
+			vel_x = 0
+			block_stun = 0
+			change_state(State.BLOCK)
+	elif attack_buffer > 0 and on_floor:
+		attack_buffer = 0
+		vel_x = 0
+		attack_landed = false
+		change_state(State.PUNCH)
+	elif jump_held and on_floor:
+		move_dir = dir
+		jump_phase = JumpPhase.TAKEOFF
+		change_state(State.JUMP)
+		vel_x = 0
+	else:
+		_ground_move(dir)
+
+
+## Walk at `WALK_SPEED` toward `dir`, or stand when it is 0.
+func _ground_move(dir: int) -> void:
+	vel_x = dir * WALK_SPEED
+	if dir == move_dir and state == (State.WALK if dir != 0 else State.IDLE):
 		return
 	move_dir = dir
-	change_state(State.WALK if dir != 0.0 else State.IDLE)
+	change_state(State.WALK if dir != 0 else State.IDLE)
 
 
-## Turns toward `opponent` if it is now on the other side. A walk in progress
-## keeps its direction but switches between forward and backward stepping.
-func _update_facing() -> void:
-	if opponent == null:
+## Turns toward an opponent at `opponent_x` if it is now on the other side.
+## A walk in progress keeps its direction but switches between forward and
+## backward stepping. Turning happens only in idle/walk/block, so a fighter
+## that crosses over mid-jump or mid-punch turns around once back to neutral.
+func face(opponent_x: int) -> void:
+	var dx := opponent_x - pos_x
+	if dx == 0 or signi(dx) == facing:
 		return
-	var dx := opponent.global_position.x - global_position.x
-	if is_zero_approx(dx) or signf(dx) == facing:
-		return
-	facing = signf(dx)
-	_apply_facing()
-	if state == State.WALK:
-		_play_state_animation()
+	facing = signi(dx)
 
 
-## Points the model (authored facing +Z) along `facing`: a quarter turn to +X,
-## mirrored across X for -X so the same side always faces the camera. The
-## hitbox moves to the facing side (moved, not scaled: physics shapes don't
-## take negative scale).
-func _apply_facing() -> void:
-	visual.basis = Basis.from_scale(Vector3(facing, 1.0, 1.0)) * Basis(Vector3.UP, PI / 2.0)
-	hitbox.position.x = facing * absf(hitbox.position.x)
-
-
-## Whole physics ticks in `seconds` (rounded), for comparing with `state_ticks`.
+## Whole ticks in `seconds` (rounded), for comparing with `state_ticks`.
 static func ticks(seconds: float) -> int:
 	return roundi(seconds * TICK_RATE)
 
@@ -262,114 +323,158 @@ static func ticks(seconds: float) -> int:
 ## 4–15 of `KICK`).
 func is_hitbox_active() -> bool:
 	if state == State.PUNCH:
-		return state_ticks >= ticks(PUNCH_ACTIVE_START) and state_ticks < ticks(PUNCH_ACTIVE_END)
+		return state_ticks >= PUNCH_ACTIVE_START and state_ticks < PUNCH_ACTIVE_END
 	if state == State.JUMP and jump_phase == JumpPhase.KICK:
-		return state_ticks >= ticks(AIR_KICK_ACTIVE_START) and state_ticks < ticks(AIR_KICK_ACTIVE_END)
+		return state_ticks >= AIR_KICK_ACTIVE_START and state_ticks < AIR_KICK_ACTIVE_END
 	return false
 
 
-## Arms a new attack: one hit allowed, hitbox moved to `offset` on the facing side.
-func _start_attack(offset: Vector3) -> void:
-	attack_landed = false
-	hitbox.position = Vector3(facing * offset.x, offset.y, offset.z)
+## Health the current attack takes off when it lands.
+func attack_damage() -> int:
+	return PUNCH_DAMAGE if state == State.PUNCH else AIR_KICK_DAMAGE
 
 
-## Other fighters whose hurtbox overlaps the hitbox right now (regardless of
-## whether the hitbox is active).
-func hitbox_targets() -> Array[Fighter]:
-	var query := PhysicsShapeQueryParameters3D.new()
-	query.shape = hitbox_shape.shape
-	query.transform = hitbox_shape.global_transform
-	query.collision_mask = hitbox.collision_mask
-	query.collide_with_areas = true
-	query.collide_with_bodies = false
-	query.exclude = [hurtbox.get_rid()]
-	var targets: Array[Fighter] = []
-	for hit in get_world_3d().direct_space_state.intersect_shape(query):
-		var target := (hit.collider as Node).get_parent() as Fighter
-		if target != null and target != self and not targets.has(target):
-			targets.append(target)
-	return targets
+## Center of the current attack's hitbox in world units, on the facing side.
+func hitbox_center() -> Vector2i:
+	var offset := PUNCH_HITBOX if state == State.PUNCH else AIR_KICK_HITBOX
+	return Vector2i(pos_x + facing * offset.x, pos_y + offset.y)
 
 
-## Jump: crouch, launch toward the direction held at the press (no air
-## control), fall under gravity, then a landing crouch back into idle. An
-## attack press while airborne throws one air kick (`KICK`, until touchdown).
-func _jump(attack_pressed: bool) -> void:
+## True if this fighter's attack is live, hasn't landed yet and its hitbox
+## overlaps `target`'s hurtbox.
+func attack_connects(target: Fighter) -> bool:
+	return is_hitbox_active() and not attack_landed and target.hurtbox_overlaps(hitbox_center(), HITBOX_HALF)
+
+
+## True if the square of half side `half` around `center` overlaps the
+## hurtbox: the distance from the square to the hurtbox segment is below
+## `BODY_RADIUS`.
+func hurtbox_overlaps(center: Vector2i, half: int) -> bool:
+	var dx := maxi(maxi(center.x - half - pos_x, pos_x - center.x - half), 0)
+	var dy := maxi(maxi(center.y - half - (pos_y + HURTBOX_TOP), pos_y + HURTBOX_BOTTOM - center.y - half), 0)
+	return dx * dx + dy * dy < BODY_RADIUS * BODY_RADIUS
+
+
+## Jump: crouch, launch, fall under gravity, then a landing crouch back into
+## idle. No air control: the arc follows the direction held during the
+## takeoff crouch (the latest non-neutral one, so up then forward a few ticks
+## apart still jumps forward). A buffered attack while airborne throws one air
+## kick (`KICK`, until touchdown).
+func _jump(dir: int, on_floor: bool) -> void:
 	match jump_phase:
 		JumpPhase.TAKEOFF:
-			if state_ticks >= ticks(JUMP_TAKEOFF):
-				velocity = Vector3(move_dir * WALK_SPEED, JUMP_VELOCITY, 0.0)
+			if dir != 0:
+				move_dir = dir
+			if state_ticks >= JUMP_TAKEOFF:
+				vel_x = move_dir * WALK_SPEED
+				vel_y = JUMP_VELOCITY
 				_set_jump_phase(JumpPhase.AIR)
 		JumpPhase.AIR, JumpPhase.KICK:
-			if is_on_floor() and velocity.y <= 0.0:
-				velocity.x = 0.0
+			if on_floor and vel_y <= 0:
+				vel_x = 0
 				_set_jump_phase(JumpPhase.LANDING)
-			elif attack_pressed and jump_phase == JumpPhase.AIR:
-				_start_attack(AIR_KICK_HITBOX)
+			elif attack_buffer > 0 and jump_phase == JumpPhase.AIR:
+				attack_buffer = 0
+				attack_landed = false
 				_set_jump_phase(JumpPhase.KICK)
 		JumpPhase.LANDING:
-			if state_ticks >= ticks(JUMP_LANDING):
-				move_dir = 0.0
+			if state_ticks >= JUMP_LANDING:
+				move_dir = 0
 				change_state(State.IDLE)
 
 
 func _set_jump_phase(phase: JumpPhase) -> void:
 	jump_phase = phase
 	state_ticks = 0
-	_play_state_animation()
 
 
-## Enters `new_state`, restarting its timer and animation.
+## Enters `new_state`, restarting its timer (and so its animation).
 func change_state(new_state: State) -> void:
 	state = new_state
 	state_ticks = 0
-	_play_state_animation()
 
 
 ## Interrupts whatever the fighter is doing with a hit reaction: loses `damage`
 ## health and is shoved along `push_dir` (±1, the attacker's facing) at
 ## `KNOCKBACK_SPEED`, sliding to a stop during the stun. The hit that empties
-## health knocks the fighter down instead (the clip carries it back). Ignored
-## once knocked down.
-func take_hit(damage: int, push_dir: float) -> void:
+## health knocks the fighter down instead (the clip carries it back). A
+## guarding fighter hit from the front (the attacker at `attacker_x` is on the
+## side it faces) takes no damage: it stays in the guard for `BLOCK_STUN` and
+## slides back at `BLOCK_PUSH_SPEED`. Ignored once knocked down.
+func take_hit(damage: int, push_dir: int, attacker_x: int) -> void:
 	if state == State.KNOCKED_DOWN:
+		return
+	var side := signi(attacker_x - pos_x)
+	if state == State.BLOCK and (side == facing or side == 0):
+		block_stun = BLOCK_STUN
+		vel_x = push_dir * BLOCK_PUSH_SPEED
 		return
 	health = maxi(health - damage, 0)
 	if health == 0:
 		knock_down()
 		return
-	velocity.x = push_dir * KNOCKBACK_SPEED
+	vel_x = push_dir * KNOCKBACK_SPEED
 	change_state(State.HIT)
 
 
 ## Knocks the fighter down for good: it stays down (no get-up), ignores input
 ## and further hits. Also how a KO happens, from `take_hit()` at 0 health.
 func knock_down() -> void:
-	velocity.x = 0.0
+	vel_x = 0
 	change_state(State.KNOCKED_DOWN)
 
 
-func _play_state_animation() -> void:
+## Shows the simulation state: places the node at the body position, puts
+## `visual` on the pixel grid, mirrors it along `facing` and poses the model.
+func sync_visual() -> void:
+	position = Vector3(float(pos_x) / SCALE, float(pos_y) / SCALE, 0.0)
+	# The model is authored facing +Z: a quarter turn to +X, mirrored across X
+	# for -X so the same side always faces the camera.
+	visual.basis = Basis.from_scale(Vector3(facing, 1.0, 1.0)) * Basis(Vector3.UP, PI / 2.0)
+	var camera := get_viewport().get_camera_3d() as PixelCamera
+	if camera != null:
+		visual.global_position = camera.snap(global_position)
+	_pose()
+
+
+## Seeks the animation to the current state's frame: tick `state_ticks` of a
+## state shows its clip at `state_ticks * TICK` (wrapped for looping clips,
+## held at the end otherwise). The player never advances on its own, so the
+## pose is a pure function of the simulation state (also after a rollback).
+func _pose() -> void:
 	if anim == null:
 		return
+	var clip := _state_clip()
+	var animation := ANIMATIONS.get_animation(clip)
+	var length := animation.length
+	var end := HIT_RECOIL_END if state == State.HIT else length
+	var t := state_ticks * TICK
+	if animation.loop_mode != Animation.LOOP_NONE:
+		t = fposmod(t, length)
+	else:
+		t = minf(t, end)
+	# One walk clip for both directions: backwards when retreating.
+	if state == State.WALK and move_dir * facing < 0:
+		t = length - t
+	if anim.assigned_animation != clip:
+		anim.assigned_animation = clip
+	anim.seek(t, true)
+
+
+## The clip showing the current state (`HIT` is the start of `knockdown`).
+func _state_clip() -> StringName:
 	match state:
-		State.IDLE:
-			anim.play(&"idle")
 		State.WALK:
-			# One clip for both directions: backwards when retreating.
-			if move_dir * facing < 0.0:
-				anim.play_backwards(&"walk")
-			else:
-				anim.play(&"walk")
+			return &"walk"
 		State.JUMP:
-			anim.play(JUMP_CLIPS[jump_phase])
+			return JUMP_CLIPS[jump_phase]
 		State.PUNCH:
-			anim.play(&"punch")
-		State.HIT:
-			anim.play_section(&"knockdown", 0.0, HIT_RECOIL_END)
-		State.KNOCKED_DOWN:
-			anim.play(&"knockdown")
+			return &"punch"
+		State.HIT, State.KNOCKED_DOWN:
+			return &"knockdown"
+		State.BLOCK:
+			return &"block"
+	return &"idle"
 
 
 ## Replaces the current model with the character at `path`. Returns false (and
@@ -387,8 +492,8 @@ func set_character(path: String) -> bool:
 	anim.name = "AnimationPlayer"
 	anim.add_animation_library(&"", ANIMATIONS)
 	skeleton.get_parent().add_child(anim)
-	# Advance on the physics tick so poses stay in lockstep with gameplay.
-	anim.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_PHYSICS
+	# Posed only by `_pose()`, never advanced by Godot's process loop.
+	anim.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
 	visual.add_child(model)
-	_play_state_animation()
+	_pose()
 	return true

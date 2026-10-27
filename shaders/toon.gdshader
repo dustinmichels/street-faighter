@@ -4,12 +4,16 @@ shader_type spatial;
 render_mode specular_disabled;
 
 uniform vec4 albedo : source_color = vec4(1.0);
-uniform sampler2D albedo_texture : source_color, filter_nearest, hint_default_white;
+// Repeats so stage textures can tile (world-projected UVs); character UVs stay in 0-1.
+uniform sampler2D albedo_texture : source_color, filter_nearest, repeat_enable, hint_default_white;
+// Unlit glow added on top (neon, lit windows, lamps); black = none.
+uniform vec4 emission : source_color = vec4(0.0, 0.0, 0.0, 1.0);
 // Number of lit levels including fully dark (2 = lit/unlit, 3 = lit/half/unlit).
 uniform int bands : hint_range(2, 4) = 3;
 
 void fragment() {
 	ALBEDO = albedo.rgb * texture(albedo_texture, UV).rgb;
+	EMISSION = emission.rgb;
 	ROUGHNESS = 1.0;
 }
 
