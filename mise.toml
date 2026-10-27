@@ -43,14 +43,17 @@ ls -lh build/release
 """
 
 [tasks.release]
-description = "Export all platforms, tag HEAD, push the tag and publish a GitHub release (e.g. mise run release v0.1.0)"
+description = "Export all platforms, tag HEAD with the next version, push the tag and publish a GitHub release"
 dir = "{{config_root}}"
-usage = 'arg "<version>" help="Release tag, e.g. v0.1.0"'
+usage = 'arg "[version]" default="patch" help="patch (default), minor, major, or an explicit tag like v1.2.3"'
 run = """
 #!/usr/bin/env bash
 set -euo pipefail
-tag="${usage_version}"
-[[ "$tag" =~ ^v[0-9]+\\.[0-9]+\\.[0-9]+$ ]] || { echo "version must look like v1.2.3, got '$tag'" >&2; exit 1; }
+version="${usage_version}"
+case "$version" in
+  patch|minor|major) ;;
+  *) [[ "$version" =~ ^v[0-9]+\\.[0-9]+\\.[0-9]+$ ]] || { echo "version must be patch, minor, major or look like v1.2.3, got '$version'" >&2; exit 1; } ;;
+esac
 git diff --quiet HEAD || { echo "uncommitted changes to tracked files; commit or stash first" >&2; exit 1; }
 branch="$(git branch --show-current)"
 [[ "$branch" == main ]] || { echo "on branch '${branch:-detached HEAD}'; releases must be cut from main" >&2; exit 1; }
@@ -60,7 +63,17 @@ if (( ahead || behind )); then
   echo "main is out of sync with origin/main ($ahead ahead, $behind behind); push/pull first" >&2
   exit 1
 fi
+latest="$(git tag -l 'v*' --sort=-v:refname | grep -E '^v[0-9]+\\.[0-9]+\\.[0-9]+$' | head -n1 || true)"
+IFS=. read -r major minor patch <<< "${latest#v}"
+major=${major:-0} minor=${minor:-0} patch=${patch:-0}
+case "$version" in
+  patch) tag="v$major.$minor.$((patch + 1))" ;;
+  minor) tag="v$major.$((minor + 1)).0" ;;
+  major) tag="v$((major + 1)).0.0" ;;
+  *) tag="$version" ;;
+esac
 git rev-parse -q --verify "refs/tags/$tag" >/dev/null && { echo "tag $tag already exists" >&2; exit 1; }
+echo "Releasing $tag (previous: ${latest:-none})"
 mise run export
 git tag -a "$tag" -m "$tag"
 git push origin "$tag"
