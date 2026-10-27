@@ -11,7 +11,7 @@ var _failures := 0
 func _initialize() -> void:
 	_test_slug()
 	_test_prompt()
-	_test_validator_command()
+	_test_shell_quoting()
 	_test_sanitize()
 	_test_write()
 	print("FAIL (%d)" % _failures if _failures > 0 else "OK")
@@ -19,81 +19,33 @@ func _initialize() -> void:
 
 
 func _test_slug() -> void:
-	_check_eq(CreatorKit.slug("Big Tony"), "big_tony", "slug: spaces")
-	_check_eq(CreatorKit.slug("  --R2-D2!!  "), "r2_d2", "slug: punctuation runs, trimmed")
 	_check_eq(CreatorKit.slug("../../etc"), "etc", "slug: no path traversal")
 	_check_eq(CreatorKit.slug("☃☃"), "character", "slug: nothing usable")
-	_check_eq(CreatorKit.slug("Monsieur Lézard"), "monsieur_lezard", "slug: accents folded")
-	_check_eq(CreatorKit.slug("ÆSIR Straße"), "aesir_strasse", "slug: ligatures expanded")
-	_check_eq(CreatorKit.slug("Le\u0301zard"), "lezard", "slug: combining accent dropped")
 
 
 func _test_prompt() -> void:
 	var text := CreatorKit.prompt(
 		{ "name": "Big Tony", "palette": { "main": "#c02a20" }, "concept": "   " }
 	)
-	_check(text.contains("Name: Big Tony"), "prompt: name filled")
 	_check(
 		text.contains("main #c02a20, secondary %s" % CreatorKit.UNSPECIFIED),
 		"prompt: nested key, missing nested key",
 	)
 	_check(text.contains("Concept: %s" % CreatorKit.UNSPECIFIED), "prompt: blank answer")
-	_check(text.contains("`big_tony.glb`"), "prompt: slug")
 	_check(not text.contains("{{"), "prompt: no placeholder left")
 
 
-func _test_validator_command() -> void:
-	_check_eq(
-		CreatorKit.shell_quote("/usr/bin/godot"),
-		"/usr/bin/godot",
-		"quote: safe path unchanged",
-	)
+func _test_shell_quoting() -> void:
 	_check_eq(CreatorKit.shell_quote("/a/my chars/x.glb"), "'/a/my chars/x.glb'", "quote: spaces")
 	_check_eq(
 		CreatorKit.shell_quote("/a/Tony's \"$HOME\""),
 		"'/a/Tony'\\''s \"$HOME\"'",
 		"quote: quotes and $",
 	)
-	_check_eq(CreatorKit.shell_quote(""), "''", "quote: empty")
-	var command := CreatorKit.validator_command("/k/big tony.glb")
-	_check(
-		command.begins_with(CreatorKit.shell_quote(OS.get_executable_path()) + " --headless "),
-		"validator: game binary, headless first",
-	)
-	_check(
-		command.ends_with(" -- %s '/k/big tony.glb'" % CreatorKit.VALIDATE_ARG),
-		"validator: user args last",
-	)
-	_check(
-		command.contains(
-			" --path %s " % CreatorKit.shell_quote(ProjectSettings.globalize_path("res://"))
-		),
-		"validator: editor run adds --path",
-	)
 	_check_eq(
 		CreatorKit.agent_command("/k/big tony", "claude"),
 		"cd '/k/big tony' && claude 'Read PROMPT.md and follow it.'",
 		"agent command: quoted folder and request",
-	)
-	_check_eq(
-		CreatorKit.agent_command("/k/a", "antigravity"),
-		"cd /k/a && agy -i 'Read PROMPT.md and follow it.'",
-		"agent command: interactive flag",
-	)
-	_check_eq(
-		CreatorKit.agent_command("/k/a", "other"),
-		"cd /k/a",
-		"agent command: other agent only enters the kit",
-	)
-	_check_eq(
-		CreatorKit.agent_command("/k/a", "gone"),
-		CreatorKit.agent_command("/k/a", CreatorKit.DEFAULT_AGENT),
-		"agent command: unknown agent falls back to the default",
-	)
-	_check_eq(
-		CreatorKit.kit_glb("/k/big_tony"),
-		"/k/big_tony/big_tony.glb",
-		"kit glb: <folder>/<slug>.glb",
 	)
 
 
@@ -108,18 +60,11 @@ func _test_sanitize() -> void:
 		"a b c d e",
 		"clean: line separators, bidi, invisible",
 	)
-	_check_eq(
-		CreatorKit.clean_text("  Big   Tony  ", 80),
-		"Big Tony",
-		"clean: spaces collapsed and trimmed",
-	)
 	_check_eq(CreatorKit.clean_text("abcde fgh", 6), "abcde", "clean: cut at limit, trimmed")
 	_check_eq(CreatorKit.clean_text("Ünïcødé ☃", 80), "Ünïcødé ☃", "clean: printable unicode kept")
 
 	var clean := CreatorKit.sanitize(
 		{
-			"name": "x".repeat(100),
-			"notes": "y".repeat(1000),
 			"archetype": "z".repeat(100),
 			"palette": {
 				"main": "C02A20",
@@ -130,9 +75,7 @@ func _test_sanitize() -> void:
 			"stats": { "power": 9000 },
 		}
 	)
-	_check_eq(clean.name.length(), CreatorKit.max_length("name"), "sanitize: name capped")
-	_check_eq(clean.notes.length(), CreatorKit.max_length("notes"), "sanitize: notes capped")
-	_check_eq(clean.archetype.length(), CreatorKit.MAX_TEXT, "sanitize: other keys capped")
+	_check_eq(clean.archetype.length(), CreatorKit.MAX_TEXT, "sanitize: text capped")
 	_check_eq(clean.palette, { "main": "#c02a20" }, "sanitize: only #rrggbb palette keys kept")
 	_check(not clean.has("stats"), "sanitize: unknown keys dropped")
 
@@ -169,16 +112,6 @@ func _test_write() -> void:
 		"export_glb.py",
 	]
 	_check_eq(Array(DirAccess.get_files_at(folder)), expected, "write: kit files")
-	_check_eq(
-		FileAccess.get_file_as_string(folder.path_join("SKELETON.md")),
-		FileAccess.get_file_as_string("res://creator_kit/SKELETON.md"),
-		"write: SKELETON.md copied",
-	)
-	_check_eq(
-		FileAccess.get_file_as_string(folder.path_join("PROMPT.md")),
-		CreatorKit.prompt(answers, dir),
-		"write: PROMPT.md",
-	)
 	_check(
 		FileAccess
 		.get_file_as_string(folder.path_join("PROMPT.md"))

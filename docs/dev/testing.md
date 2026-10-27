@@ -7,6 +7,7 @@ All tests are headless Godot scripts. Each exits 0 on success and 1 with a list 
 | [Determinism](#determinism)                 | `godot --headless --path . -s tests/determinism_test.gd`         |         |
 | [Lockstep](#lockstep)                       | `godot --headless --path . -s tests/lockstep_test.gd`            |         |
 | [Creator kit](#creator-kit)                 | `godot --headless --path . -s tests/creator_kit_test.gd`         |         |
+| [Character library](#character-library)     | `godot --headless --path . -s tests/character_library_test.gd`   |         |
 | [Character validator](#character-validator) | `godot --headless --path . -s tests/character_validator_test.gd` |         |
 | [Skeleton drift](#skeleton-drift)           | `godot --headless --path . -s tests/skeleton_drift_test.gd`      | Blender |
 | [Character sync](#character-sync)           | `godot --headless --path . -s tests/character_sync_test.gd`      |         |
@@ -25,11 +26,15 @@ It runs lockstep by default; `--rollback=N` (1–9) tests rollback instead, pred
 
 ## Creator kit
 
-Checks `CreatorKit` (`characters/creator_kit.gd`): character name → folder slug, filling `creator_kit/PROMPT_TEMPLATE.md`, and writing a kit folder (into `user://creator_kit_test`, removed afterwards), including that saving again keeps the agent's own files.
+Checks `CreatorKit` (`characters/creator_kit.gd`): slugs can't escape the kit directory, shell quoting, sanitizing answers so they can't inject lines, fences or placeholders into `creator_kit/PROMPT_TEMPLATE.md`, and writing a kit folder (into `user://creator_kit_test`, removed afterwards), including that saving again keeps the agent's own files.
+
+## Character library
+
+Checks `CharacterLibrary` (`characters/character_library.gd`) in a temporary library under `user://character_library_test`: invalid files are rejected, entries are keyed by SHA-256 and deduplicated, re-importing changed bytes replaces the entry and moves selections to it, a broken source keeps the old entry, and a deleted choice falls back to the default character.
 
 ## Character validator
 
-Checks `CharacterValidator` (`characters/character_validator.gd`) and the `--validate-character` command line: `default.glb` and `tests/fixtures/valid.glb` pass, and each broken fixture in `tests/fixtures/` (missing, renamed, or extra bone, a part named like a bone, a moved joint, too many triangles, a transparent material, a rotated or scaled Armature, an oversized texture) fails with exactly its expected errors, in-process and through the CLI.
+Checks `CharacterValidator` (`characters/character_validator.gd`) and the `--validate-character` command line: `default.glb` and `tests/fixtures/valid.glb` pass, and each broken fixture in `tests/fixtures/` (missing, renamed, or extra bone, a part named like a bone, a moved joint, too many triangles, a transparent material, a rotated or scaled Armature, an oversized texture) fails with exactly its expected errors. The exact command the creator kit puts in `PROMPT.md` (`CreatorKit.validator_command()`) is run on `default.glb` and one broken fixture, checking its exit code and output.
 
 The fixtures are committed. After changing the skeleton, rebuild them with `blender -b --factory-startup --python tests/fixtures/build_bad_characters.py`, then update the expected messages in the test.
 

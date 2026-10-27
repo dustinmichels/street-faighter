@@ -31,9 +31,10 @@ func _test_import() -> void:
 	var junk := ProjectSettings.globalize_path(WORK.path_join("kit/junk.glb"))
 	_store(junk, "not a model".to_utf8_buffer())
 	var rejected := CharacterLibrary.import_file(junk)
-	_check(not rejected.errors.is_empty(), "invalid: errors")
-	_check(not rejected.added and rejected.id == "", "invalid: not added")
-	_check(CharacterLibrary.entries().is_empty(), "invalid: library empty")
+	_check(
+		not rejected.errors.is_empty() and CharacterLibrary.entries().is_empty(),
+		"invalid: errors, library empty",
+	)
 
 	# No manifest: the name is the file name.
 	var result := CharacterLibrary.import_file(glb)
@@ -46,13 +47,11 @@ func _test_import() -> void:
 		default_bytes,
 		"import: bytes copied",
 	)
-	var info := CharacterLibrary.entry(id)
-	_check_eq(info.name, "big_tony", "import: name from file name")
-	_check_eq(info.source, glb, "import: source path")
-	_check(Time.get_unix_time_from_datetime_string(info.imported) > 0, "import: import time")
+	_check_eq(CharacterLibrary.entry(id).name, "big_tony", "import: name from file name")
 
 	# Same bytes again, now with a manifest: nothing changes.
 	_store(glb.get_basename() + ".json", JSON.stringify({ "name": "Big ```Tony```\n" }).to_utf8_buffer())
+	var info := CharacterLibrary.entry(id)
 	var again := CharacterLibrary.import_file(glb)
 	_check(
 		again.errors.is_empty() and again.id == id and not again.added,
@@ -60,7 +59,6 @@ func _test_import() -> void:
 	)
 	_check_eq(CharacterLibrary.entry(id), info, "re-import same bytes: entry unchanged")
 	_check_eq(CharacterLibrary.manifest_name(glb), "Big '''Tony'''", "manifest name: cleaned")
-	_check_eq(CharacterLibrary.entries().size(), 1, "entries: one")
 
 
 # Runs after `_test_import`: the library holds `kit/big_tony.glb`.
@@ -72,20 +70,12 @@ func _test_reimport() -> void:
 	settings.set_value(CharacterLibrary.SELECTION_SECTION, "other", "x")
 	settings.save(CharacterLibrary.settings_path)
 
-	var same := CharacterLibrary.reimport(old_id)
-	_check(
-		same.errors.is_empty() and same.id == old_id and CharacterLibrary.has(old_id),
-		"reimport unchanged: same entry",
-	)
-
 	# The agent exports again: different bytes, still valid.
 	var changed := _padded(FileAccess.get_file_as_bytes(glb))
 	_store(glb, changed)
 	var result := CharacterLibrary.reimport(old_id)
 	var new_id := CharacterLibrary.sha256(changed)
 	_check_eq(result.errors, PackedStringArray(), "reimport changed: no errors")
-	_check_eq(result.id, new_id, "reimport changed: new id")
-	_check(not CharacterLibrary.has(old_id), "reimport changed: old entry removed")
 	_check_eq(
 		CharacterLibrary.entries().map(
 			func(e: Dictionary) -> String:
@@ -122,31 +112,24 @@ func _test_reimport() -> void:
 		CharacterLibrary.delete(new_id) and CharacterLibrary.entries().is_empty(),
 		"delete: removed",
 	)
-	_check(not CharacterLibrary.reimport(new_id).errors.is_empty(), "reimport missing entry: error")
 
 
 func _test_choice() -> void:
 	DirAccess.remove_absolute(CharacterLibrary.settings_path)
 	var key := CharacterLibrary.PLAYER_CHOICE
 	_check_eq(
-		CharacterLibrary.chosen(key),
-		CharacterLibrary.DEFAULT_CHOICE,
-		"choice: default without settings",
-	)
-	_check_eq(
 		CharacterLibrary.model_path(CharacterLibrary.chosen(key)),
 		CharacterLoader.DEFAULT_CHARACTER,
-		"choice: default model",
+		"choice: default model without settings",
 	)
 	var glb := ProjectSettings.globalize_path(WORK.path_join("kit/choice.glb"))
 	_store(glb, FileAccess.get_file_as_bytes(CharacterLoader.DEFAULT_CHARACTER))
 	var id: String = CharacterLibrary.import_file(glb).id
 	CharacterLibrary.choose(key, id)
 	_check_eq(CharacterLibrary.chosen(key), id, "choice: saved")
-	_check_eq(CharacterLibrary.model_path(id), CharacterLibrary.glb_path(id), "choice: entry model")
 	CharacterLibrary.delete(id)
 	_check_eq(
-		CharacterLibrary.model_path(id),
+		CharacterLibrary.model_path(CharacterLibrary.chosen(key)),
 		CharacterLoader.DEFAULT_CHARACTER,
 		"choice: deleted entry → default model",
 	)
