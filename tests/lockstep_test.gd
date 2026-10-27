@@ -21,7 +21,7 @@ extends SceneTree
 ##   --port=N     UDP port on 127.0.0.1 (default 27777)
 ##   --seed=N     match seed and seed of the loss/skip pattern (default 1)
 
-const MAIN_SCENE := "res://scenes/main.tscn"
+const MAIN_SCENE := "res://match/main.tscn"
 const WORLD_PATH := "GameView/GameViewport/World"
 ## Loop iterations before giving up (a deadlock).
 const MAX_FRAMES := 200000

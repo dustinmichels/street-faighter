@@ -12,14 +12,14 @@ config_version=5
 
 config/name="street-faighter"
 config/version="0.1.0"
-run/main_scene="res://scenes/menu.tscn"
+run/main_scene="res://menu/menu.tscn"
 config/features=PackedStringArray("4.7", "Forward Plus")
 config/icon="res://icon.svg"
 
 [autoload]
 
-ValidateCli="*res://scripts/validate_cli.gd"
-Session="*res://scripts/session.gd"
+ValidateCli="*res://characters/validate_cli.gd"
+Session="*res://online/session.gd"
 
 [display]
 

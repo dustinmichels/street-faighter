@@ -1,3 +1,6 @@
+# Local secrets (butler API key, etc.)
+mise.local.toml
+
 tmp**
 
 # Godot 4+ specific ignores

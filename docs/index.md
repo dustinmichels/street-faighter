@@ -32,7 +32,7 @@ features:
       width: 40
       height: 40
     title: Online, peer to peer
-    details: One player hosts, the other joins by IP. Deterministic lockstep netcode keeps both machines frame-identical, and your custom fighter is sent to your opponent automatically.
+    details: One player hosts, the other joins by IP. Deterministic rollback netcode keeps both machines frame-identical, and your custom fighter is sent to your opponent automatically.
     link: /guide/online
     linkText: Play online
   - icon:
@@ -76,7 +76,7 @@ import { withBase } from 'vitepress'
 <div class="sf-section">
   <p class="sf-kicker">Round 1</p>
   <h2>See it in action</h2>
-  <p class="sf-lead">Two computer players on the street stage. The green fighter is Jim Bean, a custom character an AI agent built from the brief below.</p>
+  <p class="sf-lead">Two computer players on the street stage. The green fighter is Monsieur Lézard, a custom character an AI agent built from the brief below.</p>
   <div class="sf-wide sf-cabinet">
     <div class="sf-marquee"><span class="sf-blink">LIVE</span><span>CPU VS CPU</span></div>
     <div class="sf-crt">
@@ -94,22 +94,20 @@ import { withBase } from 'vitepress'
       <div class="sf-card-label">1. YOUR BRIEF</div>
       <div class="sf-card-body">
         <ul class="sf-brief">
-          <li><b>name</b> Jim Bean</li>
+          <li><b>name</b> Monsieur Lézard</li>
           <li><b>concept</b> A french lizard man</li>
           <li><b>archetype</b> brawler</li>
-          <li><b>head</b> animal</li>
-          <li><b>headwear</b> french beret</li>
-          <li><b>outfit</b> tank top, shorts, armored boots</li>
-          <li><b>extras</b> gloves, tail, knee pads</li>
+          <li><b>build</b> athletic</li>
+          <li><b>extras</b> french beret, tank top, shorts, tail</li>
         </ul>
       </div>
-      <div class="sf-card-foot">Menus and short text fields in the game, plus a four-color palette.</div>
+      <div class="sf-card-foot">Three short pages in the game: who it is, how it looks, and anything else.</div>
     </div>
     <div class="sf-arrow" aria-hidden="true">▶</div>
     <div class="sf-card">
       <div class="sf-card-label">2. YOUR AGENT BUILDS IT</div>
       <div class="sf-card-body sf-render">
-        <img :src="withBase('/media/jim-bean-render.png')" alt="Blender preview render of Jim Bean in the test pose" />
+        <img :src="withBase('/media/monsieur-lezard-render.png')" alt="Blender preview render of Monsieur Lézard in the test pose" />
       </div>
       <div class="sf-card-foot">One of the preview renders the agent makes to check its work.</div>
     </div>
@@ -117,7 +115,7 @@ import { withBase } from 'vitepress'
     <div class="sf-card">
       <div class="sf-card-label">3. YOU FIGHT WITH IT</div>
       <div class="sf-card-body sf-ingame">
-        <img :src="withBase('/media/stage.png')" alt="Jim Bean in a match on the street stage" />
+        <img :src="withBase('/media/stage.png')" alt="Monsieur Lézard in a match on the street stage" />
       </div>
       <div class="sf-card-foot">Same model, in game, with the toon shader and outlines.</div>
     </div>

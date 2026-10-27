@@ -1,5 +1,5 @@
-/* Street fAIghter: colors from the game's menu (scenes/menu.tscn, menu_theme.tres)
-   and title background (shaders/arcade_background.gdshader). */
+/* Street fAIghter: colors from the game's menu (menu/menu.tscn, menu_theme.tres)
+   and title background (menu/arcade_background.gdshader). */
 
 @font-face {
   font-family: "Press Start 2P";

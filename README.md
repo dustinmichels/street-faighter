@@ -11,7 +11,7 @@ A pixel-art fighting game driven by real 3D models. Describe a fighter in a few 
 ## Features
 
 - **Bring your own agent.** Answer a short questionnaire and the game writes a prompt kit; any agent that runs shell commands builds the fighter in Blender and checks it with the game's validator.
-- **Online, peer to peer.** Host or join by IP. Deterministic lockstep netcode keeps both machines frame-identical, and custom fighters are sent to your opponent automatically.
+- **Online, peer to peer.** Host or join by IP. Deterministic rollback netcode keeps both machines frame-identical, and custom fighters are sent to your opponent automatically.
 - **Fight the CPU.** Punch, block, duck, sweep, and land three clean hits to charge a special throw.
 - **Pixel art from real 3D.** Every frame is rendered at 480×270 with toon shading, outlines, and color quantization.
 - **Fair by design.** Custom characters are cosmetic: hitboxes and damage are the same for everyone.
@@ -20,11 +20,11 @@ A pixel-art fighting game driven by real 3D models. Describe a fighter in a few 
 
 ## One idea in, one fighter out
 
-Jim Bean, _a french lizard man_ in a beret, built by an AI agent from a seven-line brief:
+Monsieur Lézard, _a french lizard man_ in a beret, built by an AI agent from a seven-line brief:
 
-| The agent's Blender preview render                                | The same model in game                                       |
-| ----------------------------------------------------------------- | ------------------------------------------------------------ |
-| ![Jim Bean preview render](docs/public/media/jim-bean-render.png) | ![Jim Bean on the street stage](docs/public/media/stage.png) |
+| The agent's Blender preview render                                              | The same model in game                                              |
+| ------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| ![Monsieur Lézard preview render](docs/public/media/monsieur-lezard-render.png) | ![Monsieur Lézard on the street stage](docs/public/media/stage.png) |
 
 In game: **CHARACTERS → CREATE NEW**, hand the kit to your agent, then **IMPORT** the result. See [Make your own fighter](docs/guide/custom-characters.md).
 
@@ -35,7 +35,7 @@ Requires [Godot](https://godotengine.org/download) 4.7 (standard build, not .NET
 ```sh
 git clone https://github.com/dustinmichels/street-faighter.git
 cd street-faighter
-godot --path .                                          # play
+godot --path .                                          # play (or: mise run dev)
 mise run mp                                             # two connected instances side by side
 godot --headless --path . -s tests/determinism_test.gd  # run a test (see tests/)
 ```

@@ -11,11 +11,12 @@ at x = +-6 (Stage.half_width) and, at the fighters' depth, the camera never show
 x = +-6.5.
 
 The camera is orthographic, pitched 10 degrees down and yawed 10 degrees (FollowCamera's
-view_yaw: it sits a little to the right, so a sliver of depth shows), so farther things
+view_yaw: it sits a little to the right, so a sliver of depth shows; a health lead swings
+it between -10 and 30 degrees), so farther things
 appear higher on screen and the visible height shrinks with depth: at the facade (z = -3)
 the top of the screen is y = 3.75, at z = -13 about y = 2.1. The skyline is sized for that.
 
-Empties named steam_* mark steam emitters: Stage spawns scenes/steam.tscn on each, emitting
+Empties named steam_* mark steam emitters: Stage spawns stages/steam.tscn on each, emitting
 along the empty's +Y (Godot) axis; the empty's scale scales the plume.
 
 Textures are generated pixel art (about 64 texels per meter, the game's ~54 px/m), mapped

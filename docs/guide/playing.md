@@ -38,7 +38,7 @@ Keys are bound by position, so on AZERTY, Dvorak, and other layouts, use the key
 
 ### Punch and air kick
 
-Punch on the ground for a quick jab. Punch in the air for a kick that hits crouching opponents too. A punch pressed up to 4 frames early, while you're still recovering or stunned, comes out on the first frame you can act, so mashing isn't needed.
+Punch on the ground for a quick jab; punches alternate right, left, right, with the same reach and damage from either hand. Punch in the air for a kick that hits crouching opponents too. A punch pressed up to 4 frames early, while you're still recovering or stunned, comes out on the first frame you can act, so mashing isn't needed.
 
 ### Jump
 

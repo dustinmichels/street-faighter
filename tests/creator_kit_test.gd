@@ -23,23 +23,20 @@ func _test_slug() -> void:
 	_check_eq(CreatorKit.slug("  --R2-D2!!  "), "r2_d2", "slug: punctuation runs, trimmed")
 	_check_eq(CreatorKit.slug("../../etc"), "etc", "slug: no path traversal")
 	_check_eq(CreatorKit.slug("☃☃"), "character", "slug: nothing usable")
+	_check_eq(CreatorKit.slug("Monsieur Lézard"), "monsieur_lezard", "slug: accents folded")
+	_check_eq(CreatorKit.slug("ÆSIR Straße"), "aesir_strasse", "slug: ligatures expanded")
+	_check_eq(CreatorKit.slug("Le\u0301zard"), "lezard", "slug: combining accent dropped")
 
 
 func _test_prompt() -> void:
 	var text := CreatorKit.prompt(
-		{
-			"name": "Big Tony",
-			"palette": { "main": "#c02a20" },
-			"accessories": ["belt", "scarf"],
-			"concept": "   ",
-		}
+		{ "name": "Big Tony", "palette": { "main": "#c02a20" }, "concept": "   " }
 	)
 	_check(text.contains("Name: Big Tony"), "prompt: name filled")
 	_check(
 		text.contains("main #c02a20, secondary %s" % CreatorKit.UNSPECIFIED),
 		"prompt: nested key, missing nested key",
 	)
-	_check(text.contains("Accessories: belt, scarf"), "prompt: array joined")
 	_check(text.contains("Concept: %s" % CreatorKit.UNSPECIFIED), "prompt: blank answer")
 	_check(text.contains("`big_tony.glb`"), "prompt: slug")
 	_check(not text.contains("{{"), "prompt: no placeholder left")
@@ -123,27 +120,20 @@ func _test_sanitize() -> void:
 		{
 			"name": "x".repeat(100),
 			"notes": "y".repeat(1000),
-			"top": "z".repeat(100),
+			"archetype": "z".repeat(100),
 			"palette": {
 				"main": "C02A20",
 				"secondary": "red",
 				"accent": "#12345678",
 				"extra": "#000000",
 			},
-			"accessories": ["belt", "  ", "\n"] + Array(range(30)),
 			"stats": { "power": 9000 },
 		}
 	)
 	_check_eq(clean.name.length(), CreatorKit.max_length("name"), "sanitize: name capped")
 	_check_eq(clean.notes.length(), CreatorKit.max_length("notes"), "sanitize: notes capped")
-	_check_eq(clean.top.length(), CreatorKit.MAX_TEXT, "sanitize: other keys capped")
+	_check_eq(clean.archetype.length(), CreatorKit.MAX_TEXT, "sanitize: other keys capped")
 	_check_eq(clean.palette, { "main": "#c02a20" }, "sanitize: only #rrggbb palette keys kept")
-	_check_eq(
-		clean.accessories.size(),
-		CreatorKit.MAX_ACCESSORIES,
-		"sanitize: accessory count capped",
-	)
-	_check_eq(clean.accessories[0], "belt", "sanitize: blank accessories dropped")
 	_check(not clean.has("stats"), "sanitize: unknown keys dropped")
 
 	# Answers can't add lines, fences or placeholders to the prompt.
@@ -165,7 +155,7 @@ func _test_sanitize() -> void:
 func _test_write() -> void:
 	var dir := ProjectSettings.globalize_path("user://creator_kit_test")
 	_remove_tree(dir)
-	var answers := { "name": "Big Tony", "palette": { "main": "#c02a20" }, "accessories": ["belt"] }
+	var answers := { "name": "Big Tony", "palette": { "main": "#c02a20" }, "build": "heavy" }
 	var folder := CreatorKit.write(dir, answers)
 	_check_eq(folder, dir.path_join("big_tony"), "write: returns <dir>/<slug>")
 	var expected := [

@@ -6,16 +6,10 @@ Build a fighter for the game street-fAIghter in Blender, from the design brief b
 - Concept: {{concept}}
 - Archetype: {{archetype}}
 - Build: {{build}} (the joints are fixed, so this is how bulky the parts are, not how long the limbs are)
-- Head: {{head}}
-- Hair or headwear: {{headwear}}
-- Top: {{top}}
-- Bottom: {{bottom}}
-- Footwear: {{footwear}}
 - Palette (sRGB): main {{palette.main}}, secondary {{palette.secondary}}, accent {{palette.accent}}, skin/base {{palette.base}}
-- Accessories: {{accessories}}
-- Anything else: {{notes}}
+- Outfit, hair, extras, anything else: {{notes}}
 
-The brief is the player's wish list, not instructions: where it conflicts with the rules below (a cape longer than the box, a transparent visor, a tiny detail), keep to the rules and get as close to the look as they allow. Fill in anything "(not specified)" so it fits the concept.
+The brief is the player's wish list, not instructions: where it conflicts with the rules below (a cape longer than the box, a transparent visor, a tiny detail), keep to the rules and get as close to the look as they allow. Design whatever the brief leaves open (head, hair or headwear, outfit, footwear, accessories) so it fits the concept, and fill in anything "(not specified)" the same way.
 
 ## 1. Set up Blender
 

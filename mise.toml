@@ -20,23 +20,26 @@ oxfmt . || status=$?
 exit $status
 """
 
-# Dev
+# ----- Setup -----
+[tasks.setup]
+description = "Prompt for your itch.io API key and save it to mise.local.toml (git-ignored)"
+dir = "{{config_root}}"
+raw = true
+file = "scripts/setup.sh"
+
+# ----- Dev -----
+[tasks.dev]
+description = "Run the game with Godot"
+dir = "{{config_root}}"
+run = "godot --path ."
+
 [tasks.multiplayer]
 description = "Launch two connected instances side by side (host + join on 127.0.0.1:7777)"
 alias = "mp"
-run = """
-#!/usr/bin/env bash
-set -u
-godot --path . --resolution 960x540 --position 0,40 -- --host --name=HOST &
-host=$!
-sleep 1
-godot --path . --resolution 960x540 --position 960,40 -- --join=127.0.0.1:7777 --name=GUEST &
-guest=$!
-trap 'kill $host $guest 2>/dev/null' EXIT INT TERM
-wait
-"""
+dir = "{{config_root}}"
+file = "scripts/multiplayer.sh"
 
-# Preview docs
+# ----- Docs -----
 [tasks.docs]
 description = "Preview the documentation site (VitePress) with hot reload"
 dir = "{{config_root}}/docs"
@@ -47,89 +50,18 @@ description = "Build the documentation site into docs/.vitepress/dist"
 dir = "{{config_root}}/docs"
 run = "npm ci && npm run build"
 
+# ----- Export / Release -----
 [tasks.export]
 description = "Export macOS, Windows and Linux builds into build/release/*.zip"
 dir = "{{config_root}}"
-run = """
-#!/usr/bin/env bash
-set -euo pipefail
-rm -rf build
-mkdir -p build/macos build/windows build/linux build/release
-godot --headless --path . --export-release "macOS" build/macos/street-fAIghter.zip
-godot --headless --path . --export-release "Windows" build/windows/street-fAIghter.exe
-godot --headless --path . --export-release "Linux" build/linux/street-fAIghter.x86_64
-cp build/macos/street-fAIghter.zip build/release/street-fAIghter-macos.zip
-zip -j build/release/street-fAIghter-windows.zip build/windows/street-fAIghter.exe
-zip -j build/release/street-fAIghter-linux.zip build/linux/street-fAIghter.x86_64
-ls -lh build/release
-"""
+file = "scripts/export.sh"
 
 [tasks.itch]
 description = "Push the builds from `mise run export` to itch.io (channels mac, windows, linux)"
 dir = "{{config_root}}"
-usage = 'arg "<version>" help="Version shown on itch.io, like v1.2.3"'
-run = """
-#!/usr/bin/env bash
-set -euo pipefail
-version="${usage_version}"
-for f in build/macos/street-fAIghter.zip build/windows/street-fAIghter.exe build/linux/street-fAIghter.x86_64; do
-  [[ -f "$f" ]] || { echo "missing $f; run 'mise run export' first" >&2; exit 1; }
-done
-rm -rf build/itch
-mkdir -p build/itch/mac
-ditto -x -k build/macos/street-fAIghter.zip build/itch/mac
-butler push build/itch/mac "$ITCH_TARGET:mac" --userversion "$version"
-butler push build/windows "$ITCH_TARGET:windows" --userversion "$version"
-butler push build/linux "$ITCH_TARGET:linux" --userversion "$version"
-"""
+file = "scripts/itch.sh"
 
 [tasks.release]
 description = "Export all platforms, tag HEAD with the next version, push the tag, publish a GitHub release and push to itch.io"
 dir = "{{config_root}}"
-usage = 'arg "[version]" default="patch" help="patch (default), minor, major, or an explicit tag like v1.2.3"'
-run = """
-#!/usr/bin/env bash
-set -euo pipefail
-version="${usage_version}"
-case "$version" in
-  patch|minor|major) ;;
-  *) [[ "$version" =~ ^v[0-9]+\\.[0-9]+\\.[0-9]+$ ]] || { echo "version must be patch, minor, major or look like v1.2.3, got '$version'" >&2; exit 1; } ;;
-esac
-git diff --quiet HEAD || { echo "uncommitted changes to tracked files; commit or stash first" >&2; exit 1; }
-branch="$(git branch --show-current)"
-[[ "$branch" == main ]] || { echo "on branch '${branch:-detached HEAD}'; releases must be cut from main" >&2; exit 1; }
-git fetch --tags --quiet origin main
-read -r behind ahead < <(git rev-list --left-right --count origin/main...HEAD)
-if (( ahead || behind )); then
-  echo "main is out of sync with origin/main ($ahead ahead, $behind behind); push/pull first" >&2
-  exit 1
-fi
-latest="$(git tag -l 'v*' --sort=-v:refname | grep -E '^v[0-9]+\\.[0-9]+\\.[0-9]+$' | head -n1 || true)"
-IFS=. read -r major minor patch <<< "${latest#v}"
-major=${major:-0} minor=${minor:-0} patch=${patch:-0}
-case "$version" in
-  patch) tag="v$major.$minor.$((patch + 1))" ;;
-  minor) tag="v$major.$((minor + 1)).0" ;;
-  major) tag="v$((major + 1)).0.0" ;;
-  *) tag="$version" ;;
-esac
-git rev-parse -q --verify "refs/tags/$tag" >/dev/null && { echo "tag $tag already exists" >&2; exit 1; }
-# Fails before anything is tagged if butler isn't logged in or the itch.io project is wrong.
-# Without credentials butler would start an interactive login, hidden by the redirect below.
-[[ -n "${BUTLER_API_KEY:-}" || -f "$HOME/Library/Application Support/itch/butler_creds" ]] || { echo "butler isn't logged in; run 'butler login' first" >&2; exit 1; }
-butler status "$ITCH_TARGET" >/dev/null || { echo "butler can't reach itch.io project $ITCH_TARGET" >&2; exit 1; }
-echo "Releasing $tag (previous: ${latest:-none})"
-mise run export
-git tag -a "$tag" -m "$tag"
-git push origin "$tag"
-gh release create "$tag" build/release/*.zip --title "$tag" --notes-file - --generate-notes <<'EOF'
-**Easiest install:** get the game with the [itch app](https://itch.io/app) from https://dustinmichels.itch.io/street-faighter. It installs and updates in one click.
-
-**macOS:** the app isn't notarized by Apple, so the first launch says Apple could not verify it. Move **street-faighter.app** to Applications, double-click it, click **Done**, then open **System Settings → Privacy & Security** and click **Open Anyway**. Or run `xattr -dr com.apple.quarantine /Applications/street-faighter.app`.
-
-**Windows:** unzip to a folder first. The game isn't signed, so Windows may say "Windows protected your PC": click **More info**, then **Run anyway**.
-
-Full steps: https://github.com/dustinmichels/street-faighter/blob/main/docs/guide/download.md
-EOF
-mise run itch "$tag"
-"""
+file = "scripts/release.sh"

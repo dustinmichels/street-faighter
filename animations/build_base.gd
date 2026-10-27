@@ -211,8 +211,9 @@ static func jump_land() -> Array:
 
 
 ## Punch timing at 60 fps: 5 startup, 3 active, 12 recovery frames. The punch
-## clip carries these as markers (`active_start`, `active_end`) so gameplay can
-## turn the hitbox on and off without repeating the numbers.
+## clips (`punch`, `punch_left`) carry these as markers (`active_start`,
+## `active_end`) so gameplay can turn the hitbox on and off without repeating
+## the numbers. Both hands share the timing; gameplay alternates them.
 const PUNCH_ACTIVE_START := 5.0 / 60.0
 const PUNCH_ACTIVE_END := 8.0 / 60.0
 const PUNCH_LENGTH := 20.0 / 60.0
@@ -241,6 +242,27 @@ static var PUNCH := _pose(
 )
 
 
+## Left (lead) straight fully extended, `PUNCH` mirrored above the hips: torso
+## turned right so the left shoulder leads, right fist guarding. The twist sits
+## in the spine and chest so the hips (and feet) stay put in the stance. The
+## fist ends where `PUNCH`'s does, so both hands share one hitbox.
+static var PUNCH_LEFT := _pose(
+	STANCE,
+	{
+		HIPS_POS: Vector3(0, -0.08, 0.02),
+		"hips": Vector3(0, -3, 0),
+		"spine": Vector3(8, -15, 0),
+		"chest": Vector3(4, -15, 0),
+		"neck": Vector3(-6, 15, 0),
+		"head": Vector3(-6, 12, 0),
+		"upper_arm.L": Vector3(0, -12, -82),
+		"forearm.L": Vector3(0, 0, -5),
+		"upper_arm.R": _m(Vector3(-78, 0, -12)),
+		"forearm.R": _m(Vector3(0, 0, -145)),
+	},
+)
+
+
 ## Punch (right hand): startup (wind back slightly, then extend), active (held
 ## at full reach), recovery (back to the stance).
 static func punch() -> Array:
@@ -252,11 +274,30 @@ static func punch() -> Array:
 			"upper_arm.R": _m(Vector3(0, 0, 8)),
 		},
 	)
+	return _punch_keys(windup, PUNCH)
+
+
+## Punch with the left hand: `punch` mirrored above the hips.
+static func punch_left() -> Array:
+	var windup := _add(
+		STANCE,
+		{
+			"hips": Vector3(0, 6, 0),
+			"chest": Vector3(0, 6, 0),
+			"upper_arm.L": Vector3(0, 0, 8),
+		},
+	)
+	return _punch_keys(windup, PUNCH_LEFT)
+
+
+## A punch's keys on the shared punch timing: `windup`, then `extended` held
+## through the active frames, then back to the stance.
+static func _punch_keys(windup: Dictionary, extended: Dictionary) -> Array:
 	return [
 		[0.0, STANCE],
 		[2.0 / 60.0, windup],
-		[PUNCH_ACTIVE_START, PUNCH],
-		[PUNCH_ACTIVE_END, PUNCH],
+		[PUNCH_ACTIVE_START, extended],
+		[PUNCH_ACTIVE_END, extended],
 		[PUNCH_LENGTH, STANCE],
 	]
 
@@ -937,6 +978,13 @@ static func clips() -> Dictionary:
 			false,
 			false,
 			punch(),
+			{ &"active_start": PUNCH_ACTIVE_START, &"active_end": PUNCH_ACTIVE_END },
+		],
+		&"punch_left": [
+			PUNCH_LENGTH,
+			false,
+			false,
+			punch_left(),
 			{ &"active_start": PUNCH_ACTIVE_START, &"active_end": PUNCH_ACTIVE_END },
 		],
 		&"walk": [0.8, true, true, walk()],

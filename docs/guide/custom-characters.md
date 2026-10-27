@@ -18,18 +18,13 @@ The game never runs Blender or the agent for you, and nothing is uploaded anywhe
 
 ## 1. Describe your fighter
 
-Menu → **CHARACTERS** → **CREATE NEW**. Eight short pages:
+Menu → **CHARACTERS** → **CREATE NEW**. Three short pages:
 
-| Page               | You choose                                                                                                            |
-| ------------------ | --------------------------------------------------------------------------------------------------------------------- |
-| **WHO IS IT?**     | A name and a one-line concept ("A french lizard man").                                                                |
-| **ARCHETYPE**      | Brawler, martial artist, wrestler, boxer, robot, monster, street punk, knight, ninja, animal, or your own.            |
-| **BUILD**          | Slim, athletic, heavy, or huge.                                                                                       |
-| **HEAD**           | Human, helmet, mask, animal, or robot, plus any headwear.                                                             |
-| **OUTFIT**         | Top, bottom, and footwear, each from a list or described in your own words.                                           |
-| **PALETTE**        | Four colors: main, secondary, accent, and skin / base. Start from a preset or pick your own.                          |
-| **ACCESSORIES**    | Any of belt, gloves, shoulder pads, scarf, backpack, tail, cape, knee pads, headband, sunglasses, chain, wrist wraps. |
-| **ANYTHING ELSE?** | Free notes for the agent.                                                                                             |
+| Page               | You choose                                                                                                                   |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| **WHO IS IT?**     | A name and a one-line concept ("A french lizard man").                                                                       |
+| **LOOK**           | An archetype (brawler, martial artist, robot, monster, ninja, … or ANY), a build, and four colors from a preset or your own. |
+| **ANYTHING ELSE?** | Optional notes: outfit, hair, extras. Whatever you leave out, the agent designs to fit your concept.                         |
 
 ## 2. Save the kit
 
@@ -44,7 +39,7 @@ The kit goes to `~/Documents/street-fAIghter characters/<name>/` (one folder per
 1. Press **AGENT** until it shows the agent you use. The game copies a command to your clipboard, like:
 
    ```sh
-   cd '/Users/you/Documents/street-fAIghter characters/jim_bean' && claude 'Read PROMPT.md and follow it.'
+   cd '/Users/you/Documents/street-fAIghter characters/monsieur_lezard' && claude 'Read PROMPT.md and follow it.'
    ```
 
 2. Open a terminal, paste the command, and press <kbd>Enter</kbd>. Your agent starts inside the kit folder and reads its instructions.
@@ -53,7 +48,7 @@ The kit goes to `~/Documents/street-fAIghter characters/<name>/` (one folder per
 
 The agent then works on its own. It finds Blender, writes a Python script that builds the fighter on the game's skeleton, renders preview images to check its work, exports `<name>.glb`, and runs the game's own validator until the model passes. Depending on your agent's settings, it may ask you to approve the commands it runs. When it's done, it prints the path of the `.glb`.
 
-![A preview render of Jim Bean, made by the agent](/media/jim-bean-render.png){width=320}
+![A preview render of Monsieur Lézard, made by the agent](/media/monsieur-lezard-render.png){width=320}
 
 _One of the agent's preview renders, saved in the kit's `previews/` folder._
 
@@ -67,7 +62,7 @@ The game checks the model again before adding it. If something is wrong, **IMPOR
 
 ## 5. Fight
 
-Your fighter is now in the **CHARACTERS** library, where it turns in place with the in-game look. **PUNCH** plays the punch, to check that every part follows the arm. Choose it on **CHOOSE YOUR FIGHTER** (**1 PLAYER VS CPU**) and press **FIGHT!**. The fighter you last chose is also the one you play [online](./online), where your opponent's game downloads it automatically.
+Your fighter is now in the **CHARACTERS** library, where it turns in place with the in-game look. **PUNCH** plays a punch, alternating hands on each press, to check that every part follows the arms. Choose it on **CHOOSE YOUR FIGHTER** (**1 PLAYER VS CPU**) and press **FIGHT!**. The fighter you last chose is also the one you play [online](./online), where your opponent's game downloads it automatically.
 
 ## Changing a fighter
 

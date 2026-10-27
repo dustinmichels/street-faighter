@@ -25,11 +25,11 @@ It runs lockstep by default; `--rollback=N` (1–9) tests rollback instead, pred
 
 ## Creator kit
 
-Checks `CreatorKit` (`scripts/creator_kit.gd`): character name → folder slug, filling `creator_kit/PROMPT_TEMPLATE.md`, and writing a kit folder (into `user://creator_kit_test`, removed afterwards), including that saving again keeps the agent's own files.
+Checks `CreatorKit` (`characters/creator_kit.gd`): character name → folder slug, filling `creator_kit/PROMPT_TEMPLATE.md`, and writing a kit folder (into `user://creator_kit_test`, removed afterwards), including that saving again keeps the agent's own files.
 
 ## Character validator
 
-Checks `CharacterValidator` (`scripts/character_validator.gd`) and the `--validate-character` command line: `default.glb` and `tests/fixtures/valid.glb` pass, and each broken fixture in `tests/fixtures/` (missing, renamed, or extra bone, a part named like a bone, a moved joint, too many triangles, a transparent material, a rotated or scaled Armature, an oversized texture) fails with exactly its expected errors, in-process and through the CLI.
+Checks `CharacterValidator` (`characters/character_validator.gd`) and the `--validate-character` command line: `default.glb` and `tests/fixtures/valid.glb` pass, and each broken fixture in `tests/fixtures/` (missing, renamed, or extra bone, a part named like a bone, a moved joint, too many triangles, a transparent material, a rotated or scaled Armature, an oversized texture) fails with exactly its expected errors, in-process and through the CLI.
 
 The fixtures are committed. After changing the skeleton, rebuild them with `blender -b --factory-startup --python tests/fixtures/build_bad_characters.py`, then update the expected messages in the test.
 

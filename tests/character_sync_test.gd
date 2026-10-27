@@ -21,7 +21,7 @@ const BASE := "user://character_sync_test"
 const CHECK_TICK := 200
 ## Seconds any single step may take.
 const STEP_TIMEOUT := 60.0
-const MENU_SCENE := "res://scenes/menu.tscn"
+const MENU_SCENE := "res://menu/menu.tscn"
 const WORLD_PATH := "GameView/GameViewport/World"
 ## JSON chunk padding of A and B (different bytes, so different ids); A
 ## needs several `CharacterSync.CHUNK_BYTES` chunks.
@@ -47,6 +47,8 @@ func _run() -> void:
 		elif arg.begins_with("--port="):
 			_port = int(arg.substr(7))
 	_session = root.get_node("Session")
+	# Hosting must not ask the developer's router to forward ports.
+	_session.port_mapper.enabled = false
 	CharacterLibrary.dir = BASE.path_join(_role).path_join("characters")
 	CharacterLibrary.settings_path = BASE.path_join(_role).path_join("settings.cfg")
 	var problem := ""
@@ -251,7 +253,7 @@ func _match_world(s: int, m: int) -> Match:
 	var ok := await _until(
 		func() -> bool:
 			return (
-					_session.match_number == number and current_scene != null \
+				_session.match_number == number and current_scene != null \
 						and current_scene.has_method("begin")
 				and current_scene.has_node(WORLD_PATH)
 			) \

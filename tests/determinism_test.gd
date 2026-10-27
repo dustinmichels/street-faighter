@@ -21,7 +21,7 @@ extends SceneTree
 ##
 ## Log format: 2 bytes per tick, the input bitmasks of fighter 1 and 2.
 
-const MAIN_SCENE := "res://scenes/main.tscn"
+const MAIN_SCENE := "res://match/main.tscn"
 const WORLD_PATH := "GameView/GameViewport/World"
 
 
