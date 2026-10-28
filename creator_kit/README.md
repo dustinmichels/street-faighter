@@ -2,7 +2,7 @@
 
 This folder is everything an AI coding agent needs to build a custom fighter for street-fAIghter in Blender. The game wrote it for one character, from your answers to its questionnaire, and it matches the game version that wrote it. Nothing in it needs the internet.
 
-The agent writes a Python script that builds the character on the game's skeleton, runs it in Blender without opening a window, looks at preview renders, and exports a `.glb` file. You then import that file in the game ("Characters" → "Import…").
+The agent writes a Python script that builds the character on the game's skeleton with the kit's helpers (`kit.py`). Each run of the script in Blender (without opening a window) renders a preview sheet, exports a `.glb` file, and checks it with the game's validator. You then import that file in the game ("Characters" → "Import…").
 
 ## What you need
 
@@ -30,19 +30,22 @@ To change the design later, edit `build_character.py` (or ask the agent to), rer
 | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
 | `PROMPT.md`                  | The instructions for the agent, with your design brief filled in.                                                         |
 | [`SKELETON.md`](SKELETON.md) | The skeleton every character uses: bone names, rest pose, axes, and model conventions. The game's one skeleton reference. |
-| `BPY_NOTES.md`               | Correct Blender Python calls for this task, and the ones that don't exist.                                                |
-| `build_template.py`          | Builds `template.blend` (the bare skeleton) next to itself.                                                               |
-| `example_build_character.py` | A complete, working example: a box fighter, built and exported.                                                           |
-| `export_glb.py`              | Exports the scene with the settings the game expects. Every build script calls it.                                        |
+| `BPY_NOTES.md`               | How to use `kit.py`, and correct Blender Python calls for anything else.                                                  |
+| `kit.py`                     | Helpers for build scripts: the skeleton, materials, body parts, previews, export, and the validator run.                  |
+| `example_build_character.py` | A complete, working example fighter: built, previewed, exported.                                                          |
+| `export_glb.py`              | Exports the scene with the settings the game expects. `kit.py` calls it.                                                  |
+| `build_template.py`          | Saves the bare skeleton as `template.blend`, if you want to model by hand in Blender.                                     |
 | `character_request.json`     | Your questionnaire answers, so the game can reopen them.                                                                  |
+| `kit_config.json`            | Where the game is, so every build can run its validator, and the `.glb` file name.                                        |
 
-The agent adds `template.blend`, `build_character.py`, `previews/` (render images), `<name>.glb` (the character), and `<name>.json` (its name and description).
+The agent adds `build_character.py`, `previews/sheet.png` (the latest preview renders), `<name>.glb` (the character), and `<name>.json` (its name and description).
 
 ## Running the scripts yourself
 
 ```sh
-blender -b --factory-startup --python build_template.py            # writes template.blend
+blender -b --factory-startup --python build_character.py           # builds, previews, exports, validates
 blender -b --factory-startup --python example_build_character.py   # writes example.glb
+blender -b --factory-startup --python build_template.py            # writes template.blend
 ```
 
 On macOS, `blender` is `/Applications/Blender.app/Contents/MacOS/Blender` if it isn't on your PATH.

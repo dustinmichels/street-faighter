@@ -468,7 +468,7 @@ func _decode(bytes: PackedByteArray, path: String) -> Node3D:
 func _check_scene(root: Node3D) -> void:
 	var skeletons := root.find_children("*", "Skeleton3D", true, false)
 	if skeletons.is_empty():
-		_fail("No armature found; build the character on template.blend's Armature and export it")
+		_fail("No armature found; build the character on the template skeleton and export it")
 		return
 	if skeletons.size() > 1:
 		_fail("Found %d armatures; export exactly one (the template's)" % skeletons.size())
@@ -541,7 +541,7 @@ func _check_bones(skeleton: Skeleton3D) -> void:
 			or maxf(scaled.x, maxf(scaled.y, scaled.z)) > REST_SCALE_TOLERANCE
 		):
 			_fail(
-				"Bone '%s' rest pose differs from the template (moved %.3f m, rotated %.1f°); don't edit bones, rebuild from template.blend"
+				"Bone '%s' rest pose differs from the template (moved %.3f m, rotated %.1f°); don't edit bones, rebuild on the template skeleton"
 				% [name, moved, rad_to_deg(turned)]
 			)
 

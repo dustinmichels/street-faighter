@@ -26,6 +26,7 @@ enum State {
 	GRAB,
 	THROW,
 	THROWN,
+	ELBOW_DROP,
 }
 ## Parts of the `jump` state, each with its own clip (`JUMP_CLIPS`). `KICK`
 ## replaces `AIR` once the attack button is pressed mid-air and lasts until
@@ -161,10 +162,16 @@ static var GRAB_ACTIVE_END := ticks(
 )
 static var GRAB_LENGTH := ticks(ANIMATIONS.get_animation(&"grab").length)
 ## Thrower's whole throw, the tick the victim lands (`throw` clip, marker
-## `slam`) and the victim's whole `thrown` state (slam, lie, get up).
+## `slam`), the tick a queued follow-up leaves the throw (marker
+## `follow_up`), the victim's whole `thrown` state (slam, lie, get up) and
+## the tick it lies still after the bounce (marker `lie`).
 static var THROW_LENGTH := ticks(ANIMATIONS.get_animation(&"throw").length)
 static var THROW_SLAM := ticks(ANIMATIONS.get_animation(&"throw").get_marker_time(&"slam"))
+static var THROW_FOLLOW_UP := ticks(
+	ANIMATIONS.get_animation(&"throw").get_marker_time(&"follow_up")
+)
 static var THROWN_LENGTH := ticks(ANIMATIONS.get_animation(&"thrown").length)
+static var THROWN_LIE := ticks(ANIMATIONS.get_animation(&"thrown").get_marker_time(&"lie"))
 ## The victim's body (feet) relative to the thrower's during the throw:
 ## `[tick, forward, up]`, forward along the thrower's facing, linearly
 ## interpolated in between. From arm's reach in front, up over the
@@ -185,6 +192,25 @@ const THROW_PATH: Array[Vector3i] = [
 const KNOCKDOWN_HIPS_BACK := 8000
 ## `knockdown` clip length: a knockout by throw starts there (already flat).
 static var KNOCKDOWN_LENGTH := ticks(ANIMATIONS.get_animation(&"knockdown").length)
+## Health the throw's follow-up, the elbow drop, takes off when it lands.
+const ELBOW_DAMAGE := 10
+## The elbow drop's whole length, the tick it leaves the floor and the tick
+## it lands on the victim (`elbow_drop` clip, markers `takeoff`, `impact`).
+static var ELBOW_LENGTH := ticks(ANIMATIONS.get_animation(&"elbow_drop").length)
+static var ELBOW_TAKEOFF := ticks(
+	ANIMATIONS.get_animation(&"elbow_drop").get_marker_time(&"takeoff")
+)
+static var ELBOW_IMPACT := ticks(
+	ANIMATIONS.get_animation(&"elbow_drop").get_marker_time(&"impact")
+)
+## Highest the elbow drop's leap lifts the body (0.8 m), halfway through it.
+const ELBOW_PEAK := 8000
+## Where the elbow lands: the thrown victim's chest lies this far from its
+## body center toward its head, i.e. behind it (`thrown`'s lying pose)...
+const THROWN_CHEST := 4500
+## ...and the landed `elbow_drop` pose has the elbow this far in front of
+## the dropper's body center.
+const ELBOW_REACH := 5000
 
 ## Character `.glb` to load on ready (see `creator_kit/SKELETON.md`).
 @export_file("*.glb") var character_path: String
@@ -240,6 +266,9 @@ var attack_landed := false
 ## Hand of the current (or last) punch: true = left. Each punch switches hands;
 ## starts true so the first is a right.
 var left_punch := true
+## A special press during the throw queued its follow-up, the elbow drop
+## (`follow_up()`).
+var follow_up_queued := false
 ## Farthest a body center may get from the stage center along X (walls);
 ## set by the `Match` before the first tick.
 var wall_limit := 1 << 40
@@ -330,9 +359,25 @@ func step(buttons: int, opponent_x: int) -> void:
 				move_dir = 0
 				change_state(State.IDLE)
 		State.THROW:
-			# Rooted while the `Match` carries the victim (`carry()`).
+			# Rooted while the `Match` carries the victim (`carry()`). A special
+			# press queues the follow-up (`follow_up()`).
 			vel_x = 0
+			if special_buffer > 0:
+				special_buffer = 0
+				follow_up_queued = true
 			if state_ticks >= THROW_LENGTH:
+				move_dir = 0
+				change_state(State.IDLE)
+		State.ELBOW_DROP:
+			# Rooted but for the leap: `follow_up()` aims it on `ELBOW_TAKEOFF`
+			# (`vel_x`) and the body follows `elbow_height()` until it lands
+			# on `ELBOW_IMPACT`.
+			vel_y = 0
+			if state_ticks > ELBOW_TAKEOFF and state_ticks <= ELBOW_IMPACT:
+				pos_y = elbow_height(state_ticks - ELBOW_TAKEOFF)
+			else:
+				vel_x = 0
+			if state_ticks >= ELBOW_LENGTH:
 				move_dir = 0
 				change_state(State.IDLE)
 		State.THROWN:
@@ -410,12 +455,13 @@ func snapshot() -> PackedInt64Array:
 			int(attack_landed),
 			wall_limit,
 			int(left_punch),
+			int(follow_up_queued),
 		]
 	)
 
 
 ## Number of values in a `snapshot()`.
-const SNAPSHOT_SIZE := 18
+const SNAPSHOT_SIZE := 19
 ## Names of the `snapshot()` values, in order (desync logs).
 const SNAPSHOT_FIELDS: PackedStringArray = [
 	"pos_x",
@@ -436,6 +482,7 @@ const SNAPSHOT_FIELDS: PackedStringArray = [
 	"attack_landed",
 	"wall_limit",
 	"left_punch",
+	"follow_up_queued",
 ]
 
 
@@ -461,6 +508,7 @@ func restore(values: PackedInt64Array, offset := 0) -> void:
 	attack_landed = values[offset + 15] != 0
 	wall_limit = values[offset + 16]
 	left_punch = values[offset + 17] != 0
+	follow_up_queued = values[offset + 18] != 0
 
 
 ## Neutral (idle, walk, crouch, guard outside blockstun): a buffered special
@@ -648,6 +696,7 @@ func start_throw(target: Fighter) -> void:
 	if overflow > 0:
 		shove(facing * overflow)
 	change_state(State.THROW)
+	follow_up_queued = false
 	target.move_dir = 0
 	target.attack_buffer = 0
 	target.special_buffer = 0
@@ -686,6 +735,52 @@ static func throw_offset(t: int) -> Vector2i:
 	return Vector2i(a.y, a.z)
 
 
+## The throw's follow-up. Called by the `Match` each tick after `carry()`.
+## A throw with a special press queued (`follow_up_queued`) turns into the
+## elbow drop (`ELBOW_DROP`) on `THROW_FOLLOW_UP` (or the press, if later),
+## facing the victim lying behind, if `target` is still down from the throw
+## (not knocked out). On `ELBOW_TAKEOFF` the leap is aimed to land the elbow
+## (`ELBOW_REACH`) on the victim's chest (`THROWN_CHEST`). Until the landing
+## the victim stays lying still (pinned to `THROWN_LIE`); on `ELBOW_IMPACT`
+## it is slammed again for `ELBOW_DAMAGE` and bounces, then lies and gets up
+## as after the throw.
+func follow_up(target: Fighter) -> void:
+	if target.state != State.THROWN:
+		return
+	if state == State.THROW and follow_up_queued and state_ticks >= THROW_FOLLOW_UP:
+		follow_up_queued = false
+		if target.pos_x != pos_x:
+			facing = signi(target.pos_x - pos_x)
+		change_state(State.ELBOW_DROP)
+	if state != State.ELBOW_DROP:
+		return
+	if state_ticks == ELBOW_TAKEOFF:
+		var chest := target.pos_x - target.facing * THROWN_CHEST
+		var distance := maxi((chest - pos_x) * facing - ELBOW_REACH, 0)
+		vel_x = facing * distance / (ELBOW_IMPACT - ELBOW_TAKEOFF)
+	if state_ticks < ELBOW_IMPACT:
+		target.state_ticks = mini(target.state_ticks, THROWN_LIE)
+	elif state_ticks == ELBOW_IMPACT:
+		target.state_ticks = THROW_SLAM
+		target.slammed(ELBOW_DAMAGE)
+
+
+## Height of the elbow drop's leap `k` ticks after takeoff: a parabola from
+## the floor up to `ELBOW_PEAK` and back down on `ELBOW_IMPACT`, in integers.
+static func elbow_height(k: int) -> int:
+	var n := ELBOW_IMPACT - ELBOW_TAKEOFF
+	return 4 * ELBOW_PEAK * k * (n - k) / (n * n)
+
+
+## Whether a special press now queues the throw's follow-up: throwing,
+## nothing queued yet, and `target` still down from the throw.
+func follow_up_open(target: Fighter) -> bool:
+	return (
+		state == State.THROW and not follow_up_queued
+		and target != null and target.state == State.THROWN
+	)
+
+
 ## Hit the floor at the end of a throw: loses `damage` health. At 0 it is
 ## knocked out, already lying flat (the end of `knockdown`), moved so the
 ## hips stay put (`KNOCKDOWN_HIPS_BACK`).
@@ -703,13 +798,16 @@ func sweep_impact_ticks() -> int:
 	return state_ticks if state == State.SWEPT else -1
 
 
-## Ticks since this fighter's throw slammed the victim into the floor (camera
-## shake), or -1 if it isn't past a slam. Timed by the thrower, which stays
-## in `THROW` until `THROW_LENGTH` even when the slam knocks the victim out
-## (`slammed()` takes it out of `THROWN` then).
+## Ticks since this fighter's throw slammed the victim into the floor, or
+## its elbow drop landed on the victim (camera shake, sound), or -1 if it
+## isn't past either. Timed by the thrower, which stays in `THROW` until
+## `THROW_LENGTH` even when the slam knocks the victim out (`slammed()`
+## takes it out of `THROWN` then); the same goes for `ELBOW_DROP`.
 func slam_impact_ticks() -> int:
 	if state == State.THROW and state_ticks >= THROW_SLAM:
 		return state_ticks - THROW_SLAM
+	if state == State.ELBOW_DROP and state_ticks >= ELBOW_IMPACT:
+		return state_ticks - ELBOW_IMPACT
 	return -1
 
 
@@ -859,6 +957,8 @@ func _state_clip() -> StringName:
 			return &"throw"
 		State.THROWN:
 			return &"thrown"
+		State.ELBOW_DROP:
+			return &"elbow_drop"
 	return &"idle"
 
 

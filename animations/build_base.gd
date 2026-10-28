@@ -749,9 +749,15 @@ static func grab() -> Array:
 ## body along the same keys; its heights assume the victim's hips stay at
 ## their rest offset until `THROW_SLAM - 4` (keep both in step).
 const THROW_SLAM := 26.0 / 60.0
+## End of the thrower's slam hold (marker `follow_up`): a follow-up queued
+## during the throw (`elbow_drop`) leaves the throw here.
+const THROW_FOLLOW_UP := THROW_SLAM + 6.0 / 60.0
 ## Thrower's recovery ends here; the victim lies, then gets up until
 ## `THROWN_LENGTH`.
 const THROW_LENGTH := 44.0 / 60.0
+## The victim is done bouncing off the slam and lies still (marker `lie`)
+## until 52 / 60.
+const THROWN_LIE := THROW_SLAM + 8.0 / 60.0
 const THROWN_LENGTH := 84.0 / 60.0
 
 
@@ -846,7 +852,7 @@ static func throw() -> Array:
 		[16.0 / 60.0, overhead],
 		[22.0 / 60.0, arch],
 		[THROW_SLAM, slam],
-		[THROW_SLAM + 6.0 / 60.0, slam],
+		[THROW_FOLLOW_UP, slam],
 		[THROW_LENGTH, STANCE],
 	]
 
@@ -930,11 +936,117 @@ static func thrown() -> Array:
 		[22.0 / 60.0, _pose(flung, { "hips": Vector3(230, 0, 0) })],
 		[THROW_SLAM, THROWN_LYING],
 		[THROW_SLAM + 4.0 / 60.0, bounce],
-		[THROW_SLAM + 8.0 / 60.0, THROWN_LYING],
+		[THROWN_LIE, THROWN_LYING],
 		[52.0 / 60.0, THROWN_LYING],
 		[64.0 / 60.0, sit],
 		[74.0 / 60.0, _pose(DUCK, { HIPS_POS: Vector3(0, -0.4, 0) })],
 		[THROWN_LENGTH, STANCE],
+	]
+
+
+## Elbow drop timing (the throw's follow-up), counted from the end of the
+## throw's slam hold: crouch and leave the floor on `ELBOW_TAKEOFF` (marker
+## `takeoff`), land with the elbow in the lying victim on `ELBOW_IMPACT`
+## (marker `impact`), back up by `ELBOW_LENGTH`. `Fighter` flies the body
+## between the two markers; the poses only bend it.
+const ELBOW_TAKEOFF := 6.0 / 60.0
+const ELBOW_IMPACT := 30.0 / 60.0
+const ELBOW_LENGTH := 56.0 / 60.0
+
+## Landed on both knees, torso folded forward over the victim, the right
+## upper arm pointing down with the forearm folded back up, so the elbow is
+## the arm's lowest point, in front of the knees near the floor
+## (`Fighter.ELBOW_REACH`). The left arm is thrown out for balance.
+static var ELBOW_DROP := _pose(
+	STANCE,
+	{
+		HIPS_POS: Vector3(0, -0.5, 0.1),
+		"hips": Vector3(30, 0, 0),
+		"spine": Vector3(50, 0, 0),
+		"chest": Vector3(30, 0, 0),
+		"neck": Vector3(-40, 0, 0),
+		"head": Vector3(-30, 0, 0),
+		"upper_arm.R": _m(Vector3(-15, 0, -80)),
+		"forearm.R": _m(Vector3(0, 0, -150)),
+		"upper_arm.L": Vector3(-60, 0, 30),
+		"forearm.L": Vector3(0, 0, -40),
+		"thigh.L": Vector3(-10, 0, -6),
+		"shin.L": Vector3(70, 0, 0),
+		"foot.L": Vector3(70, 0, 0),
+		"thigh.R": _m(Vector3(-5, 0, -6)),
+		"shin.R": Vector3(70, 0, 0),
+		"foot.R": Vector3(70, 0, 0),
+	},
+)
+
+
+## Elbow drop (follow-up to the special throw): turned toward the victim
+## lying behind, crouch, spring up with the right elbow cocked over the
+## head, fold forward at the top of the leap and drop knees and elbow first
+## onto the victim on `ELBOW_IMPACT`, hold, then push back up through the
+## crouch into the stance.
+static func elbow_drop() -> Array:
+	var takeoff := _pose(
+		EXTENDED,
+		{
+			"upper_arm.R": _m(Vector3(60, 0, -10)),
+			"forearm.R": _m(Vector3(0, 0, -110)),
+			"upper_arm.L": Vector3(-30, 0, 20),
+			"forearm.L": Vector3(0, 0, -40),
+		},
+	)
+	var cocked := _pose(
+		TUCK,
+		{
+			"spine": Vector3(-6, 0, 0),
+			"chest": Vector3(-4, 0, 0),
+			"upper_arm.R": _m(Vector3(75, 0, -10)),
+			"forearm.R": _m(Vector3(0, 0, -130)),
+			"upper_arm.L": Vector3(-20, 0, 30),
+			"forearm.L": Vector3(0, 0, -40),
+		},
+	)
+	# Top of the leap: folding forward, the elbow coming down, knees under.
+	var fold := _pose(
+		ELBOW_DROP,
+		{
+			HIPS_POS: Vector3(0, 0.0, 0),
+			"spine": Vector3(20, 0, 0),
+			"chest": Vector3(15, 0, 0),
+			"upper_arm.R": _m(Vector3(-10, 0, -60)),
+			"thigh.L": Vector3(-45, 0, -6),
+			"shin.L": Vector3(100, 0, 0),
+			"thigh.R": _m(Vector3(-30, 0, -6)),
+			"shin.R": Vector3(105, 0, 0),
+		},
+	)
+	var drop := _pose(ELBOW_DROP, { HIPS_POS: Vector3(0, -0.1, -0.05) })
+	# Pushing back up: torso and arms lifting, still on the knees.
+	var push_up := _pose(
+		ELBOW_DROP,
+		{
+			"spine": Vector3(15, 0, 0),
+			"chest": Vector3(8, 0, 0),
+			"neck": Vector3(-8, 0, 0),
+			"head": Vector3(-8, 0, 0),
+			"upper_arm.R": _m(Vector3(-75, 0, -12)),
+			"forearm.R": _m(Vector3(0, 0, -140)),
+			"upper_arm.L": Vector3(-75, 0, -20),
+			"forearm.L": Vector3(0, 0, -135),
+		},
+	)
+	return [
+		[0.0, STANCE],
+		[4.0 / 60.0, CROUCH],
+		[ELBOW_TAKEOFF, takeoff],
+		[14.0 / 60.0, cocked],
+		[20.0 / 60.0, fold],
+		[26.0 / 60.0, drop],
+		[ELBOW_IMPACT, ELBOW_DROP],
+		[36.0 / 60.0, ELBOW_DROP],
+		[44.0 / 60.0, push_up],
+		[50.0 / 60.0, CROUCH],
+		[ELBOW_LENGTH, STANCE],
 	]
 
 
@@ -957,8 +1069,27 @@ static func clips() -> Dictionary:
 			grab(),
 			{ &"active_start": GRAB_ACTIVE_START, &"active_end": GRAB_ACTIVE_END },
 		],
-		&"throw": [THROW_LENGTH, false, true, throw(), { &"slam": THROW_SLAM }],
-		&"thrown": [THROWN_LENGTH, false, false, thrown(), { &"slam": THROW_SLAM }],
+		&"throw": [
+			THROW_LENGTH,
+			false,
+			true,
+			throw(),
+			{ &"slam": THROW_SLAM, &"follow_up": THROW_FOLLOW_UP },
+		],
+		&"thrown": [
+			THROWN_LENGTH,
+			false,
+			false,
+			thrown(),
+			{ &"slam": THROW_SLAM, &"lie": THROWN_LIE },
+		],
+		&"elbow_drop": [
+			ELBOW_LENGTH,
+			false,
+			false,
+			elbow_drop(),
+			{ &"takeoff": ELBOW_TAKEOFF, &"impact": ELBOW_IMPACT },
+		],
 		&"crouch": [DUCK_LENGTH, false, false, crouch()],
 		&"sweep": [
 			SWEEP_LENGTH,

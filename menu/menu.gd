@@ -26,6 +26,8 @@ extends Control
 ## Esc (`ui_cancel`) goes back one screen; on `ONLINE` it acts as "BACK"
 ## (cancelling a pending host or join). The focused button is framed by
 ## "> <" arrows; hovering a button focuses it (`FocusArrows`).
+## `Music` loops the title theme (`assets/music/title_screen.ogg`) on every
+## screen, including `CHARACTERS`.
 
 enum Screen {
 	TITLE,

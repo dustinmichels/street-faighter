@@ -52,11 +52,11 @@ The kit goes to `~/Documents/street-fAIghter characters/<name>/` (one folder per
 
 **COPY COMMAND** copies it again, **COPY PROMPT** copies the instructions themselves (for an agent you've already started), and **OPEN FOLDER** shows the kit in Finder.
 
-The agent then works on its own. It finds Blender, writes a Python script that builds the fighter on the game's skeleton, renders preview images to check its work, exports `<name>.glb`, and runs the game's own validator until the model passes. Depending on your agent's settings, it may ask you to approve the commands it runs. When it's done, it prints the path of the `.glb`.
+The agent then works on its own. It finds Blender and writes a Python script that builds the fighter on the game's skeleton. Each run of the script renders a preview sheet to check the look, exports `<name>.glb`, and runs the game's own validator; the agent repeats until the model passes. Depending on your agent's settings, it may ask you to approve the commands it runs. When it's done, it prints the path of the `.glb`.
 
 ![A preview render of Monsieur Lézard, made by the agent](/media/monsieur-lezard-render.png){width=320}
 
-_One of the agent's preview renders, saved in the kit's `previews/` folder._
+_A preview render of the fighter. Each build saves a sheet of front, side, and 3/4 views, in the T-pose and a test pose, as `previews/sheet.png` in the kit._
 
 ## 4. Import
 
@@ -89,7 +89,7 @@ The agent's instructions cover all of this; you shouldn't need to know it. The f
 
 ## Checking a model by hand
 
-The kit's `PROMPT.md` contains the exact validator command for your copy of the game. For the macOS app in Applications, it's:
+Every build in the kit runs the validator for you. To run it yourself, use the game binary the kit's `kit_config.json` names (`validator`). For the macOS app in Applications, it's:
 
 ```sh
 /Applications/street-faighter.app/Contents/MacOS/street-faighter --headless -- --validate-character /absolute/path/to/fighter.glb

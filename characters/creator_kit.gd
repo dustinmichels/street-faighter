@@ -17,6 +17,9 @@ const SOURCE_DIR := "res://creator_kit"
 const PROMPT_TEMPLATE := "PROMPT_TEMPLATE.md"
 const PROMPT_NAME := "PROMPT.md"
 const REQUEST_NAME := "character_request.json"
+## What `kit.py` needs from the game (`write()`): `glb`, the export's file
+## name, and `validator`, `validator_args()`.
+const CONFIG_NAME := "kit_config.json"
 ## Folder for kits under the player's Documents folder (`default_dir()`).
 const DEFAULT_DIR_NAME := "street-fAIghter characters"
 ## Shown for a placeholder without an answer.
@@ -301,17 +304,11 @@ static func clean_text(text: String, limit: int) -> String:
 	return out.left(limit).strip_edges()
 
 
-## The agent's prompt for a kit in `<dir>/<slug>/`: `PROMPT_TEMPLATE.md` with
-## each `{{key}}` replaced by the answer (`{{palette.main}}` for nested keys,
-## `{{slug}}` from the name, `{{validator_commands}}` from
-## `validator_commands()` for the kit's `.glb`, and `PLATFORM_VALUES` for
-## `platform`, an `OS.get_name()`),
-## after `sanitize()`. Placeholders without an answer get `UNSPECIFIED`.
-static func prompt(
-	answers: Dictionary,
-	dir: String = saved_dir(),
-	platform: String = OS.get_name(),
-) -> String:
+## The agent's prompt for a kit: `PROMPT_TEMPLATE.md` with each `{{key}}`
+## replaced by the answer (`{{palette.main}}` for nested keys, `{{slug}}` from
+## the name, and `PLATFORM_VALUES` for `platform`, an `OS.get_name()`), after
+## `sanitize()`. Placeholders without an answer get `UNSPECIFIED`.
+static func prompt(answers: Dictionary, platform: String = OS.get_name()) -> String:
 	var template := FileAccess.get_file_as_string(SOURCE_DIR.path_join(PROMPT_TEMPLATE))
 	if template.is_empty():
 		push_error(
@@ -323,7 +320,6 @@ static func prompt(
 	var character := slug(str(answers.get("name", "")))
 	var values: Dictionary = PLATFORM_VALUES.get(platform, PLATFORM_VALUES.Linux).duplicate()
 	values.slug = character
-	values.validator_commands = validator_commands(kit_glb(dir.path_join(character)), platform)
 	_flatten(answers, "", values)
 	var placeholder := RegEx.create_from_string("\\{\\{\\s*([\\w.]+)\\s*\\}\\}")
 	var out := ""
@@ -344,34 +340,16 @@ static func _flatten(value: Variant, key: String, into: Dictionary) -> void:
 		into[key] = str(value)
 
 
-## Markdown for `prompt()`: `validator_command()` in a code block. On Windows,
-## where an agent's shell is Git Bash (Claude Code) or PowerShell, one block
-## for each.
-static func validator_commands(glb_path: String, platform: String = OS.get_name()) -> String:
-	var posix := "```sh\n%s\n```" % validator_command(glb_path)
-	if terminal_shell(platform) == Shell.POSIX:
-		return posix
-	return "In bash (Git Bash):\n\n%s\n\nIn PowerShell:\n\n```powershell\n%s\n```" % [
-		posix,
-		validator_command(glb_path, Shell.POWERSHELL),
-	]
-
-
-## `shell` command that runs this game binary headless on `glb_path`
-## (absolute, since `--path` changes the working directory) and prints the
-## validator's problems or `OK`. Run from the editor, the binary is the editor,
-## so the project is added with `--path`. PowerShell runs a quoted path only
-## with `&`, and waits for a GUI-subsystem program (the Windows game) only if
-## its output is piped.
-static func validator_command(glb_path: String, shell: Shell = Shell.POSIX) -> String:
-	var args := [OS.get_executable_path(), "--headless"]
+## The program and arguments that validate a `.glb` given as one more
+## argument: this game binary, headless (§4), which prints the validator's
+## problems or `OK`. Run from the editor, the binary is the editor, so the
+## project is added with `--path`. `kit.py` runs it after every export.
+static func validator_args() -> PackedStringArray:
+	var args := PackedStringArray([OS.get_executable_path(), "--headless"])
 	if OS.has_feature("editor"):
-		args += ["--path", ProjectSettings.globalize_path("res://")]
-	args += ["--", VALIDATE_ARG, glb_path]
-	var command := " ".join(PackedStringArray(args.map(shell_quote.bind(shell))))
-	if shell == Shell.POWERSHELL:
-		return "& %s | Write-Output" % command
-	return command
+		args.append_array(["--path", ProjectSettings.globalize_path("res://")])
+	args.append_array(["--", VALIDATE_ARG])
+	return args
 
 
 ## `arg` as one `shell` word. POSIX: unchanged if it only has safe characters,
@@ -390,11 +368,11 @@ static func shell_quote(arg: String, shell: Shell = Shell.POSIX) -> String:
 	return "'%s'" % arg.replace("'", "'\\''")
 
 
-## Writes the kit into `<dir>/<slug>/`: the kit files (`SKELETON.md` among them), the
-## filled-in `PROMPT.md`, and `character_request.json` (the `sanitize()`d
-## answers, so the questionnaire can be reopened). Kit files and those two are
-## overwritten if the folder exists; the agent's own files there are kept.
-## Returns the kit folder, or "" after pushing an error.
+## Writes the kit into `<dir>/<slug>/`: the kit files (`SKELETON.md` among
+## them), the filled-in `PROMPT.md`, `character_request.json` (the
+## `sanitize()`d answers, so the questionnaire can be reopened), and
+## `kit_config.json`. Kit files and those three are overwritten if the folder
+## exists; the agent's own files there are kept.
 static func write(dir: String, answers: Dictionary) -> String:
 	answers = sanitize(answers)
 	var folder := dir.path_join(slug(str(answers.get("name", ""))))
@@ -415,7 +393,7 @@ static func write(dir: String, answers: Dictionary) -> String:
 			return ""
 		if not _write_file(folder.path_join(file), bytes):
 			return ""
-	var text := prompt(answers, dir)
+	var text := prompt(answers)
 	if text.is_empty():
 		return ""
 	if not _write_file(folder.path_join(PROMPT_NAME), text.to_utf8_buffer()):
@@ -423,6 +401,12 @@ static func write(dir: String, answers: Dictionary) -> String:
 	if not _write_file(
 		folder.path_join(REQUEST_NAME),
 		(JSON.stringify(answers, "\t", false) + "\n").to_utf8_buffer(),
+	):
+		return ""
+	var config := { "glb": kit_glb(folder).get_file(), "validator": Array(validator_args()) }
+	if not _write_file(
+		folder.path_join(CONFIG_NAME),
+		(JSON.stringify(config, "\t", false) + "\n").to_utf8_buffer(),
 	):
 		return ""
 	_save_setting(SETTINGS_LAST_KIT_KEY, folder)

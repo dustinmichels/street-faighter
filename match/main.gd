@@ -39,6 +39,10 @@ extends Node
 ## Offline, the `ai_difficulty` debug action (F1) cycles the computer
 ## opponent's `AIInput.difficulty` (default / easy) mid-match; it carries over
 ## restarts, and the HUD names it while it isn't the default.
+##
+## `Music` loops the fight theme (`assets/music/fight.ogg`) from scene load;
+## it keeps playing while the controls screen pauses the game and restarts
+## with the scene.
 
 ## Seconds the reason an online match ended stays up before the menu.
 const END_NOTICE_SECONDS := 3.0

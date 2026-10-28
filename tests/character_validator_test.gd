@@ -8,7 +8,7 @@ extends SceneTree
 ##   godot --headless --path . -s tests/character_validator_test.gd
 
 const FIXTURES := "res://tests/fixtures"
-const _EDIT := "don't edit bones, rebuild from template.blend"
+const _EDIT := "don't edit bones, rebuild on the template skeleton"
 const _ARMATURE := "The Armature object is moved, rotated, or scaled; keep it at the origin with no rotation and scale 1"
 const _OPAQUE := "(fighters must be fully opaque)"
 
@@ -64,12 +64,15 @@ func _check_file(path: String, expected: Array) -> void:
 		validator.scene.free()
 
 
-## The CLI through the exact command the creator kit's prompt gives the agent.
-## Killed after `CLI_TIMEOUT_MSEC` (a broken command starts the game instead).
+## The CLI through the exact command the creator kit gives `kit.py`
+## (`kit_config.json`). Killed after `CLI_TIMEOUT_MSEC` (a broken command
+## starts the game instead).
 func _check_cli(path: String, expected: Array) -> void:
 	var name := path.get_file()
-	var command := CreatorKit.validator_command(ProjectSettings.globalize_path(path))
-	var proc := OS.execute_with_pipe("sh", ["-c", "exec " + command], false)
+	var args := CreatorKit.validator_args()
+	args.append(ProjectSettings.globalize_path(path))
+	var command := " ".join(args)
+	var proc := OS.execute_with_pipe(args[0], args.slice(1), false)
 	var pid: int = proc.pid
 	var deadline := Time.get_ticks_msec() + CLI_TIMEOUT_MSEC
 	while OS.is_process_running(pid) and Time.get_ticks_msec() < deadline:

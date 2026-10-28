@@ -70,9 +70,9 @@ The game is waiting for `<name>.glb` in the kit folder. Check that your agent fi
 
 Press **COPY ERRORS**, paste the list to your agent, and import again after it fixes the model. The messages are written for the agent.
 
-### The validator command in PROMPT.md doesn't work
+### The validator doesn't run
 
-The kit records where the game was when it wrote the kit. If you moved the game since, tell your agent the new path (see [Checking a model by hand](./custom-characters#checking-a-model-by-hand)), or create a new kit from the game.
+The kit records where the game was when it wrote the kit (`kit_config.json`), and every build runs the validator from there. If you moved the game since, create a new kit from the game: rewriting a kit keeps the agent's files.
 
 ### My fighter shows up as the default model
 

@@ -69,31 +69,14 @@ func _test_shell_quoting() -> void:
 
 
 func _test_platform_prompt() -> void:
-	var glb := "/k/big_tony/big_tony.glb"
-	var windows := CreatorKit.prompt({ "name": "Big Tony" }, "/k", "Windows")
-	_check(
-		windows.contains("```sh\n%s\n```" % CreatorKit.validator_command(glb)),
-		"Windows prompt: bash validator",
-	)
-	_check(
-		windows.contains(
-			"```powershell\n%s\n```"
-			% CreatorKit.validator_command(glb, CreatorKit.Shell.POWERSHELL)
-		),
-		"Windows prompt: PowerShell validator",
-	)
+	var windows := CreatorKit.prompt({ "name": "Big Tony" }, "Windows")
 	_check(windows.contains("`.venv/Scripts/python <script>.py`"), "Windows prompt: venv python")
 	_check(windows.contains("blender.exe"), "Windows prompt: Blender location")
-	var mac := CreatorKit.prompt({ "name": "Big Tony" }, "/k", "macOS")
-	_check(not mac.contains("powershell"), "macOS prompt: no PowerShell")
+	var mac := CreatorKit.prompt({ "name": "Big Tony" }, "macOS")
 	_check(mac.contains("`.venv/bin/python <script>.py`"), "macOS prompt: venv python")
 	_check(mac.contains("/Applications/Blender.app"), "macOS prompt: Blender location")
-	var other := CreatorKit.prompt({ "name": "Big Tony" }, "/k", "FreeBSD")
+	var other := CreatorKit.prompt({ "name": "Big Tony" }, "FreeBSD")
 	_check(other.contains("flatpak run org.blender.Blender"), "other platform: Linux values")
-	_check(
-		other.contains("```sh\n%s\n```" % CreatorKit.validator_command(glb)),
-		"other platform: sh validator",
-	)
 
 
 func _test_sanitize() -> void:
@@ -157,13 +140,17 @@ func _test_write() -> void:
 		"character_request.json",
 		"example_build_character.py",
 		"export_glb.py",
+		"kit.py",
+		"kit_config.json",
 	]
 	_check_eq(Array(DirAccess.get_files_at(folder)), expected, "write: kit files")
-	_check(
-		FileAccess
-		.get_file_as_string(folder.path_join("PROMPT.md"))
-		.contains(CreatorKit.validator_command(folder.path_join("big_tony.glb"))),
-		"write: validator command for the kit's .glb",
+	var config: Variant = JSON.parse_string(
+		FileAccess.get_file_as_string(folder.path_join(CreatorKit.CONFIG_NAME))
+	)
+	_check_eq(
+		config,
+		{ "glb": "big_tony.glb", "validator": Array(CreatorKit.validator_args()) },
+		"write: kit_config.json names the .glb and the validator",
 	)
 	_check_eq(
 		JSON.parse_string(FileAccess.get_file_as_string(folder.path_join("character_request.json"))),

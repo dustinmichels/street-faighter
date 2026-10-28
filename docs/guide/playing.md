@@ -58,9 +58,11 @@ Punch while crouching for a low spinning kick that knocks the opponent off their
 
 ### Special throw
 
-Land **3 hits in a row** (punches, air kicks, or sweeps that aren't blocked) without getting hit, and a **★** pulses at the inner end of your health bar. Getting hit before you use it loses it.
+Land **3 hits in a row** (punches, air kicks, or sweeps that aren't blocked) without getting hit, and a **★** pulses at the inner end of your health bar, with **"Press I for special"** under it (the first key bound to special). Getting hit before you use it loses it.
 
 Press special on the ground to grab: if the opponent is within reach, you lift them, flip them over your head, and slam them down behind you for **20 damage**, switching sides. Blocking and crouching don't stop it; a jumping or stunned opponent can't be grabbed. A missed grab still uses up the star. Only players get the special; the CPU never does.
+
+Press special **again** during the throw (the prompt stays up until you do) for the follow-up: once the slam lands you turn around, leap up, and drop knees and elbow first onto the opponent lying on the floor for another **10 damage**. They stay down until it lands, bounce, and get up as after the throw. It doesn't follow up a slam that already knocked them out.
 
 ## The CPU
 

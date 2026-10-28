@@ -26,7 +26,7 @@ It runs lockstep by default; `--rollback=N` (1–9) tests rollback instead, pred
 
 ## Creator kit
 
-Checks `CreatorKit` (`characters/creator_kit.gd`): slugs can't escape the kit directory, shell quoting and the agent command for POSIX shells and PowerShell, the per-platform `PROMPT.md` (Blender locations, `venv` commands, the validator command for Git Bash and PowerShell on Windows), sanitizing answers so they can't inject lines, fences or placeholders into `creator_kit/PROMPT_TEMPLATE.md`, and writing a kit folder (into `user://creator_kit_test`, removed afterwards), including that saving again keeps the agent's own files.
+Checks `CreatorKit` (`characters/creator_kit.gd`): slugs can't escape the kit directory, shell quoting and the agent command for POSIX shells and PowerShell, the per-platform `PROMPT.md` (Blender locations, `venv` commands), sanitizing answers so they can't inject lines, fences or placeholders into `creator_kit/PROMPT_TEMPLATE.md`, and writing a kit folder (into `user://creator_kit_test`, removed afterwards), including `kit_config.json` (the `.glb` name and `CreatorKit.validator_args()`) and that saving again keeps the agent's own files.
 
 ## Character library
 
@@ -34,13 +34,13 @@ Checks `CharacterLibrary` (`characters/character_library.gd`) in a temporary lib
 
 ## Character validator
 
-Checks `CharacterValidator` (`characters/character_validator.gd`) and the `--validate-character` command line: `default.glb` and `tests/fixtures/valid.glb` pass, and each broken fixture in `tests/fixtures/` (missing, renamed, or extra bone, a part named like a bone, a moved joint, too many triangles, a transparent material, a rotated or scaled Armature, an oversized texture) fails with exactly its expected errors. The exact command the creator kit puts in `PROMPT.md` (`CreatorKit.validator_command()`) is run on `default.glb` and one broken fixture, checking its exit code and output.
+Checks `CharacterValidator` (`characters/character_validator.gd`) and the `--validate-character` command line: `default.glb` and `tests/fixtures/valid.glb` pass, and each broken fixture in `tests/fixtures/` (missing, renamed, or extra bone, a part named like a bone, a moved joint, too many triangles, a transparent material, a rotated or scaled Armature, an oversized texture) fails with exactly its expected errors. The exact command the creator kit gives `kit.py` (`CreatorKit.validator_args()`, in `kit_config.json`) is run on `default.glb` and one broken fixture, checking its exit code and output.
 
 The fixtures are committed. After changing the skeleton, rebuild them with `blender -b --factory-startup --python tests/fixtures/build_bad_characters.py`, then update the expected messages in the test.
 
 ## Skeleton drift
 
-Needs Blender (`blender` on `PATH`, or `BLENDER=/path/to/blender`). Builds the template with `creator_kit/build_template.py` via `tests/dump_skeleton.py`, dumps the rig Blender actually made (bone names, parents, head/tail, connected, roll, local axes), and checks that it matches:
+Needs Blender (`blender` on `PATH`, or `BLENDER=/path/to/blender`). Builds the template with `creator_kit/build_template.py` (which uses `creator_kit/kit.py`'s bone list, the one build scripts get from `start()`) via `tests/dump_skeleton.py`, dumps the rig Blender actually made (bone names, parents, head/tail, connected, roll, local axes), and checks that it matches:
 
 - the tables in `creator_kit/SKELETON.md` (the [Skeleton](./skeleton) page, copied into every kit),
 - the rest pose of `characters/default/default.glb` (the validator's reference),

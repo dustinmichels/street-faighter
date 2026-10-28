@@ -11,6 +11,7 @@
 [ext_resource type="Script" path="res://input/ai_input.gd" id="10_aiinput"]
 [ext_resource type="Script" path="res://match/match.gd" id="11_match"]
 [ext_resource type="Script" path="res://match/fight_sounds.gd" id="12_sounds"]
+[ext_resource type="AudioStream" path="res://assets/music/fight.ogg" id="13_music"]
 
 [sub_resource type="ShaderMaterial" id="Mat_quantize"]
 shader = ExtResource("3_quantize")
@@ -153,3 +154,8 @@ script = ExtResource("8_hud")
 left_fighter = NodePath("../GameView/GameViewport/World/Fighter1")
 right_fighter = NodePath("../GameView/GameViewport/World/Fighter2")
 fight = NodePath("../GameView/GameViewport/World")
+
+[node name="Music" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("13_music")
+volume_db = -12.0
+autoplay = true

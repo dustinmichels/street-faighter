@@ -2,9 +2,9 @@ class_name FightSounds
 extends Node
 ## The fight's sound effects: a whoosh when a fighter throws an attack (punch,
 ## air kick, sweep), a smack when one gets hit, a heavier thud when one goes
-## down (swept, knocked out, slammed by a throw), a dull knock for a blocked
-## hit and a rush of air when one leaps off the floor. Sounds are synthesized
-## by `match/sounds/build_sounds.gd`.
+## down (swept, knocked out, slammed by a throw or its elbow drop), a dull
+## knock for a blocked hit and a rush of air when one leaps off the floor.
+## Sounds are synthesized by `match/sounds/build_sounds.gd`.
 ##
 ## Display only, like the camera shake: each physics frame, after the `Match`
 ## stepped (this is its child, so it processes after it), it reads how many
@@ -120,8 +120,13 @@ static func block_ticks(f: Fighter) -> int:
 
 ## Ticks since `f` left the floor (the end of the takeoff crouch), or -1. Only
 ## while airborne without kicking: an air kick restarts the phase timer, and
-## the launch sounded before it.
+## the launch sounded before it. The elbow drop's leap counts too.
 static func jump_ticks(f: Fighter) -> int:
 	if f.state == Fighter.State.JUMP and f.jump_phase == Fighter.JumpPhase.AIR:
 		return f.state_ticks
+	if (
+		f.state == Fighter.State.ELBOW_DROP and f.state_ticks >= Fighter.ELBOW_TAKEOFF
+		and f.state_ticks < Fighter.ELBOW_IMPACT
+	):
+		return f.state_ticks - Fighter.ELBOW_TAKEOFF
 	return -1

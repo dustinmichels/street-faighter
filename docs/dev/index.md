@@ -115,6 +115,7 @@ Code is grouped by entity: each folder holds a thing's scenes, scripts, and shad
 | `characters/`       | Loading, validating, and storing characters, the creator kit writer, the toon shader, the built-in fighter and the skeleton template. |
 | `stages/`           | The stage script, steam effect, and the street stage.                                                                                 |
 | `animations/`       | The animation library and the script that builds it.                                                                                  |
+| `assets/`           | Shared assets: the pixel font (OFL), the logo, and the CC0 background music by Juhani Junkala (`assets/music/INFO.txt`).              |
 | `creator_kit/`      | Files copied into every creator kit, including the skeleton reference `SKELETON.md`.                                                  |
 | `tests/`            | Headless tests; see [Tests](./testing).                                                                                               |
 | `docs/`             | This site (VitePress). Ignored by Godot (`docs/.gdignore`).                                                                           |

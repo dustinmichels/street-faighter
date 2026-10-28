@@ -6,7 +6,11 @@ extends Control
 ## Under each bar, aligned to its outer edge, its fighter's name
 ## (`left_name` / `right_name`, set by `main.gd`) in the arcade font, and at
 ## the bar's inner end a pulsing star while that fighter's special is ready
-## (`Fighter.special_ready()`).
+## (`Fighter.special_ready()`). For a fighter played on this machine
+## (`PlayerInput`, `LocalInput`), a pulsing "Press I for special" (the first
+## key bound to `special`) under the star tells when pressing it does
+## something: while the special is ready, and during the throw until its
+## follow-up is queued (`Fighter.follow_up_open()`).
 ## Once either fighter is knocked down, a centered "K.O." and a hint appear:
 ## offline the restart (`main.gd`), online the rematch status, then the way
 ## back to the menu (`ko_hint()`).
@@ -64,7 +68,10 @@ const CONTROLS: Array[Array] = [
 	[&"ai_difficulty", "CPU difficulty", true],
 ]
 ## Combos listed under the key table (no binding of their own).
-const CONTROLS_NOTES := "Crouch + Punch: sweep\nSpecial: after 3 hits in a row"
+const CONTROLS_NOTES := (
+	"Crouch + Punch: sweep\nSpecial: after 3 hits in a row\n"
+	+ "Special again mid-throw: elbow drop"
+)
 const CONTROLS_FONT_SIZE := 10
 ## Controls screen: the pixel font at its native size (multiples of 8 stay
 ## sharp), key names in white, labels in the health-bar yellow.
@@ -106,6 +113,8 @@ var _left_name: Label
 var _right_name: Label
 var _left_star: Control
 var _right_star: Control
+var _left_prompt: Label
+var _right_prompt: Label
 ## "K.O." plus `_ko_hint`, hidden until a knockdown.
 var _ko: VBoxContainer
 var _ko_hint: Label
@@ -135,6 +144,8 @@ func _ready() -> void:
 	_right_name = _make_name(true)
 	_left_star = _make_star(false)
 	_right_star = _make_star(true)
+	_left_prompt = _make_prompt(false)
+	_right_prompt = _make_prompt(true)
 	_ko = _make_ko()
 	_countdown = _make_label("", 48, COUNTDOWN_COLOR)
 	_countdown.mouse_filter = MOUSE_FILTER_IGNORE
@@ -213,9 +224,11 @@ func _update() -> void:
 	_right_name.text = right_name
 	_left_star.visible = left_fighter != null and left_fighter.special_ready()
 	_right_star.visible = right_fighter != null and right_fighter.special_ready()
+	_left_prompt.visible = special_prompted(left_fighter, right_fighter)
+	_right_prompt.visible = special_prompted(right_fighter, left_fighter)
 	var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 1000.0 * TAU * STAR_PULSE_HZ)
-	for star: Control in [_left_star, _right_star]:
-		star.modulate.a = lerpf(0.6, 1.0, pulse)
+	for pulsing: Control in [_left_star, _right_star, _left_prompt, _right_prompt]:
+		pulsing.modulate.a = lerpf(0.6, 1.0, pulse)
 	_ko.visible = _is_down(left_fighter) or _is_down(right_fighter)
 	if _ko.visible:
 		var session := get_node_or_null("/root/Session")
@@ -443,6 +456,11 @@ func _make_pixel_label(text: String, font_size: int, color: Color) -> Label:
 ## Key names bound to `action`, joined with " / ", as labeled on the player's
 ## keyboard layout (bindings are physical keys).
 static func _keys_for(action: StringName) -> String:
+	return " / ".join(_key_names(action))
+
+
+## Key names bound to `action`, in InputMap order (see `_keys_for()`).
+static func _key_names(action: StringName) -> PackedStringArray:
 	var names: PackedStringArray = []
 	for event in InputMap.action_get_events(action):
 		var key := event as InputEventKey
@@ -455,7 +473,15 @@ static func _keys_for(action: StringName) -> String:
 			else:
 				code = key.physical_keycode
 		names.append(OS.get_keycode_string(code))
-	return " / ".join(names)
+	return names
+
+
+## Whether `fighter` gets the special prompt: it is played on this machine
+## and pressing special now does something, against `other`.
+static func special_prompted(fighter: Fighter, other: Fighter) -> bool:
+	if fighter == null or not (fighter.input is PlayerInput or fighter.input is LocalInput):
+		return false
+	return fighter.special_ready() or fighter.follow_up_open(other)
 
 
 func _make_label(text: String, font_size: int, color: Color) -> Label:
@@ -490,6 +516,30 @@ func _make_name(right: bool) -> Label:
 		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 		label.offset_left = BAR_MARGIN.x
 		label.offset_right = BAR_MARGIN.x + BAR_SIZE.x
+	add_child(label)
+	return label
+
+
+## Adds the special prompt (hidden) under the star at the inner end of the
+## left (or right) bar, aligned to it.
+func _make_prompt(right: bool) -> Label:
+	var keys := _key_names(&"special")
+	var key := keys[0] if not keys.is_empty() else "special"
+	var label := _make_label("Press %s for special" % key, NAME_FONT_SIZE, STAR_COLOR)
+	label.add_theme_font_override(&"font", NAME_FONT)
+	label.mouse_filter = MOUSE_FILTER_IGNORE
+	label.offset_top = _name_top() + STAR_RADIUS * 2.0 + 2.0
+	if right:
+		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		label.anchor_left = 1.0
+		label.anchor_right = 1.0
+		label.offset_left = -BAR_MARGIN.x - BAR_SIZE.x
+		label.offset_right = -BAR_MARGIN.x
+	else:
+		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		label.offset_left = BAR_MARGIN.x
+		label.offset_right = BAR_MARGIN.x + BAR_SIZE.x
+	label.visible = false
 	add_child(label)
 	return label
 

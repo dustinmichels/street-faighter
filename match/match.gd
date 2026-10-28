@@ -183,10 +183,11 @@ func _inputs(t: int) -> PackedInt32Array:
 
 ## Advances the match by one tick with each fighter's input bitmask. Both
 ## fighters move from where they stood at the start of the tick, a throw in
-## progress carries its victim, then overlap and the screen-edge limit are
-## resolved, then hits from both sides are detected before any is applied,
-## so simultaneous attacks trade. Grabs are checked after the hits: a grab
-## that was hit out of, or two grabs at once, catch nobody.
+## progress carries its victim and its follow-up (the elbow drop) lands on
+## it, then overlap and the screen-edge limit are resolved, then hits from
+## both sides are detected before any is applied, so simultaneous attacks
+## trade. Grabs are checked after the hits: a grab that was hit out of, or
+## two grabs at once, catch nobody.
 func step(inputs: PackedInt32Array) -> void:
 	if tick < start_tick:
 		inputs = PackedInt32Array([0, 0])
@@ -200,6 +201,8 @@ func step(inputs: PackedInt32Array) -> void:
 	b.step(inputs[1], ax)
 	a.carry(b)
 	b.carry(a)
+	a.follow_up(b)
+	b.follow_up(a)
 	_push_apart(a, b)
 	_stay_in_range(a, b, ax, bx)
 	var a_hits := a.attack_connects(b)
