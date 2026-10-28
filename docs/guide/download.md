@@ -81,7 +81,7 @@ The moves and controls are on [How to play](./playing). In a match, <kbd>Esc</kb
 
 ## Updating
 
-With the itch app, updates install on their own. Otherwise, download the new release and replace the app (or the `.exe` or `.x86_64` file). Your name, settings, and imported fighters are stored outside the game and carry over.
+With the itch app, updates install on their own. Otherwise, download the new release and replace the app (or, on Windows and Linux, all the files in the game's folder). Your name, settings, and imported fighters are stored outside the game and carry over.
 
 Online matches need both players on the same version: the game checks during the handshake and refuses a mismatch, with a message saying which versions met. The version is in the bottom-left corner of the title screen.
 

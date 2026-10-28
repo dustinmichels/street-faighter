@@ -7,6 +7,6 @@ godot --headless --path . --export-release "macOS" build/macos/street-fAIghter.z
 godot --headless --path . --export-release "Windows" build/windows/street-fAIghter.exe
 godot --headless --path . --export-release "Linux" build/linux/street-fAIghter.x86_64
 cp build/macos/street-fAIghter.zip build/release/street-fAIghter-macos.zip
-zip -j build/release/street-fAIghter-windows.zip build/windows/street-fAIghter.exe
-zip -j build/release/street-fAIghter-linux.zip build/linux/street-fAIghter.x86_64
+zip -j build/release/street-fAIghter-windows.zip build/windows/street-fAIghter.exe build/windows/street-fAIghter.pck
+zip -j build/release/street-fAIghter-linux.zip build/linux/street-fAIghter.x86_64 build/linux/street-fAIghter.pck
 ls -lh build/release

@@ -3,7 +3,7 @@
 #USAGE arg "<version>" help="Version shown on itch.io, like v1.2.3"
 set -euo pipefail
 version="${usage_version}"
-for f in build/macos/street-fAIghter.zip build/windows/street-fAIghter.exe build/linux/street-fAIghter.x86_64; do
+for f in build/macos/street-fAIghter.zip build/windows/street-fAIghter.{exe,pck} build/linux/street-fAIghter.{x86_64,pck}; do
   [[ -f "$f" ]] || { echo "missing $f; run 'mise run export' first" >&2; exit 1; }
 done
 rm -rf build/itch

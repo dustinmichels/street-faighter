@@ -88,6 +88,8 @@ Every preset sets **Resources → Filters to export non-resource files** to `cre
 
 itch.io uploads go through [butler](https://itch.io/docs/butler/), which mise installs. Log in once with `butler login`, or run `mise run setup` to paste an [API key](https://itch.io/user/settings/api-keys) into the git-ignored `mise.local.toml`. The release stops before tagging if butler can't reach the project (`ITCH_TARGET` in `mise.toml`).
 
+butler only uploads builds; the itch.io page's images are set by hand under **Edit game** on itch.io. [`itch/`](https://github.com/dustinmichels/street-faighter/tree/main/itch) holds `cover.png` (630×500, the **Cover image**) and `banner.png` (the logo at 3×, transparent, the **Banner** under **Edit theme**). The **Screenshots** are the 1440×810 shots in `docs/public/media/`: `sweep.png`, `stage.png`, `characters.png`, and `title.png`.
+
 ## Rebuilding generated assets
 
 The shipped `.glb` characters and stage, `animations/base.res` and the sound effects in `match/sounds/` are generated. Rerun these only after editing their scripts:
@@ -120,6 +122,7 @@ Code is grouped by entity: each folder holds a thing's scenes, scripts, and shad
 | `tests/`            | Headless tests; see [Tests](./testing).                                                                                               |
 | `docs/`             | This site (VitePress). Ignored by Godot (`docs/.gdignore`).                                                                           |
 | `docs-todo/`        | Implementation plans and progress logs.                                                                                               |
+| `itch/`             | Cover and banner images for the itch.io page. Ignored by Godot (`itch/.gdignore`).                                                    |
 
 ## This documentation
 
