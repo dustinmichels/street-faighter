@@ -35,6 +35,27 @@ func _test_prompt() -> void:
 	_check(text.contains("Concept: %s" % CreatorKit.UNSPECIFIED), "prompt: blank answer")
 	_check(not text.contains("{{"), "prompt: no placeholder left")
 
+	# Optional outfit answers: their line is left out when blank, kept when given.
+	_check(
+		not text.contains("Headgear:") and not text.contains("Accessories:"),
+		"prompt: blank optional lines left out",
+	)
+	var outfit := CreatorKit.prompt({ "name": "Big Tony", "pants": "gi pants", "shirt": "  " })
+	_check(outfit.contains("- Pants / bottoms: gi pants\n"), "prompt: optional answer kept")
+	_check(not outfit.contains("Shirt / top:"), "prompt: whitespace-only optional left out")
+	_check(
+		outfit.contains("- Hair, face, extras, anything else: %s\n" % CreatorKit.UNSPECIFIED),
+		"prompt: non-optional blank still shown",
+	)
+	# A special move adds its brief line and the SPECIAL.md step; blank, neither.
+	_check(not text.contains("Special move") and not text.contains("SPECIAL.md"), "prompt: no special")
+	var special := CreatorKit.prompt({ "name": "Big Tony", "special": "a spinning piledriver" })
+	_check(
+		special.contains("- Special move (their own special throw): a spinning piledriver\n")
+		and special.contains("\"a spinning piledriver\". Once the character passes, read `SPECIAL.md`"),
+		"prompt: special move brief and step",
+	)
+
 
 func _test_shell_quoting() -> void:
 	_check_eq(CreatorKit.shell_quote("/a/my chars/x.glb"), "'/a/my chars/x.glb'", "quote: spaces")
@@ -136,12 +157,14 @@ func _test_write() -> void:
 		"PROMPT.md",
 		"README.md",
 		"SKELETON.md",
+		"SPECIAL.md",
 		"build_template.py",
 		"character_request.json",
 		"example_build_character.py",
 		"export_glb.py",
 		"kit.py",
 		"kit_config.json",
+		"special_base.json",
 	]
 	_check_eq(Array(DirAccess.get_files_at(folder)), expected, "write: kit files")
 	var config: Variant = JSON.parse_string(

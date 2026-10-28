@@ -9,6 +9,7 @@ All tests are headless Godot scripts. Each exits 0 on success and 1 with a list 
 | [Creator kit](#creator-kit)                 | `godot --headless --path . -s tests/creator_kit_test.gd`         |         |
 | [Character library](#character-library)     | `godot --headless --path . -s tests/character_library_test.gd`   |         |
 | [Character validator](#character-validator) | `godot --headless --path . -s tests/character_validator_test.gd` |         |
+| [Character special](#character-special)     | `godot --headless --path . -s tests/character_special_test.gd`   |         |
 | [Skeleton drift](#skeleton-drift)           | `godot --headless --path . -s tests/skeleton_drift_test.gd`      | Blender |
 | [Character sync](#character-sync)           | `godot --headless --path . -s tests/character_sync_test.gd`      |         |
 
@@ -37,6 +38,14 @@ Checks `CharacterLibrary` (`characters/character_library.gd`) in a temporary lib
 Checks `CharacterValidator` (`characters/character_validator.gd`) and the `--validate-character` command line: `default.glb` and `tests/fixtures/valid.glb` pass, and each broken fixture in `tests/fixtures/` (missing, renamed, or extra bone, a part named like a bone, a moved joint, too many triangles, a transparent material, a rotated or scaled Armature, an oversized texture) fails with exactly its expected errors. The exact command the creator kit gives `kit.py` (`CreatorKit.validator_args()`, in `kit_config.json`) is run on `default.glb` and one broken fixture, checking its exit code and output.
 
 The fixtures are committed. After changing the skeleton, rebuild them with `blender -b --factory-startup --python tests/fixtures/build_bad_characters.py`, then update the expected messages in the test.
+
+## Character special
+
+Checks `CharacterSpecial` (`characters/character_special.gd`), a character's own special throw:
+
+- The standard throw written as a special (`CharacterSpecial.kit_base().standard`, which every creator kit gets) shows the standard throw. The victim's clip matches `thrown` on every tick, its root matches `Fighter.THROW_PATH`, and the thrower's clip matches `throw` on its keys.
+- Broken data fails with exactly its expected errors.
+- A special injected into `tests/fixtures/valid.glb`'s extras passes the validator and rides along on the loaded model. A broken one fails the file.
 
 ## Skeleton drift
 

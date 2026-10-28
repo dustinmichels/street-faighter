@@ -12,21 +12,24 @@
 
 start() builds the template skeleton (SKELETON.md) in an empty scene, the part functions
 model in world space and parent each part to its bone, and finish() checks, renders
-previews/sheet.png, exports, and runs the game's validator. build_template.py saves the
-same skeleton as template.blend, for modeling by hand.
+previews/sheet.png, exports, and runs the game's validator. special() adds a special throw
+(SPECIAL.md). build_template.py saves the same skeleton as template.blend, for modeling by
+hand.
 """
 
 import contextlib
 import json
 import math
 import os
+import shutil
+import struct
 import subprocess
 import sys
 import tempfile
 
 import bpy
 import bmesh  # after bpy: the PyPI bpy module only provides bmesh once bpy is imported
-from mathutils import Matrix, Quaternion, Vector
+from mathutils import Euler, Matrix, Quaternion, Vector
 
 KIT = os.path.dirname(os.path.abspath(__file__))
 if KIT not in sys.path:
@@ -35,11 +38,14 @@ from export_glb import export_glb, reset_pose  # noqa: E402
 
 __all__ = [
     "start", "material", "part", "box", "sphere", "cylinder", "capsule", "head", "tail",
-    "stats", "previews", "finish", "math", "Matrix", "Quaternion", "Vector",
+    "stats", "previews", "finish", "special", "pose", "mirror", "STANCE", "GRAB",
+    "STANDARD_THROW", "math", "Matrix", "Quaternion", "Vector",
 ]
 
 # Written by the game into each kit: {"glb": "<slug>.glb", "validator": [program, args...]}.
 CONFIG = os.path.join(KIT, "kit_config.json")
+# Also written by the game into each kit: what a special throw needs (SPECIAL.md).
+SPECIAL_BASE = os.path.join(KIT, "special_base.json")
 
 # The skeleton (SKELETON.md): name, parent, head, tail, connected. .L only; .R mirrors at -X.
 CENTER = [
@@ -67,8 +73,8 @@ def skeleton():
         for name, parent, head_, tail_, connected in LEFT:
             if parent in SIDED:
                 parent = f"{parent}.{side}"
-            mirror = lambda v: (v[0] * sx, v[1], v[2])  # noqa: E731
-            yield f"{name}.{side}", parent, mirror(head_), mirror(tail_), connected
+            flip = lambda v: (v[0] * sx, v[1], v[2])  # noqa: E731
+            yield f"{name}.{side}", parent, flip(head_), flip(tail_), connected
 
 
 BONES = {name: (Vector(h), Vector(t)) for name, _, h, t, _ in skeleton()}
@@ -96,7 +102,32 @@ TEST_POSE = {
     "shin.L": ((1, 0, 0), 90),
 }
 
+# previews/special.png: the throw ticks shown, left to right, top row first: the lift and
+# flight, the slam (26), the bounce, and the thrower's last tick before its stance (43).
+SPECIAL_TICKS = (0, 6, 12, 18, 22, 26, 34, 43)
+SPECIAL_COLUMNS = 4
+
 _materials = {}
+_special = {}  # what special() stored for finish()
+
+
+def _load_special_base():
+    """special_base.json (the game writes it into every kit), or None outside a kit."""
+    if not os.path.exists(SPECIAL_BASE):
+        return None
+    with open(SPECIAL_BASE, encoding="utf-8") as f:
+        return json.load(f)
+
+
+_BASE = _load_special_base()
+# The game's fighting stance and grab poses ({} outside a kit), and the standard throw as
+# special() arguments: special(**STANDARD_THROW).
+STANCE = _BASE["poses"]["stance"] if _BASE else {}
+GRAB = _BASE["poses"]["grab"] if _BASE else {}
+STANDARD_THROW = {
+    "attacker": [(k["tick"], k["pose"]) for k in _BASE["standard"]["attacker"]],
+    "victim": [(k["tick"], k["pose"], tuple(k["root"])) for k in _BASE["standard"]["victim"]],
+} if _BASE else {"attacker": [], "victim": []}
 
 
 def build_skeleton():
@@ -126,6 +157,7 @@ def start():
     print(f"Blender {bpy.app.version_string}")
     bpy.ops.wm.read_factory_settings(use_empty=True)
     _materials.clear()
+    _special.clear()
     return build_skeleton()
 
 
@@ -230,6 +262,40 @@ def capsule(bone, what, mat, a, b, radius, mirror=False, segments=12):
     return part(bone, what, mat, bm, mirror)
 
 
+def pose(base, over):
+    """A copy of pose `base` with the bones (and "hips_pos") in `over` set on top."""
+    out = {name: list(v) for name, v in base.items()}
+    out.update({name: list(v) for name, v in over.items()})
+    return out
+
+
+def mirror(v):
+    """The .R value of a .L rotation (x, y, z): the same motion on the other side."""
+    return (v[0], -v[1], -v[2])
+
+
+def special(attacker, victim):
+    """Give the character its own special throw (SPECIAL.md); finish() saves it in the .glb
+    and renders previews/special.png.
+
+    `attacker`: (tick, pose) keys for the thrower. `victim`: (tick, pose, (forward, up))
+    keys for the thrown fighter, its body origin relative to the thrower's. A pose maps
+    bone names to (x, y, z) degrees and "hips_pos" to (x, y, z) meters. The game's
+    validator checks the rules when finish() runs it.
+    """
+    if _BASE is None:
+        raise RuntimeError(f"special(): no {SPECIAL_BASE}. The game writes it into every "
+                           "creator kit: build the special in a kit folder the game wrote.")
+    data = {
+        "version": _BASE["version"],
+        "attacker": [_special_key(k, f"attacker[{i}]", False) for i, k in enumerate(attacker)],
+        "victim": [_special_key(k, f"victim[{i}]", True) for i, k in enumerate(victim)],
+    }
+    _special.clear()
+    _special.update(data)
+
+
+
 def stats():
     """Print triangles, height, floor, and body extents against the game's limits.
 
@@ -283,57 +349,28 @@ def previews(path=None):
     from the front, the character's left side, and the front-left 3/4 (columns)."""
     path = path or os.path.join(KIT, "previews", "sheet.png")
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    scene = bpy.context.scene
-    scene.render.engine = "BLENDER_WORKBENCH"
-    scene.display.shading.light = "STUDIO"
-    scene.display.shading.color_type = "MATERIAL"  # shows material.diffuse_color
-    scene.display.shading.show_object_outline = True
-    scene.view_settings.view_transform = "Standard"  # palette colors as picked
-    scene.render.resolution_x = scene.render.resolution_y = TILE
-    scene.render.resolution_percentage = 100
-    scene.render.image_settings.file_format = "PNG"
-    world = bpy.data.worlds.new("preview_world")
-    world.color = (0.45, 0.45, 0.45)
-    old_world, scene.world = scene.world, world
-    cam_data = bpy.data.cameras.new("preview_cam")
-    cam_data.type = "ORTHO"
-    cam_data.ortho_scale = 2.3  # meters visible: Z -0.15..2.15, past the 2.0 m limit
-    cam = bpy.data.objects.new("preview_cam", cam_data)
-    scene.collection.objects.link(cam)
-    scene.camera = cam
     target = Vector((0.0, 0.0, 1.0))
-    tmp = tempfile.mkdtemp()
-    rows = []
-    try:
-        for pose in (None, TEST_POSE):
-            _set_pose(pose)
+    with _preview_scene() as (scene, cam, tmp):
+        scene.render.resolution_x = scene.render.resolution_y = TILE
+        cam.data.ortho_scale = 2.3  # meters visible: Z -0.15..2.15, past the 2.0 m limit
+        rows = []
+        for test in (None, TEST_POSE):
+            _set_pose(test)
             row = []
             for view, (x, y) in VIEWS.items():
                 cam.location = Vector((x, y, target.z))
                 cam.rotation_euler = (target - cam.location).to_track_quat("-Z", "Y").to_euler()
-                scene.render.filepath = os.path.join(tmp, f"{len(rows)}_{view}.png")
-                with _quiet():
-                    bpy.ops.render.render(write_still=True)
-                row.append(scene.render.filepath)
+                row.append(_render(scene, os.path.join(tmp, f"{len(rows)}_{view}.png")))
             rows.append(row)
         _stitch(rows, path)
-    finally:
-        reset_pose()
-        bpy.data.objects.remove(cam)  # keep the camera out of the export
-        bpy.data.cameras.remove(cam_data)
-        scene.world = old_world
-        bpy.data.worlds.remove(world)
-        for row in rows:
-            for f in row:
-                os.remove(f)
-        os.rmdir(tmp)
     print(f"previews: {path}")
     return path
 
 
 def finish(name, description, glb=None):
-    """Print stats(), render previews(), export the .glb with export_glb(), write its
-    manifest (<slug>.json), and run the game's validator on it.
+    """Print stats(), render previews(), export the .glb with export_glb(), save the
+    special() in it and render previews/special.png, write its manifest (<slug>.json), and
+    run the game's validator on it.
 
     `glb` defaults to the kit's "<slug>.glb" (kit_config.json). Returns True if the
     validator printed OK.
@@ -350,6 +387,15 @@ def finish(name, description, glb=None):
     previews()
     with _quiet():
         export_glb(glb)
+    special_png = os.path.join(KIT, "previews", "special.png")
+    if _special:
+        _inject_special(glb, _special)
+        print(f"special: {len(_special['attacker'])} attacker keys, "
+              f"{len(_special['victim'])} victim keys, saved in {os.path.basename(glb)}")
+        _special_previews(_special, special_png)
+        print(f"special: previews: {special_png} (ticks {', '.join(map(str, SPECIAL_TICKS))})")
+    elif os.path.exists(special_png):
+        os.remove(special_png)  # from an earlier build with a special: it would mislead
     manifest = {
         "schema_version": 1,
         "name": name,
@@ -473,27 +519,266 @@ def _quiet():
                 print(log.read().decode("utf-8", "replace"))
 
 
-def _stitch(rows, path):
-    """Tile the rendered views (rows of PNG paths, top row first) into one PNG."""
+def _stitch(rows, path, size=(TILE, TILE)):
+    """Tile the rendered views (rows of PNG paths, top row first, each `size` px) into one
+    PNG."""
     import numpy as np  # ships with Blender and the bpy module
 
-    n_rows, n_cols = len(rows), len(rows[0])
-    width = n_cols * TILE + (n_cols - 1) * GAP
-    height = n_rows * TILE + (n_rows - 1) * GAP
+    w, h = size
+    n_rows, n_cols = len(rows), max(len(row) for row in rows)
+    width = n_cols * w + (n_cols - 1) * GAP
+    height = n_rows * h + (n_rows - 1) * GAP
     sheet = np.zeros((height, width, 4), np.float32)
     sheet[..., 3] = 1.0
     for r, row in enumerate(rows):
-        y = (n_rows - 1 - r) * (TILE + GAP)  # image rows run bottom-up
+        y = (n_rows - 1 - r) * (h + GAP)  # image rows run bottom-up
         for c, file in enumerate(row):
             img = bpy.data.images.load(file)
-            px = np.empty(TILE * TILE * 4, np.float32)
+            px = np.empty(w * h * 4, np.float32)
             img.pixels.foreach_get(px)
             bpy.data.images.remove(img)
-            x = c * (TILE + GAP)
-            sheet[y:y + TILE, x:x + TILE] = px.reshape(TILE, TILE, 4)
+            x = c * (w + GAP)
+            sheet[y:y + h, x:x + w] = px.reshape(h, w, 4)
     out = bpy.data.images.new("preview_sheet", width, height, alpha=False)
     out.pixels.foreach_set(sheet.ravel())
     out.filepath_raw = path
     out.file_format = "PNG"
     out.save()
     bpy.data.images.remove(out)
+
+
+@contextlib.contextmanager
+def _preview_scene():
+    """Set up Workbench rendering, a gray world, and an ortho camera; yield (scene, camera,
+    temp folder) and remove them again, so none of it reaches the export."""
+    scene = bpy.context.scene
+    scene.render.engine = "BLENDER_WORKBENCH"
+    scene.display.shading.light = "STUDIO"
+    scene.display.shading.color_type = "MATERIAL"  # shows material.diffuse_color
+    scene.display.shading.show_object_outline = True
+    scene.view_settings.view_transform = "Standard"  # palette colors as picked
+    scene.render.resolution_percentage = 100
+    scene.render.image_settings.file_format = "PNG"
+    world = bpy.data.worlds.new("preview_world")
+    world.color = (0.45, 0.45, 0.45)
+    old_world, scene.world = scene.world, world
+    cam_data = bpy.data.cameras.new("preview_cam")
+    cam_data.type = "ORTHO"
+    cam = bpy.data.objects.new("preview_cam", cam_data)
+    scene.collection.objects.link(cam)
+    scene.camera = cam
+    tmp = tempfile.mkdtemp()
+    try:
+        yield scene, cam, tmp
+    finally:
+        reset_pose()
+        bpy.data.objects.remove(cam)
+        bpy.data.cameras.remove(cam_data)
+        scene.world = old_world
+        bpy.data.worlds.remove(world)
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def _render(scene, file):
+    scene.render.filepath = file
+    with _quiet():
+        bpy.ops.render.render(write_still=True)
+    return file
+
+
+def _numbers(value, n, label):
+    try:
+        out = [float(c) for c in value]
+    except (TypeError, ValueError):
+        out = []
+    if len(out) != n or not all(math.isfinite(c) for c in out):
+        raise TypeError(f"{label} must be {n} numbers, not {value!r}")
+    return out
+
+
+def _special_key(key, label, with_root):
+    """One special() key as the .glb stores it: {"tick", "pose"[, "root"]}."""
+    label = f"special(): {label}"
+    shape = "(tick, pose, (forward, up))" if with_root else "(tick, pose)"
+    if not isinstance(key, (list, tuple)) or len(key) != (3 if with_root else 2):
+        raise TypeError(f"{label} must be {shape}, not {key!r}")
+    tick = _numbers([key[0]], 1, f"{label} tick")[0]
+    if not isinstance(key[1], dict):
+        raise TypeError(f"{label} pose must be a dict of bone name -> (x, y, z)")
+    out = {
+        "tick": int(tick) if tick.is_integer() else tick,
+        "pose": {str(b): _numbers(v, 3, f"{label} pose['{b}']") for b, v in key[1].items()},
+    }
+    if with_root:
+        out["root"] = _numbers(key[2], 2, f"{label} root (forward, up)")
+    return out
+
+
+def _inject_special(glb, data):
+    """Put `data` in the .glb's top-level glTF extras ("street_faighter" -> "special"):
+    rewrite the JSON chunk, keep the BIN chunk as it is."""
+    with open(glb, "rb") as f:
+        blob = f.read()
+    magic, version, length = struct.unpack_from("<4sII", blob, 0)
+    json_length, json_type = struct.unpack_from("<II", blob, 12)
+    if magic != b"glTF" or json_type != 0x4E4F534A:  # "JSON"
+        raise ValueError(f"{glb} is not a glTF binary")
+    gltf = json.loads(blob[20:20 + json_length])
+    extras = gltf.get("extras") if isinstance(gltf.get("extras"), dict) else {}
+    game = extras.get("street_faighter") if isinstance(extras.get("street_faighter"), dict) else {}
+    game["special"] = data
+    extras["street_faighter"] = game
+    gltf["extras"] = extras
+    text = json.dumps(gltf, separators=(",", ":")).encode("utf-8")
+    text += b" " * (-len(text) % 4)  # chunks are 4-byte aligned; JSON pads with spaces
+    rest = blob[20 + json_length:length]
+    with open(glb, "wb") as f:
+        f.write(struct.pack("<4sII", magic, version, 20 + len(text) + len(rest)))
+        f.write(struct.pack("<II", len(text), json_type))
+        f.write(text)
+        f.write(rest)
+
+
+def _special_tracks(data):
+    """The keys the game plays, as (tick, pose) lists for the attacker and the victim and
+    (tick, (forward, up)) for the victim's root: `data`'s keys plus the game's own."""
+    b = _BASE
+    attacker = [(k["tick"], k["pose"]) for k in data["attacker"]]
+    attacker.append((b["throw_ticks"], b["poses"]["stance"]))
+    victim = [(k["tick"], k["pose"]) for k in data["victim"]]
+    victim += [(k["tick"], k["pose"]) for k in b["after_slam"]]
+    root = [(k["tick"], k["root"]) for k in data["victim"]]
+    root.append((b["slam_tick"], b["landing"]))
+    return attacker, victim, root
+
+
+def _between(keys, tick):
+    """The keys around `tick` and the blend weight: (a, b, w). Before the first key the
+    first holds, after the last the last holds."""
+    if tick <= keys[0][0]:
+        return keys[0][1], keys[0][1], 0.0
+    for (ta, a), (tb, b) in zip(keys, keys[1:]):
+        if tick <= tb:
+            return a, b, (tick - ta) / (tb - ta) if tb > ta else 1.0
+    return keys[-1][1], keys[-1][1], 0.0
+
+
+def _rotation(degrees):
+    """A pose value as the game builds it: Godot's Quaternion.from_euler (YXZ order)."""
+    if degrees is None:
+        return Quaternion()
+    return Euler([math.radians(c) for c in degrees], "ZXY").to_quaternion()
+
+
+def _pose_at(arm_obj, keys, tick):
+    """Pose `arm_obj` at `tick` like the game: rotations slerped the short way round,
+    hips_pos lerped, unlisted bones at rest."""
+    a, b, w = _between(keys, tick)
+    for pb in arm_obj.pose.bones:
+        qa, qb = _rotation(a.get(pb.name)), _rotation(b.get(pb.name))
+        if qa.dot(qb) < 0:
+            qb.negate()
+        pb.rotation_mode = "QUATERNION"
+        pb.rotation_quaternion = qa.slerp(qb, w)
+    hips_a, hips_b = Vector(a.get("hips_pos", (0, 0, 0))), Vector(b.get("hips_pos", (0, 0, 0)))
+    arm_obj.pose.bones["hips"].location = hips_a.lerp(hips_b, w)
+
+
+def _special_previews(data, path):
+    """Render previews/special.png: the character's left side at SPECIAL_TICKS, the
+    thrower in its colors at the origin, the victim as a gray copy at its root."""
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    attacker, victim, root = _special_tracks(data)
+    ticks = [t for t in SPECIAL_TICKS if t < _BASE["throw_ticks"]]
+    arm = bpy.data.objects["Armature"]
+    scene = bpy.context.scene
+    parts = [o for o in scene.objects if o.type == "MESH" and o.parent == arm]
+    made = []  # preview objects, removed at the end
+    gray, dark = bpy.data.materials.new("preview_victim"), bpy.data.materials.new("preview_floor")
+    gray.diffuse_color = (0.6, 0.6, 0.6, 1.0)  # what Workbench shows
+    dark.diffuse_color = (0.02, 0.02, 0.02, 1.0)
+    try:
+        twin = arm.copy()
+        twin.data = arm.data.copy()
+        twin.rotation_euler = (0.0, 0.0, math.pi)  # faces the thrower (+Y)
+        scene.collection.objects.link(twin)
+        made.append(twin)
+        for o in parts:
+            c = o.copy()  # shares the mesh; same bone
+            c.parent = twin
+            c.matrix_parent_inverse = o.matrix_parent_inverse  # setting parent resets it
+            scene.collection.objects.link(c)
+            made.append(c)
+            for slot in c.material_slots:
+                slot.link = "OBJECT"  # gray on this copy only
+                slot.material = gray
+
+        def pose_at(tick):
+            _pose_at(arm, attacker, tick)
+            _pose_at(twin, victim, tick)
+            a, b, w = _between(root, tick)
+            forward, up = (a[i] + (b[i] - a[i]) * w for i in (0, 1))
+            twin.location = (0.0, -forward, up)
+            bpy.context.view_layer.update()
+
+        # Fit the camera to both bodies over all ticks, the floor included.
+        inf = float("inf")
+        y0, y1, z0, z1 = inf, -inf, 0.0, -inf
+        for tick in ticks:
+            pose_at(tick)
+            dg = bpy.context.evaluated_depsgraph_get()
+            for o in made[1:] + parts:
+                ev = o.evaluated_get(dg)
+                for corner in ev.bound_box:
+                    p = ev.matrix_world @ Vector(corner)
+                    y0, y1, z0, z1 = min(y0, p.y), max(y1, p.y), min(z0, p.z), max(z1, p.z)
+        margin = 0.15
+        y0, y1, z0, z1 = y0 - margin, y1 + margin, z0 - margin, z1 + margin
+        bm = bmesh.new()
+        bmesh.ops.create_cube(bm, size=1.0, matrix=Matrix.Translation(
+            (0, (y0 + y1) / 2, -0.015)) @ Matrix.Diagonal((0.8, y1 - y0, 0.03, 1.0)))
+        floor_mesh = bpy.data.meshes.new("preview_floor")
+        bm.to_mesh(floor_mesh)
+        bm.free()
+        floor_mesh.materials.append(dark)
+        floor = bpy.data.objects.new("preview_floor", floor_mesh)
+        scene.collection.objects.link(floor)
+        made.append(floor)
+
+        with _preview_scene() as (scene, cam, tmp):
+            width, height = y1 - y0, z1 - z0
+            res_x = min(max(round(TILE * width / height), TILE), 2 * TILE)
+            scene.render.resolution_x, scene.render.resolution_y = res_x, TILE
+            cam.data.ortho_scale = max(width, height * res_x / TILE)  # spans the image width
+            target = Vector((0.0, (y0 + y1) / 2, (z0 + z1) / 2))
+            cam.location = target + Vector((10.0, 0.0, 0.0))  # the thrower's left side
+            cam.rotation_euler = (target - cam.location).to_track_quat("-Z", "Y").to_euler()
+            r = scene.render
+            for prop in r.bl_rna.properties:  # stamp only the note: "tick N"
+                if prop.identifier.startswith("use_stamp_") and not prop.is_readonly:
+                    setattr(r, prop.identifier, False)
+            r.use_stamp = r.use_stamp_note = True
+            r.stamp_font_size = 20
+            files = []
+            try:
+                for tick in ticks:
+                    pose_at(tick)
+                    r.stamp_note_text = f"tick {tick}"
+                    files.append(_render(scene, os.path.join(tmp, f"{tick}.png")))
+            finally:
+                r.use_stamp = False
+            rows = [files[i:i + SPECIAL_COLUMNS] for i in range(0, len(files), SPECIAL_COLUMNS)]
+            _stitch(rows, path, (res_x, TILE))
+    finally:
+        for o in reversed(made):
+            data_block = o.data
+            bpy.data.objects.remove(o)
+            if data_block is not None and data_block.users == 0:
+                if isinstance(data_block, bpy.types.Armature):
+                    bpy.data.armatures.remove(data_block)
+                elif isinstance(data_block, bpy.types.Mesh):
+                    bpy.data.meshes.remove(data_block)
+        for m in (gray, dark):
+            bpy.data.materials.remove(m)
+        reset_pose()
+    return path

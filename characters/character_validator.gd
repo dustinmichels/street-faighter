@@ -66,6 +66,9 @@ var scene: Node3D
 ## The contents of a valid file, exactly as checked (the library stores
 ## these, not a second read of the path), or empty.
 var file_bytes := PackedByteArray()
+## The character's own special throw (`CharacterSpecial`) of a valid file, or
+## null if it has none.
+var special: CharacterSpecial
 
 # Bone name -> {"parent": String, "rest": Transform3D}, plus the skeleton's
 # transform relative to the scene root, from `REFERENCE` (loaded once).
@@ -75,12 +78,14 @@ static var _reference_skeleton_transform: Transform3D
 
 ## Validates the `.glb` at `path` and returns every problem found, or an empty
 ## array if the character is usable. Warnings go to `warnings`. On success
-## `scene` holds the decoded model; otherwise it is null.
+## `scene` holds the decoded model and `special` its special throw, if any;
+## otherwise both are null.
 func validate(path: String) -> PackedStringArray:
 	errors = PackedStringArray()
 	warnings = PackedStringArray()
 	scene = null
 	file_bytes = PackedByteArray()
+	special = null
 	var data := _read_file(path)
 	if data.is_empty():
 		return errors
@@ -93,6 +98,7 @@ func validate(path: String) -> PackedStringArray:
 	_check_content(json, data)
 	var root := _decode(data, path)
 	if root == null:
+		special = null
 		return errors
 	_check_scene(root)
 	if errors.is_empty():
@@ -100,6 +106,7 @@ func validate(path: String) -> PackedStringArray:
 		file_bytes = data
 	else:
 		root.free()
+		special = null
 	return errors
 
 
@@ -429,6 +436,20 @@ func _check_content(json: Dictionary, bytes: PackedByteArray) -> void:
 		warnings.append("Ignored: %d light(s)" % lights)
 	if shape_keys:
 		warnings.append("Ignored: shape keys")
+	_check_special(json)
+
+
+## The custom special throw in the top-level `extras`, if any
+## (`CharacterSpecial`).
+func _check_special(json: Dictionary) -> void:
+	var data: Variant = _dict(_dict(json.get("extras")).get(CharacterSpecial.EXTRAS_KEY)).get(
+		CharacterSpecial.SPECIAL_KEY
+	)
+	if data == null:
+		return
+	var parsed := CharacterSpecial.parse(data)
+	errors.append_array(parsed.errors)
+	special = parsed if parsed.errors.is_empty() else null
 
 
 func _under_joint(index: int, joints: Dictionary, parent_of: Dictionary) -> bool:

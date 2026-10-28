@@ -24,6 +24,8 @@ The agent writes a Python script that builds the character on the game's skeleto
 
 To change the design later, edit `build_character.py` (or ask the agent to), rerun it, and click "Re-import" in the game.
 
+You can also ask the agent later to add a special move, the character's own throw animation; it builds it by following `SPECIAL.md`.
+
 ## Files
 
 | File                         | What it is                                                                                                                |
@@ -31,14 +33,16 @@ To change the design later, edit `build_character.py` (or ask the agent to), rer
 | `PROMPT.md`                  | The instructions for the agent, with your design brief filled in.                                                         |
 | [`SKELETON.md`](SKELETON.md) | The skeleton every character uses: bone names, rest pose, axes, and model conventions. The game's one skeleton reference. |
 | `BPY_NOTES.md`               | How to use `kit.py`, and correct Blender Python calls for anything else.                                                  |
+| `SPECIAL.md`                 | How to give the character its own special throw animation, with a worked example.                                         |
 | `kit.py`                     | Helpers for build scripts: the skeleton, materials, body parts, previews, export, and the validator run.                  |
 | `example_build_character.py` | A complete, working example fighter: built, previewed, exported.                                                          |
 | `export_glb.py`              | Exports the scene with the settings the game expects. `kit.py` calls it.                                                  |
 | `build_template.py`          | Saves the bare skeleton as `template.blend`, if you want to model by hand in Blender.                                     |
 | `character_request.json`     | Your questionnaire answers, so the game can reopen them.                                                                  |
 | `kit_config.json`            | Where the game is, so every build can run its validator, and the `.glb` file name.                                        |
+| `special_base.json`          | The standard throw's timing, poses, and landing spot, which a special builds on. `kit.py` reads it.                       |
 
-The agent adds `build_character.py`, `previews/sheet.png` (the latest preview renders), `<name>.glb` (the character), and `<name>.json` (its name and description).
+The agent adds `build_character.py`, `previews/sheet.png` (the latest preview renders), `previews/special.png` (with a special move), `<name>.glb` (the character), and `<name>.json` (its name and description).
 
 ## Running the scripts yourself
 

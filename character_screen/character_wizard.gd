@@ -1,12 +1,12 @@
 class_name CharacterWizard
 extends VBoxContainer
-## The "CREATE NEW" questionnaire of `CharacterScreen`: three short pages
+## The "CREATE NEW" questionnaire of `CharacterScreen`: five short pages
 ## (`PAGES`) sized for the 480x270 menu, built in code. Every input is a
 ## focusable control, so keyboard (arrows/Tab, Enter, Esc), gamepad (d-pad,
-## A, B) and mouse all work; only the text fields need typing. Everything the
-## pages don't ask (outfit, head, accessories) goes in the free-text notes or
-## is left to the agent. `answers()` returns the answers in the `CreatorKit`
-## format.
+## A, B) and mouse all work; only the text fields need typing. The outfit
+## fields, notes and special move are optional; whatever is left blank is up
+## to the agent, and a blank special move keeps the standard throw.
+## `answers()` returns the answers in the `CreatorKit` format.
 
 ## The player moved past the last page.
 signal finished
@@ -16,10 +16,26 @@ signal canceled
 enum Page {
 	IDENTITY,
 	LOOK,
+	OUTFIT,
 	NOTES,
+	SPECIAL,
 }
 
-const PAGES := { Page.IDENTITY: "WHO IS IT?", Page.LOOK: "LOOK", Page.NOTES: "ANYTHING ELSE?" }
+const PAGES := {
+	Page.IDENTITY: "WHO IS IT?",
+	Page.LOOK: "LOOK",
+	Page.OUTFIT: "OUTFIT",
+	Page.NOTES: "ANYTHING ELSE?",
+	Page.SPECIAL: "SPECIAL MOVE",
+}
+## The OUTFIT page's fields: `CreatorKit.OPTIONAL_KEYS` key → label and
+## placeholder.
+const OUTFIT := {
+	"headgear": ["HEADGEAR", "red headband"],
+	"shirt": ["SHIRT", "sleeveless gi top"],
+	"pants": ["PANTS", "baggy black gi pants"],
+	"accessories": ["ACCESSORIES", "gold chain, taped fists"],
+}
 ## Pick-list entry that leaves the answer to the agent (empty answer).
 const ANY := "ANY"
 const ARCHETYPES := [
@@ -70,7 +86,9 @@ var _colors := { } # palette key → ColorPickerButton
 var _palettes := { } # PRESETS key or CUSTOM → its toggle Button
 var _palette := "" # the shown PRESETS key or CUSTOM
 var _custom: Array[Color] = [] # the CUSTOM colors, kept while a preset is shown
+var _outfit := { } # OUTFIT key → its LineEdit
 var _notes: LineEdit
+var _special: LineEdit
 
 
 func _ready() -> void:
@@ -112,7 +130,7 @@ func _ready() -> void:
 
 ## A blank questionnaire (first palette preset), on the first page.
 func reset() -> void:
-	for edit: LineEdit in [_name, _concept, _notes]:
+	for edit: LineEdit in [_name, _concept, _notes, _special] + _outfit.values():
 		edit.text = ""
 	_archetype.select(0)
 	_build.select(1)
@@ -140,14 +158,18 @@ func answers() -> Dictionary:
 	var palette := { }
 	for key: String in _colors:
 		palette[key] = "#" + _colors[key].color.to_html(false)
-	return {
+	var out := {
 		"name": _name.text.strip_edges(),
 		"concept": _concept.text.strip_edges(),
 		"archetype": _pick(_archetype),
 		"build": _pick(_build),
 		"palette": palette,
 		"notes": _notes.text.strip_edges(),
+		"special": _special.text.strip_edges(),
 	}
+	for key: String in _outfit:
+		out[key] = _outfit[key].text.strip_edges()
+	return out
 
 
 static func _pick(option: OptionButton) -> String:
@@ -204,15 +226,34 @@ func _build_page(page: Page, box: Control) -> void:
 				_setup_picker(picker.get_picker())
 				swatch.add_child(picker)
 				_colors[key] = picker
+		Page.OUTFIT:
+			for key: String in OUTFIT:
+				var edit := _line_edit(OUTFIT[key][1], CreatorKit.max_length(key))
+				_row(box, OUTFIT[key][0]).add_child(edit)
+				_outfit[key] = edit
+			box.add_child(_note("All optional. Blank ones are up to the agent."))
 		Page.NOTES:
 			_notes = _field(
 				box,
-				"OUTFIT, HAIR, EXTRAS (OPTIONAL)",
-				"gi pants, red headband, a scar over the left eye",
+				"HAIR, FACE, EXTRAS (OPTIONAL)",
+				"slicked-back pompadour, a scar over the left eye",
 				CreatorKit.max_length("notes"),
 			)
 			_notes.custom_minimum_size.x = 380
 			box.add_child(_note("Leave it blank and the agent designs the rest from your concept."))
+		Page.SPECIAL:
+			_special = _field(
+				box,
+				"YOUR SPECIAL THROW (OPTIONAL)",
+				"a death roll that spins them and slams them down",
+				CreatorKit.max_length("special"),
+			)
+			_special.custom_minimum_size.x = 380
+			box.add_child(
+				_note(
+					"The agent animates it on both fighters. It looks different, but works like the standard throw. Leave it blank to keep the standard one."
+				)
+			)
 
 
 func _show_page(page: Page) -> void:
@@ -302,10 +343,17 @@ func _row(box: Control, text: String) -> HBoxContainer:
 	return row
 
 
-## A labeled text field taking at most `limit` characters (the
-## `CreatorKit.sanitize()` cap, so nothing typed is cut off later); Enter moves
-## on to the next control.
+## A labeled text field (see `_line_edit()`).
 func _field(box: Control, text: String, placeholder: String, limit: int) -> LineEdit:
+	var edit := _line_edit(placeholder, limit)
+	box.add_child(_label(text, LABEL_COLOR))
+	box.add_child(edit)
+	return edit
+
+
+## A text field taking at most `limit` characters (the `CreatorKit.sanitize()`
+## cap, so nothing typed is cut off later); Enter moves on to the next control.
+func _line_edit(placeholder: String, limit: int) -> LineEdit:
 	var edit := LineEdit.new()
 	edit.placeholder_text = placeholder
 	edit.max_length = limit
@@ -315,8 +363,6 @@ func _field(box: Control, text: String, placeholder: String, limit: int) -> Line
 		func(_t: String) -> void:
 			_focus_next(edit),
 	)
-	box.add_child(_label(text, LABEL_COLOR))
-	box.add_child(edit)
 	return edit
 
 

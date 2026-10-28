@@ -10,11 +10,11 @@ A pixel-art fighting game driven by real 3D models. Describe a fighter in a few 
 
 ## Features
 
-- **Bring your own agent.** Answer a short questionnaire and the game writes a prompt kit; any agent that runs shell commands builds the fighter in Blender and checks it with the game's validator.
+- **Bring your own agent.** Answer a short questionnaire and the game writes a prompt kit; any agent that runs shell commands builds the fighter in Blender and checks it with the game's validator. Ask for a special move and it animates the fighter's own special throw too.
 - **Online, peer to peer.** Host or join by IP. Deterministic rollback netcode keeps both machines frame-identical, and custom fighters are sent to your opponent automatically.
 - **Fight the CPU.** Punch, block, duck, sweep, and land three clean hits to charge a special throw.
 - **Pixel art from real 3D.** Every frame is rendered at 480×270 with toon shading, outlines, and color quantization.
-- **Fair by design.** Custom characters are cosmetic: hitboxes and damage are the same for everyone.
+- **Fair by design.** Custom characters, special throws included, are cosmetic: hitboxes and damage are the same for everyone.
 
 ![A sweep knocks the opponent down on the street stage](docs/public/media/sweep.png)
 

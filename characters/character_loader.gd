@@ -36,7 +36,8 @@ const REQUIRED_BONES: PackedStringArray = [
 
 
 ## Loads a character `.glb` after `CharacterValidator` accepts it. Returns the
-## scene root, or null after pushing an error that lists every problem.
+## scene root, or null after pushing an error that lists every problem. A
+## custom special throw rides along on the root (`CharacterSpecial.of()`).
 static func load_character(path: String) -> Node3D:
 	var validator := CharacterValidator.new()
 	var errors := validator.validate(path)
@@ -48,6 +49,8 @@ static func load_character(path: String) -> Node3D:
 	for warning in validator.warnings:
 		push_warning("CharacterLoader: '%s': %s" % [path, warning])
 	_apply_toon_materials(validator.scene)
+	if validator.special != null:
+		validator.scene.set_meta(CharacterSpecial.META, validator.special)
 	return validator.scene
 
 

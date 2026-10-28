@@ -18,13 +18,15 @@ The game never runs Blender or the agent for you, and nothing is uploaded anywhe
 
 ## 1. Describe your fighter
 
-Menu → **CHARACTERS** → **CREATE NEW**. Three short pages:
+Menu → **CHARACTERS** → **CREATE NEW**. Five short pages:
 
 | Page               | You choose                                                                                                                   |
 | ------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
 | **WHO IS IT?**     | A name and a one-line concept ("A french lizard man").                                                                       |
 | **LOOK**           | An archetype (brawler, martial artist, robot, monster, ninja, … or ANY), a build, and four colors from a preset or your own. |
-| **ANYTHING ELSE?** | Optional notes: outfit, hair, extras. Whatever you leave out, the agent designs to fit your concept.                         |
+| **OUTFIT**         | Optional headgear, shirt, pants, and accessories. Blank ones are left out of the prompt.                                     |
+| **ANYTHING ELSE?** | Optional notes: hair, face, extras. Whatever you leave out, the agent designs to fit your concept.                           |
+| **SPECIAL MOVE**   | Optional: your own [special throw](#your-own-special-throw) ("a death roll that spins them and slams them down").             |
 
 ## 2. Save the kit
 
@@ -76,9 +78,15 @@ Ask your agent for changes in the same session (or start it again in the kit fol
 
 **DELETE** removes a fighter from the library. The kit folder and its `.glb` stay where they are.
 
+## Your own special throw
+
+After three hits in a row, the special button grabs and throws the opponent. A fighter can bring its own version of that throw: describe it on the **SPECIAL MOVE** page, or later ask your agent to add one ("give him a spinning piledriver as his special"). The agent animates both fighters, you and the one you throw, following the kit's `SPECIAL.md`. It renders the throw as `previews/special.png` to check it, and stores it inside the `.glb`, so importing, re-importing and online play need nothing extra.
+
+Only the look changes. Every special lasts as long as the standard throw, does the same damage, and drops the opponent on its back in the same spot behind you, so the elbow-drop follow-up still works. Online, your opponent sees your special too, unless they've hidden other players' fighters.
+
 ## Rules every fighter follows
 
-Fighters are **cosmetic**: hitboxes, reach, speed, and damage are the same for everyone, whatever the model looks like. The game owns all animations and plays them on one shared skeleton. To be accepted, a model must:
+Fighters are **cosmetic**: hitboxes, reach, speed, and damage are the same for everyone, whatever the model looks like. The game owns all animations and plays them on one shared skeleton; a special throw only changes how the standard throw looks. To be accepted, a model must:
 
 - use the game's 17-bone skeleton unchanged, with each body part a rigid piece attached to one bone,
 - stand 1.6–2.0 m tall with its feet on the ground,

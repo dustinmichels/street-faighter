@@ -9,8 +9,10 @@ extends RefCounted
 ## Answers are the questionnaire's raw values, JSON-compatible (strings, and
 ## `palette` as a dictionary of `#rrggbb` strings). Keys used by
 ## `PROMPT_TEMPLATE.md`: `name`, `concept`, `archetype`, `build`, `palette`
-## (`main`, `secondary`, `accent`, `base`), `notes`. `prompt()` and `write()`
-## pass them through `sanitize()` first.
+## (`main`, `secondary`, `accent`, `base`), `headgear`, `shirt`, `pants`,
+## `accessories`, `notes`, `special` (the player's own special throw, which
+## the agent animates on both fighters, `CharacterSpecial`). `prompt()` and
+## `write()` pass them through `sanitize()` first.
 
 const SOURCE_DIR := "res://creator_kit"
 ## Filled in by `prompt()`; not copied into the kit.
@@ -20,6 +22,8 @@ const REQUEST_NAME := "character_request.json"
 ## What `kit.py` needs from the game (`write()`): `glb`, the export's file
 ## name, and `validator`, `validator_args()`.
 const CONFIG_NAME := "kit_config.json"
+## What `kit.py` needs to author a special throw (`CharacterSpecial.kit_base()`).
+const SPECIAL_BASE_NAME := "special_base.json"
 ## Folder for kits under the player's Documents folder (`default_dir()`).
 const DEFAULT_DIR_NAME := "street-fAIghter characters"
 ## Shown for a placeholder without an answer.
@@ -76,11 +80,25 @@ const PLATFORM_VALUES := {
 	},
 }
 ## Text answers, each one line in the prompt's design brief.
-const TEXT_KEYS := ["name", "concept", "archetype", "build", "notes"]
+const TEXT_KEYS := [
+	"name",
+	"concept",
+	"archetype",
+	"build",
+	"headgear",
+	"shirt",
+	"pants",
+	"accessories",
+	"notes",
+	"special",
+]
+## Text answers whose template line `prompt()` leaves out when they're blank,
+## instead of showing `UNSPECIFIED`.
+const OPTIONAL_KEYS := ["headgear", "shirt", "pants", "accessories", "special"]
 const PALETTE_KEYS := ["main", "secondary", "accent", "base"]
 ## Longest kept text answer, in characters (`max_length()`): `MAX_LENGTHS`,
 ## or `MAX_TEXT` for other keys.
-const MAX_LENGTHS := { "name": 32, "concept": 160, "notes": 400 }
+const MAX_LENGTHS := { "name": 32, "concept": 160, "notes": 400, "special": 160 }
 const MAX_TEXT := 80
 ## User argument that makes the game validate a `.glb` and quit instead of
 ## starting (§4): `<game> --headless -- --validate-character <file.glb>`.
@@ -307,7 +325,9 @@ static func clean_text(text: String, limit: int) -> String:
 ## The agent's prompt for a kit: `PROMPT_TEMPLATE.md` with each `{{key}}`
 ## replaced by the answer (`{{palette.main}}` for nested keys, `{{slug}}` from
 ## the name, and `PLATFORM_VALUES` for `platform`, an `OS.get_name()`), after
-## `sanitize()`. Placeholders without an answer get `UNSPECIFIED`.
+## `sanitize()`. Template lines with an `OPTIONAL_KEYS` placeholder are left
+## out when that answer is blank; other placeholders without an answer get
+## `UNSPECIFIED`.
 static func prompt(answers: Dictionary, platform: String = OS.get_name()) -> String:
 	var template := FileAccess.get_file_as_string(SOURCE_DIR.path_join(PROMPT_TEMPLATE))
 	if template.is_empty():
@@ -322,6 +342,17 @@ static func prompt(answers: Dictionary, platform: String = OS.get_name()) -> Str
 	values.slug = character
 	_flatten(answers, "", values)
 	var placeholder := RegEx.create_from_string("\\{\\{\\s*([\\w.]+)\\s*\\}\\}")
+	# Drop lines on the template, before filling in: answers can't remove lines.
+	var kept := PackedStringArray()
+	for line in template.split("\n"):
+		var blank_optional := placeholder.search_all(line).any(
+			func(m: RegExMatch) -> bool:
+				var key := m.get_string(1)
+				return key in OPTIONAL_KEYS and str(values.get(key, "")).strip_edges().is_empty(),
+		)
+		if not blank_optional:
+			kept.append(line)
+	template = "\n".join(kept)
 	var out := ""
 	var last := 0
 	for m in placeholder.search_all(template):
@@ -370,9 +401,9 @@ static func shell_quote(arg: String, shell: Shell = Shell.POSIX) -> String:
 
 ## Writes the kit into `<dir>/<slug>/`: the kit files (`SKELETON.md` among
 ## them), the filled-in `PROMPT.md`, `character_request.json` (the
-## `sanitize()`d answers, so the questionnaire can be reopened), and
-## `kit_config.json`. Kit files and those three are overwritten if the folder
-## exists; the agent's own files there are kept.
+## `sanitize()`d answers, so the questionnaire can be reopened),
+## `kit_config.json`, and `special_base.json`. Kit files and those four are
+## overwritten if the folder exists; the agent's own files there are kept.
 static func write(dir: String, answers: Dictionary) -> String:
 	answers = sanitize(answers)
 	var folder := dir.path_join(slug(str(answers.get("name", ""))))
@@ -407,6 +438,11 @@ static func write(dir: String, answers: Dictionary) -> String:
 	if not _write_file(
 		folder.path_join(CONFIG_NAME),
 		(JSON.stringify(config, "\t", false) + "\n").to_utf8_buffer(),
+	):
+		return ""
+	if not _write_file(
+		folder.path_join(SPECIAL_BASE_NAME),
+		(JSON.stringify(CharacterSpecial.kit_base(), "\t", false) + "\n").to_utf8_buffer(),
 	):
 		return ""
 	_save_setting(SETTINGS_LAST_KIT_KEY, folder)

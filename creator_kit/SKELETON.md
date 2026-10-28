@@ -11,7 +11,7 @@ Every character uses this one skeleton. The game owns all animations and plays t
 - **Rigid parts, no skinning.** Each body part is its own mesh object, parented to one bone (Parent type: _Bone_, Ctrl+P → _Bone_). Don't use an Armature modifier, vertex groups, or weight painting.
 - **Don't give a part the same name as a bone** (e.g. call it `head_part`, not `head`). glTF stores bones and meshes as nodes, and Godot fixes a name clash by renaming the bone (`head` → `head_2`), which breaks animations.
 - **Don't edit the skeleton.** Don't rename, add, delete, move, or re-roll bones, and don't change the rest pose. Parts can be any shape or size, but the joints stay where they are.
-- **No animations, constraints, or shape keys in the file.** The game ignores them.
+- **No animations, constraints, or shape keys in the file.** The game ignores them. (A special throw isn't an animation in the file: `kit.py` stores it as data, see `SPECIAL.md`.)
 - Export as glTF 2.0 binary (`.glb`).
 
 ## Bones

@@ -285,6 +285,10 @@ var skeleton: Skeleton3D
 ## Plays `ANIMATIONS` (default library, so clips are `&"idle"`, `&"punch"`, ...)
 ## on `skeleton`. Recreated with each model.
 var anim: AnimationPlayer
+## The character's own special throw, or null for the standard one. Shown on
+## both fighters while this one throws (`_shown_special()`); never changes the
+## simulation.
+var special: CharacterSpecial
 
 @onready var visual: Node3D = $Visual
 
@@ -895,10 +899,11 @@ func knock_down() -> void:
 	change_state(State.KNOCKED_DOWN)
 
 
-## Shows the simulation state: places the node at the body position, puts
-## `visual` on the pixel grid, mirrors it along `facing` and poses the model.
+## Shows the simulation state: places the node at the body position (see
+## `_shown_position()`), puts `visual` on the pixel grid, mirrors it along
+## `facing` and poses the model.
 func sync_visual() -> void:
-	position = Vector3(float(pos_x) / SCALE, float(pos_y) / SCALE, 0.0)
+	position = _shown_position()
 	# The model is authored facing +Z: a quarter turn to +X, mirrored across X
 	# for -X so the same side always faces the camera.
 	visual.basis = Basis.from_scale(Vector3(facing, 1.0, 1.0)) * Basis(Vector3.UP, PI / 2.0)
@@ -908,15 +913,42 @@ func sync_visual() -> void:
 	_pose()
 
 
+## Where the body is shown: its simulated position, except while a custom
+## special carries it (`CharacterSpecial.victim_root()`, before the slam, from
+## where both agree).
+func _shown_position() -> Vector3:
+	if (
+		state == State.THROWN and state_ticks < THROW_SLAM and opponent != null
+		and opponent.state == State.THROW and opponent.special != null
+	):
+		var root := opponent.special.victim_root(state_ticks)
+		return Vector3(float(opponent.pos_x) / SCALE + opponent.facing * root.x, root.y, 0.0)
+	return Vector3(float(pos_x) / SCALE, float(pos_y) / SCALE, 0.0)
+
+
 ## Seeks the animation to the current state's frame: tick `state_ticks` of a
 ## state shows its clip at `state_ticks * TICK` (wrapped for looping clips,
 ## held at the end otherwise). The player never advances on its own, so the
 ## pose is a pure function of the simulation state (also after a rollback).
+## A custom special's clips come from its library (`_shown_special()`), put in
+## the player's `CharacterSpecial.LIBRARY_NAME` slot when needed.
 func _pose() -> void:
 	if anim == null:
 		return
 	var clip := _state_clip()
 	var animation := ANIMATIONS.get_animation(clip)
+	var shown := _shown_special()
+	var swapped := false
+	if shown != null:
+		var library := shown.library()
+		animation = library.get_animation(clip)
+		var slot := CharacterSpecial.LIBRARY_NAME
+		if not anim.has_animation_library(slot) or anim.get_animation_library(slot) != library:
+			if anim.has_animation_library(slot):
+				anim.remove_animation_library(slot)
+			anim.add_animation_library(slot, library)
+			swapped = true
+		clip = StringName("%s/%s" % [slot, clip])
 	var length := animation.length
 	var end := HIT_RECOIL_END if state == State.HIT else length
 	var t := state_ticks * TICK
@@ -927,7 +959,7 @@ func _pose() -> void:
 	# One walk clip for both directions: backwards when retreating.
 	if state == State.WALK and move_dir * facing < 0:
 		t = length - t
-	if anim.assigned_animation != clip:
+	if swapped or anim.assigned_animation != clip:
 		anim.assigned_animation = clip
 	anim.seek(t, true)
 
@@ -962,6 +994,18 @@ func _state_clip() -> StringName:
 	return &"idle"
 
 
+## The custom special whose clips show the current state, or null for the
+## standard clips: this fighter's own while it throws, the thrower's
+## (`opponent`) while it is thrown, also after the slam (from there it
+## matches the standard `thrown`).
+func _shown_special() -> CharacterSpecial:
+	if state == State.THROW:
+		return special
+	if state == State.THROWN and opponent != null:
+		return opponent.special
+	return null
+
+
 ## Replaces the current model with the character at `path`. Returns false if it
 ## fails `CharacterValidator` or can't be loaded; the fighter then keeps its old
 ## model, or gets `CharacterLoader.DEFAULT_CHARACTER` if it has none yet.
@@ -976,6 +1020,9 @@ func set_character(path: String) -> bool:
 	model = new_model
 	model_path = path
 	skeleton = CharacterLoader.find_skeleton(model)
+	special = CharacterSpecial.of(model)
+	if special != null:
+		special.library() # build the clips now, not on the first throw
 	# Tracks are `Skeleton3D:<bone>`, resolved from the player's parent.
 	anim = AnimationPlayer.new()
 	anim.name = "AnimationPlayer"

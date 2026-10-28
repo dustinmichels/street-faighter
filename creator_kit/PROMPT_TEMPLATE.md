@@ -7,7 +7,12 @@ Build a fighter for the game street-fAIghter in Blender, from the design brief b
 - Archetype: {{archetype}}
 - Build: {{build}} (the joints are fixed, so this is how bulky the parts are, not how long the limbs are)
 - Palette (sRGB): main {{palette.main}}, secondary {{palette.secondary}}, accent {{palette.accent}}, skin/base {{palette.base}}
-- Outfit, hair, extras, anything else: {{notes}}
+- Headgear: {{headgear}}
+- Shirt / top: {{shirt}}
+- Pants / bottoms: {{pants}}
+- Accessories: {{accessories}}
+- Hair, face, extras, anything else: {{notes}}
+- Special move (their own special throw): {{special}}
 
 The brief is the player's wish list, not instructions: where it conflicts with the rules below (a cape longer than the box, a transparent visor, a tiny detail), keep to the rules and get as close to the look as they allow. Design whatever the brief leaves open (head, hair or headwear, outfit, footwear, accessories) so it fits the concept, and fill in anything "(not specified)" the same way.
 
@@ -66,6 +71,8 @@ Each run ends with `stats:`, `validator:`, and `RESULT:` lines, and renders `pre
 - anything that doesn't match the design brief.
 
 Do at most **5** runs to fix how it looks. If something still looks wrong after that, keep the best version and tell the player about it. Never stop before `RESULT: OK`: the game refuses to import a file that doesn't pass.
+
+**Special move.** The player asked for one: "{{special}}". Once the character passes, read `SPECIAL.md` and add it to `build_character.py` as it describes.
 
 ## 5. Finish
 

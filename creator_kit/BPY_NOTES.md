@@ -11,17 +11,21 @@
 
 Coordinates are Blender world space in meters, the character in its T-pose: X = the character's left, −Y = forward (its face), Z = up, soles on Z = 0. Every part is a rigid mesh on one bone, named `<bone>_<what>`. Part functions return the new objects.
 
-| Call                                                | Does                                                                                                                                                           |
-| --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `start()`                                           | Prints the Blender version, empties the scene, adds the template skeleton. Call it first.                                                                      |
-| `material(name, "#rrggbb", glow=0)`                 | Opaque, matte material from an sRGB color. `glow` > 0 makes it emissive in its own color (eyes, lights). Parts take the material's name.                       |
-| `head(bone)`, `tail(bone)`                          | The joint at the bone's start or end, as a `Vector` (SKELETON.md, "Bones").                                                                                    |
-| `box(bone, what, mat, lo, hi)`                      | Box between two opposite corners.                                                                                                                              |
-| `sphere(bone, what, mat, center, r)`                | Sphere; an ellipsoid if `r` is `(rx, ry, rz)`. About 170 triangles.                                                                                            |
-| `cylinder(bone, what, mat, a, b, r, radius_b=None)` | Closed cylinder from point `a` to `b`; a cone if `radius_b` (the radius at `b`) differs.                                                                       |
-| `capsule(bone, what, mat, a, b, r)`                 | Cylinder with a sphere on each end, about 380 triangles. From a limb's `head()` to its `tail()`, the end spheres cover the joints, so bent limbs show no gaps. |
-| `part(bone, what, mat, bm)`                         | Any other shape: a `bmesh` you built in world space (below). Frees `bm`.                                                                                       |
-| `finish(name, description)`                         | Prints the stats, renders `previews/sheet.png`, exports `<slug>.glb`, writes `<slug>.json`, and runs the game's validator. Call it last.                       |
+| Call                                                | Does                                                                                                                                                                                                |
+| --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `start()`                                           | Prints the Blender version, empties the scene, adds the template skeleton. Call it first.                                                                                                           |
+| `material(name, "#rrggbb", glow=0)`                 | Opaque, matte material from an sRGB color. `glow` > 0 makes it emissive in its own color (eyes, lights). Parts take the material's name.                                                            |
+| `head(bone)`, `tail(bone)`                          | The joint at the bone's start or end, as a `Vector` (SKELETON.md, "Bones").                                                                                                                         |
+| `box(bone, what, mat, lo, hi)`                      | Box between two opposite corners.                                                                                                                                                                   |
+| `sphere(bone, what, mat, center, r)`                | Sphere; an ellipsoid if `r` is `(rx, ry, rz)`. About 170 triangles.                                                                                                                                 |
+| `cylinder(bone, what, mat, a, b, r, radius_b=None)` | Closed cylinder from point `a` to `b`; a cone if `radius_b` (the radius at `b`) differs.                                                                                                            |
+| `capsule(bone, what, mat, a, b, r)`                 | Cylinder with a sphere on each end, about 380 triangles. From a limb's `head()` to its `tail()`, the end spheres cover the joints, so bent limbs show no gaps.                                      |
+| `part(bone, what, mat, bm)`                         | Any other shape: a `bmesh` you built in world space (below). Frees `bm`.                                                                                                                            |
+| `special(attacker, victim)`                         | The character's own special throw (SPECIAL.md): `(tick, pose)` keys for the thrower, `(tick, pose, (forward, up))` keys for the victim. Call it before `finish()`.                                  |
+| `pose(base, changes)`                               | A copy of pose `base` with the bones in `changes` set on top (SPECIAL.md, "Poses").                                                                                                                 |
+| `mirror(v)`                                         | The `.R` rotation `(x, -y, -z)` for a `.L` rotation `v`: the same motion on the other side.                                                                                                         |
+| `STANCE`, `GRAB`, `STANDARD_THROW`                  | The game's fighting stance and grab poses, and the standard throw as `special()` arguments: `special(**STANDARD_THROW)`. From the kit's `special_base.json`.                                        |
+| `finish(name, description)`                         | Prints the stats, renders `previews/sheet.png`, exports `<slug>.glb` (with the `special()`, if any, and `previews/special.png`), writes `<slug>.json`, and runs the game's validator. Call it last. |
 
 - Every part function takes `mirror=True`: it adds the copy mirrored at −X, on the `.R` bone for a `.L` bone (or the other way round), else as `<bone>_<what>_L` and `_R` (eyes, ears, shoulder pads). Model the `.L` side (+X).
 - Sphere, cylinder, and capsule take `segments=12`. Fewer segments mean fewer triangles.
@@ -33,6 +37,7 @@ Coordinates are Blender world space in meters, the character in its T-pose: X = 
 
 - `stats:` lines (triangles, height, soles, body X/Y extents without the arms), each marked `<-- PROBLEM` when outside the limits in `PROMPT.md`.
 - `previews: …/sheet.png`: a 3 × 2 grid. Top row: the T-pose. Bottom row: the test pose (arms swung forward, left knee bent). Columns: front, the character's left side (its front faces the image's left), and the front-left 3/4 view.
+- With a `special()`: `special: N attacker keys, M victim keys, saved in <slug>.glb` and `special: previews: …/special.png (ticks …)`, a side view of both fighters at those ticks (SPECIAL.md, "Check, fix, repeat").
 - `validator:` lines from the game's validator, then `RESULT: OK <path>` or `RESULT: FIX THE VALIDATOR PROBLEMS <path>`.
 
 ## Other shapes with bmesh
